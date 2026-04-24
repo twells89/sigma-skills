@@ -1,0 +1,525 @@
+# Workbook Layout Reference
+
+Layout is always generated with Ruby. Never hand-write layout XML.
+
+## Grid system
+
+Sigma uses a 24-column CSS grid. Rows are numbered from 1 and use span-style notation:
+- `gridColumn="1 / 25"` — full width (columns 1 through 24)
+- `gridColumn="1 / 13"` — left half
+- `gridColumn="13 / 25"` — right half
+- `gridRow="1 / 7"` — rows 1 through 6 (6 units tall)
+
+Row heights are relative units (auto). KPIs are ~6 units tall, charts 12-18 units.
+
+## Layout XML structure
+
+The layout is a **single top-level field on the workbook spec** — NOT a per-page field.
+It is one XML string containing all pages concatenated, each identified by the server-assigned page ID.
+
+```json
+{
+  "name": "My Workbook",
+  "layout": "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<Page type=\"grid\" ...>...</Page>\n<Page ...>...</Page>",
+  "pages": [
+    {"id": "Hn2bYOjeRL", "name": "Overview", "elements": [...]},
+    {"id": "gAPPHE3kaD", "name": "Product",  "elements": [...]}
+  ]
+}
+```
+
+**Critical:** Do NOT set `layout` on individual page objects. The API silently ignores per-page
+layout fields — the workbook will appear unstyled even though PUT returns `success: true`.
+Strip any `layout` key from page objects before writing the PUT body.
+
+### Page tag — required attributes
+
+Each page in the layout XML must use this exact format, with the server-assigned page `id`:
+
+```xml
+<Page type="grid" gridTemplateColumns="repeat(24, 1fr)" gridTemplateRows="auto" id="Hn2bYOjeRL">
+  ...
+</Page>
+```
+
+A bare `<Page>` tag without `type`, `gridTemplateColumns`, `gridTemplateRows`, and `id` is ignored.
+
+### LayoutElement — for plain elements (charts, tables, KPIs)
+
+```xml
+<LayoutElement elementId="abc123" gridColumn="1 / 25" gridRow="1 / 7"/>
+```
+
+### GridContainer — for container elements that wrap children
+
+```xml
+<GridContainer elementId="container-id" type="grid"
+  gridColumn="1 / 25" gridRow="1 / 7"
+  gridTemplateColumns="repeat(24, 1fr)" gridTemplateRows="auto">
+  <LayoutElement elementId="kpi-1-id" gridColumn="1 / 7" gridRow="1 / 2"/>
+  <LayoutElement elementId="kpi-2-id" gridColumn="7 / 13" gridRow="1 / 2"/>
+  <LayoutElement elementId="kpi-3-id" gridColumn="13 / 19" gridRow="1 / 2"/>
+  <LayoutElement elementId="kpi-4-id" gridColumn="19 / 25" gridRow="1 / 2"/>
+</GridContainer>
+```
+
+**Critical:** Container elements MUST use `<GridContainer>`, not `<LayoutElement type="grid">`.
+Using `<LayoutElement>` for a container causes empty containers to appear in the published workbook.
+
+## Ruby helpers
+
+```ruby
+require 'yaml'
+require 'date'
+require 'json'
+
+def gc(eid, c0, c1, r0, r1, inner)
+  "<GridContainer elementId=\"#{eid}\" type=\"grid\" " \
+  "gridColumn=\"#{c0} / #{c1}\" gridRow=\"#{r0} / #{r1}\" " \
+  "gridTemplateColumns=\"repeat(24, 1fr)\" gridTemplateRows=\"auto\">\n#{inner}\n</GridContainer>"
+end
+
+def le(eid, c0, c1, r0, r1)
+  "  <LayoutElement elementId=\"#{eid}\" gridColumn=\"#{c0} / #{c1}\" gridRow=\"#{r0} / #{r1}\"/>"
+end
+
+# page_id is the server-assigned page ID (e.g. "Hn2bYOjeRL"), NOT the page name
+def page_xml(page_id, *children)
+  header = "<Page type=\"grid\" gridTemplateColumns=\"repeat(24, 1fr)\" gridTemplateRows=\"auto\" id=\"#{page_id}\">"
+  [header, *children, "</Page>"].join("\n")
+end
+```
+
+## Typical page layout: 4 KPIs + line chart + 2 bar charts
+
+```ruby
+# Read the current spec (server-assigned IDs required)
+spec = YAML.safe_load(File.read('/tmp/current-spec.yaml'), permitted_classes: [Date, Time])
+
+# Find the Overview page and extract element IDs by name
+overview = spec['pages'].find { |p| p['name'] == 'Overview' }
+els = overview['elements'].each_with_object({}) { |e, h| h[e['name']] = e['id'] }
+
+container_id  = els['KPI Row']        # container element
+kpi1_id       = els['Total Sales']
+kpi2_id       = els['Total Profit']
+kpi3_id       = els['Profit Ratio']
+kpi4_id       = els['Sales per Customer']
+line_id       = els['Monthly Sales by Segment']
+bar1_id       = els['Monthly Sales by Category']
+bar2_id       = els['Sales by Ship Mode']
+
+kpi_inner = [
+  le(kpi1_id,  1,  7, 1, 2),
+  le(kpi2_id,  7, 13, 1, 2),
+  le(kpi3_id, 13, 19, 1, 2),
+  le(kpi4_id, 19, 25, 1, 2)
+].join("\n")
+
+overview_layout = "<Page>\n" \
+  "#{gc(container_id, 1, 25, 1, 7, kpi_inner)}\n" \
+  "#{le(line_id,  1, 25,  7, 20)}\n" \
+  "#{le(bar1_id,  1, 13, 20, 32)}\n" \
+  "#{le(bar2_id, 13, 25, 20, 32)}\n" \
+  "</Page>"
+```
+
+## Row sizing guide
+
+| Content | Typical row span |
+|---|---|
+| KPI row (container) | 6 rows (1→7) |
+| Wide line/area chart | 13 rows |
+| Bar chart (half-width) | 12 rows |
+| Data table | 15–20 rows |
+| Single KPI (inside container) | 1 row |
+
+## Multi-series chart patterns
+
+### Small multiples / trellis → multi-series line chart
+
+Tableau "small multiples" have no direct Sigma equivalent. Approximate with a single line chart,
+one series per segment value:
+
+```json
+{
+  "kind": "line-chart",
+  "name": "Monthly Sales by Segment",
+  "columns": [
+    {"id": "ov-date", "formula": "DateTrunc(\"month\", [Master/Order Date])", "name": "Month"},
+    {"id": "ov-cons", "formula": "Sum(If([Master/Segment] = \"Consumer\", [Master/Sales], Null))", "name": "Consumer"},
+    {"id": "ov-corp", "formula": "Sum(If([Master/Segment] = \"Corporate\", [Master/Sales], Null))", "name": "Corporate"},
+    {"id": "ov-home", "formula": "Sum(If([Master/Segment] = \"Home Office\", [Master/Sales], Null))", "name": "Home Office"}
+  ],
+  "yAxis": [{"id": "ov-cons"}, {"id": "ov-corp"}, {"id": "ov-home"}],
+  "xAxis": {"id": "ov-date"}
+}
+```
+
+`yAxis` (not `measures`) is the correct field for both `line-chart` and `bar-chart`. Using `measures` causes the API to reject the request with `"Invalid array: ...yAxis, got undefined"`.
+
+`xAxis` is the canonical x-axis field for both `bar-chart` and `line-chart`. `dimension` is accepted by the API but is not the canonical form. Prefer `xAxis` for both.
+
+```json
+{
+  "kind": "bar-chart",
+  "xAxis": {"id": "bar-city"},
+  "yAxis": [{"id": "bar-sales"}]
+}
+```
+
+```json
+{
+  "kind": "line-chart",
+  "xAxis": {"id": "lc-month"},
+  "yAxis": [{"id": "lc-sales"}]
+}
+```
+
+All `yAxis` entries are shown as separate series.
+
+### Map → bar chart
+
+Sigma spec does not support geographic maps. Approximate "Sales by State" as a bar chart sorted descending:
+
+```json
+{
+  "kind": "bar-chart",
+  "name": "Sales by City",
+  "columns": [
+    {"id": "bar-city",  "formula": "[Master/City]",       "name": "City"},
+    {"id": "bar-sales", "formula": "Sum([Master/Sales])", "name": "Sales"}
+  ],
+  "yAxis": [{"id": "bar-sales"}],
+  "xAxis": {"id": "bar-city", "sort": {"by": "bar-sales", "direction": "descending"}}
+}
+```
+
+## Element kinds supported
+
+| Sigma kind | Tableau equivalent |
+|---|---|
+| `kpi` | Big number / scorecard |
+| `line-chart` | Line chart, small multiples (approximated) |
+| `bar-chart` | Bar chart, horizontal bar, histogram, map (approximated) |
+| `pie` | Pie chart |
+| `donut` | Donut / ring chart |
+| `table` | Crosstab, text table |
+| `pivot-table` | Pivot / crosstab |
+| `control` | Dashboard filter, parameter (all types — see Control elements below) |
+
+Not supported: scatter chart, map, bullet chart, gantt, small multiples / trellis.
+
+## Element-type field requirements
+
+### KPI elements
+
+KPI elements require a `value` field referencing one column ID:
+
+```json
+{
+  "kind": "kpi",
+  "columns": [{"id": "k-sales", "formula": "Sum([Master/Sales])", "name": "Total Sales", "format": {"kind": "number", "formatString": "$,.0f"}}],
+  "value": {"id": "k-sales"}
+}
+```
+
+Omitting `value` causes `"Invalid object: ...value, got undefined"`.
+
+### Pivot table elements
+
+`rows`, `columnGroups`, and `values` must be **arrays of string column IDs**, not objects:
+
+```json
+{
+  "kind": "pivot-table",
+  "columns": [
+    {"id": "pcy-cat",   "formula": "[Master/Category]", "name": "Category"},
+    {"id": "pcy-year",  "formula": "DateTrunc(\"year\", [Master/Order Date])", "name": "Year"},
+    {"id": "pcy-sales", "formula": "Sum([Master/Sales])", "name": "Sales"}
+  ],
+  "rows":         ["pcy-cat"],
+  "columnGroups": ["pcy-year"],
+  "values":       ["pcy-sales"]
+}
+```
+
+Using `[{"id": "pcy-cat"}]` instead of `["pcy-cat"]` causes `"Invalid string: ...values[0], got object"`.
+
+### Pie and donut elements
+
+Both use `color` for the dimension (slice category) and `value` for the measure. Donut additionally requires `holeValue` for the center label.
+
+```json
+{
+  "kind": "pie",
+  "columns": [
+    {"id": "dim-region", "formula": "[Master/Region]", "name": "Region"},
+    {"id": "mea-sales",  "formula": "Sum([Master/Sales])", "name": "Sales"}
+  ],
+  "color": {"id": "dim-region"},
+  "value": {"id": "mea-sales"}
+}
+```
+
+```json
+{
+  "kind": "donut",
+  "columns": [
+    {"id": "dim-seg",    "formula": "[Master/Segment]", "name": "Segment"},
+    {"id": "mea-sales",  "formula": "Sum([Master/Sales])", "name": "Sales"},
+    {"id": "mea-sales2", "formula": "Sum([Master/Sales])", "name": "Sales Total"}
+  ],
+  "color":     {"id": "dim-seg"},
+  "value":     {"id": "mea-sales"},
+  "holeValue": {"id": "mea-sales2"}
+}
+```
+
+`holeValue` can reference the same aggregate as `value` (just a second column definition) or a different one.
+
+### Histogram
+
+Use a regular `bar-chart` with a manual `If()` bucketing formula as the `xAxis` column and `Count()` as the `yAxis` measure:
+
+```json
+{
+  "kind": "bar-chart",
+  "columns": [
+    {"id": "bucket", "formula": "If([Master/Sales] < 100, \"$0-$100\", If([Master/Sales] < 500, \"$100-$500\", \"$500+\"))", "name": "Sales Bucket"},
+    {"id": "cnt",    "formula": "Count()", "name": "Orders"}
+  ],
+  "xAxis": {"id": "bucket"},
+  "yAxis": [{"id": "cnt"}]
+}
+```
+
+## Control elements
+
+Controls are fully supported via the spec API. There are 9 control types.
+
+### Filter targets
+
+Every control that filters data uses a `filters` array. The source in each filter entry can point to either a warehouse table directly or a workbook element:
+
+```json
+// Warehouse table (connectionId + path)
+"filters": [{"source": {"kind": "warehouse-table", "connectionId": "<id>", "path": ["SCHEMA", "CATALOG", "TABLE"]}, "columnId": "COLUMN_NAME"}]
+
+// Workbook element column (server-assigned element and column IDs)
+"filters": [{"source": {"kind": "table", "elementId": "<element-id>"}, "columnId": "<server-col-id>"}]
+```
+
+### list — dropdown / multi-select
+
+Manual source (fixed static values):
+
+```json
+{
+  "kind": "control", "controlId": "filter-order", "name": "Order ID",
+  "controlType": "list",
+  "mode": "include", "selectionMode": "multiple", "values": [],
+  "source": {"kind": "manual", "valueType": "text"},
+  "filters": [{"source": {"kind": "warehouse-table", "connectionId": "<id>", "path": [...]}, "columnId": "ORDER_ID"}]
+}
+```
+
+Dynamic source (values populated from a column):
+
+```json
+{
+  "kind": "control", "controlId": "filter-region", "name": "Region",
+  "controlType": "list",
+  "mode": "include", "selectionMode": "multiple", "values": [],
+  "source": {"kind": "source", "source": {"kind": "table", "elementId": "<master-id>"}, "columnId": "<col-region-id>"},
+  "filters": [{"source": {"kind": "table", "elementId": "<master-id>"}, "columnId": "<col-region-id>"}]
+}
+```
+
+### date-range
+
+```json
+{
+  "kind": "control", "controlId": "filter-date", "name": "Order Date",
+  "controlType": "date-range", "mode": "between",
+  "includeNulls": "when-no-value-is-selected",
+  "filters": [{"source": {"kind": "warehouse-table", "connectionId": "<id>", "path": [...]}, "columnId": "ORDER_DATE"}]
+}
+```
+
+### text — single-line text filter
+
+```json
+{
+  "kind": "control", "controlId": "filter-schema", "name": "Schema",
+  "controlType": "text", "mode": "equals", "case": "insensitive",
+  "includeNulls": "when-no-value-is-selected", "showOperators": false,
+  "filters": [{"source": {"kind": "table", "elementId": "<element-id>"}, "columnId": "<col-id>"}]
+}
+```
+
+### text-area — multi-line text input
+
+```json
+{
+  "kind": "control", "controlId": "filter-text-area",
+  "controlType": "text-area",
+  "filters": [{"source": {"kind": "warehouse-table", "connectionId": "<id>", "path": [...]}, "columnId": "ORDER_ID"}]
+}
+```
+
+### segmented — parameter / radio buttons
+
+Manual values (most common for parameters):
+
+```json
+{
+  "kind": "control", "controlId": "p_date_dimension", "name": "Time Period",
+  "controlType": "segmented",
+  "source": {"kind": "manual", "valueType": "text", "values": ["Month", "Quarter", "Year"], "labels": [null, null, null]},
+  "value": "Quarter"
+}
+```
+
+Dynamic source (values from a column):
+
+```json
+{
+  "kind": "control", "controlId": "Ship-Mode", "name": "Ship Mode",
+  "controlType": "segmented",
+  "source": {"kind": "source", "source": {"kind": "warehouse-table", "connectionId": "<id>", "path": [...]}, "columnId": "SHIP_MODE"},
+  "value": null
+}
+```
+
+Segmented controls have no `filters` — they act as parameters referenced in element formulas via `controlId`:
+
+```
+Sum(If([p_date_dimension] = "Month", [Sales], Null))
+```
+
+### number — exact number match
+
+```json
+{
+  "kind": "control", "controlId": "filter-qty", "name": "Quantity",
+  "controlType": "number", "mode": "=",
+  "includeNulls": "when-no-value-is-selected",
+  "filters": [{"source": {"kind": "table", "elementId": "<element-id>"}, "columnId": "<col-id>"}]
+}
+```
+
+### number-range — from/to number inputs
+
+```json
+{
+  "kind": "control", "controlId": "filter-sales-range", "name": "Sales Range",
+  "controlType": "number-range",
+  "includeNulls": "when-no-value-is-selected",
+  "filters": [{"source": {"kind": "warehouse-table", "connectionId": "<id>", "path": [...]}, "columnId": "SALES"}]
+}
+```
+
+### slider — single value with bounds
+
+```json
+{
+  "kind": "control", "controlId": "slider-discount", "name": "Max Discount",
+  "controlType": "slider", "low": 0, "high": 100, "mode": "<=", "value": 0,
+  "includeNulls": "when-no-value-is-selected",
+  "filters": [{"source": {"kind": "table", "elementId": "<element-id>"}, "columnId": "<col-id>"}]
+}
+```
+
+### range-slider — range with two handles
+
+```json
+{
+  "kind": "control", "controlId": "range-slider-sales", "name": "Sales Range",
+  "controlType": "range-slider", "low": 0, "high": 100, "max": 100,
+  "includeNulls": "when-no-value-is-selected",
+  "filters": [{"source": {"kind": "warehouse-table", "connectionId": "<id>", "path": [...]}, "columnId": "SALES"}]
+}
+```
+
+### top-n — filter to top or bottom N items
+
+```json
+{
+  "kind": "control", "controlId": "top-n-products", "name": "Top N",
+  "controlType": "top-n", "rankingFunction": "rank", "mode": "top-n",
+  "includeNulls": "when-no-value-is-selected",
+  "filters": [{"source": {"kind": "table", "elementId": "<element-id>"}, "columnId": "<col-id>"}]
+}
+```
+
+### Element-level top-n filter (on charts)
+
+To hard-code a top-N filter on a chart element (not user-adjustable), add a `filters` array to the element:
+
+```json
+{
+  "kind": "bar-chart",
+  "columns": [...],
+  "xAxis": {"id": "PRODUCT_NAME", "sort": {"by": "nZea2N896k", "direction": "descending"}},
+  "yAxis": [{"id": "nZea2N896k"}],
+  "filters": [{
+    "id": "top-10-filter",
+    "columnId": "nZea2N896k",
+    "kind": "top-n",
+    "rankingFunction": "row-number",
+    "mode": "top-n",
+    "rowCount": 10,
+    "includeNulls": "never"
+  }]
+}
+```
+
+## Full spec assembly with layout
+
+```ruby
+# Merge layout into a copy of the current spec, then PUT
+spec = YAML.safe_load(File.read('/tmp/current-spec.yaml'), permitted_classes: [Date, Time])
+
+# Build per-page XML using server-assigned IDs
+pages_by_name = spec['pages'].each_with_object({}) { |p, h| h[p['name']] = p }
+
+overview_xml  = page_xml(pages_by_name['Overview']['id'],  ...)
+product_xml   = page_xml(pages_by_name['Product']['id'],   ...)
+# ...
+
+# Set ONE top-level layout field — remove any layout from page objects
+spec['pages'].each { |p| p.delete('layout') }
+spec['layout'] = [
+  "<?xml version=\"1.0\" encoding=\"utf-8\"?>",
+  overview_xml,
+  product_xml
+].join("\n")
+
+File.write('/tmp/workbook-with-layout.json', JSON.pretty_generate(spec))
+```
+
+Then PUT:
+```bash
+curl -s -X PUT \
+  -H "Authorization: Bearer $SIGMA_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d @/tmp/workbook-with-layout.json \
+  "$SIGMA_BASE_URL/v2/workbooks/<workbookId>/spec"
+```
+
+## Common mistakes
+
+| Mistake | Symptom | Fix |
+|---|---|---|
+| Setting `layout` on each page object instead of top-level | PUT returns success but UI shows no layout change | Set `spec['layout']` once at the top level; strip `layout` from all page objects |
+| Bare `<Page>` tag without `type`/`id` attributes | Layout ignored silently | Use `<Page type="grid" gridTemplateColumns="repeat(24, 1fr)" gridTemplateRows="auto" id="<pageId>">` |
+| Using `measures` instead of `yAxis` on bar/line charts | `"Invalid array: ...yAxis, got undefined"` | Replace `measures` with `yAxis` |
+| KPI missing `value` field | `"Invalid object: ...value, got undefined"` | Add `"value": {"id": "<col-id>"}` to every KPI element |
+| Pivot table `rows`/`values` as objects instead of strings | `"Invalid string: ...values[0], got object"` | Use `["col-id"]` not `[{"id": "col-id"}]` |
+| Using IDs from POST body instead of GET response | Layout elements don't appear | Always GET spec after POST to get real IDs |
+| `<LayoutElement>` for a container | Empty container visible | Use `<GridContainer>` for elements that have children |
+| Hand-writing layout XML | Off-grid sizing, overlapping elements | Use Ruby helpers; let math determine positions |
+| Overlapping row ranges | Elements hidden behind each other | Draw row ranges on paper; ensure no two elements share rows on the same column span |
+| Fallback `els.values[N]` when page has fewer elements than expected | `elementId=""` in XML — PUT rejected with `invalid_request` | Guard with `(le(id, ...) if id)` and call `.compact` on the children array before passing to `page_xml` |
+| Using `dimension` on a `line-chart` | Works but is non-canonical | Use `xAxis` for both `bar-chart` and `line-chart` |
