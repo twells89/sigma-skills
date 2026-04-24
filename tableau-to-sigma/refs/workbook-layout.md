@@ -178,6 +178,26 @@ one series per segment value:
 
 All `yAxis` entries are shown as separate series.
 
+**No `color` channel on `bar-chart` or `line-chart`.** The API does not support a `color` field on these types. To encode color by category, add a separate `yAxis` series per category using an `If()` formula:
+
+```json
+{ "id": "cons", "formula": "Sum(If([Master/Segment] = \"Consumer\", [Master/Sales], Null))", "name": "Consumer" },
+{ "id": "corp", "formula": "Sum(If([Master/Segment] = \"Corporate\", [Master/Sales], Null))", "name": "Corporate" }
+```
+
+**Bar chart stacking.** Add `"stacking"` to control how multiple `yAxis` series are rendered:
+
+```json
+{
+  "kind": "bar-chart",
+  "stacking": "stacked",
+  "xAxis": {"id": "bar-region"},
+  "yAxis": [{"id": "bar-cons"}, {"id": "bar-corp"}]
+}
+```
+
+`stacking` values: `"none"` (default, grouped), `"stacked"` (absolute), `"100"` (100% stacked).
+
 ### Map → bar chart
 
 Sigma spec does not support geographic maps. Approximate "Sales by State" as a bar chart sorted descending:
@@ -225,6 +245,33 @@ KPI elements require a `value` field referencing one column ID:
 ```
 
 Omitting `value` causes `"Invalid object: ...value, got undefined"`.
+
+### Column format reference
+
+Every column can carry an optional `format` object. Common patterns:
+
+**Number formats** (`kind: "number"`, d3-format strings):
+
+| `formatString` | Example output |
+|---|---|
+| `"$,.0f"` | $1,234 |
+| `"$,.2f"` | $1,234.56 |
+| `",.0f"` | 1,234 |
+| `",.2%"` | 12.34% |
+
+**Datetime formats** (`kind: "datetime"`, strftime strings):
+
+| `formatString` | Example output |
+|---|---|
+| `"%Y-%m-%d"` | 2026-04-21 |
+| `"%b %Y"` | Apr 2026 |
+| `"%B %Y"` | April 2026 |
+| `"%Y-%m-%d %H:%M"` | 2026-04-21 14:30 |
+
+```json
+{"id": "col-date", "formula": "DateTrunc(\"month\", [Master/Order Date])", "name": "Month",
+ "format": {"kind": "datetime", "formatString": "%b %Y"}}
+```
 
 ### Pivot table elements
 
