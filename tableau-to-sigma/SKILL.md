@@ -101,10 +101,12 @@ Use the images to understand:
 - Which chart types are used (bar, line, scatter, map, small multiples)
 - The rough grid layout of each page (columns × rows)
 
-Sigma spec supports: `bar-chart`, `line-chart`, `kpi`, `pie`, `donut`, `table`, `pivot-table`, `control`.
+Sigma spec supports: `bar-chart`, `line-chart`, `kpi`, `pie`, `donut`, `table`, `pivot-table`, `control`, `divider`, `container`.
 
-Does **not** support: maps, scatter charts, small multiples / trellis, bullet, gantt.
-Approximate with: bar charts (for maps), multi-series line charts (for small multiples).
+Does **not** support via spec API: maps, scatter charts, small multiples / trellis, bullet, gantt, dual-axis / combo charts (UI feature only — no spec kind).
+Approximate with: bar charts (for maps and scatter), multi-series line charts (for small multiples), two side-by-side charts (for dual-axis).
+
+Reference lines (average/target lines overlaid on charts) have no equivalent in the spec API — drop them silently.
 
 Control types supported: `list`, `date-range`, `text`, `text-area`, `segmented`, `number`, `number-range`, `slider`, `range-slider`, `top-n`.
 See `refs/workbook-layout.md` for full control element spec patterns.
@@ -164,6 +166,27 @@ curl -s -H "Authorization: Bearer $SIGMA_API_TOKEN" \
 
 These are the **exact** column names to use in data model element formulas:
 `[TABLE_NAME/Column Name]`.
+
+---
+
+## Tableau → Sigma formula translation
+
+Tableau calculated fields do not map 1:1 to Sigma formulas. Always translate before writing element specs.
+
+| Tableau | Sigma | Notes |
+|---|---|---|
+| `COUNTD([Order ID])` | `CountDistinct([Order ID])` | |
+| `COUNTIF([Segment]="Consumer", [Order ID])` | `Count(If([Segment] = "Consumer", [Order ID], Null))` | `CountIf()` does not exist in Sigma |
+| `ZN([Sales])` | `IfNull([Sales], 0)` | |
+| `IIF(cond, a, b)` | `If(cond, a, b)` | |
+| `IF ISNULL([X]) THEN ... END` | `If(IsNull([X]), ...)` | |
+| `DATETRUNC("month", [Order Date])` | `DateTrunc("month", [Order Date])` | same semantics, Sigma uses camelCase |
+| `DATEDIFF("day", [Start], [End])` | `DateDiff("day", [Start], [End])` | |
+| `{ FIXED [Customer] : SUM([Sales]) }` | No direct equivalent — pre-aggregate in the data model or use a lookup join | LOD expressions have no spec API equivalent |
+| `WINDOW_SUM(SUM([Sales]))` | No direct equivalent — Sigma table calculations run in the UI, not the spec | |
+| `RUNNING_SUM(SUM([Sales]))` | No direct equivalent | |
+
+> **`CountIf` trap:** This is the most common formula error. Tableau's `COUNTIF` maps naturally to what looks like `CountIf()` in Sigma — but `CountIf()` does not exist. The correct translation is always `Count(If(condition, column, Null))`. An invalid formula silently produces an "Invalid function" query error at render time, not at spec POST time.
 
 ---
 
@@ -387,6 +410,7 @@ PUT preserves existing element IDs. Only newly added elements get new IDs.
 
 | Error | Cause | Fix |
 |---|---|---|
+| `Invalid function` or chart renders empty with no data | `CountIf()` used — function does not exist in Sigma | Replace `CountIf(cond, col)` with `Count(If(cond, col, Null))` |
 | `dependency not found: formula reference 'orders/country region'` | Column named "Country/Region" has slash — unresolvable in formulas | Rename column to "Country" in the data model spec; re-POST |
 | `dependency not found: formula reference 'orders/state province'` | Same slash issue with "State/Province" | Rename to "State" |
 | All columns on a table fail together | One bad formula poisons the whole element | Find the specific failing ref in the error message; fix only that column |
