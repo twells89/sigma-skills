@@ -73,26 +73,28 @@ Returns the list of views (sheets) with their `id` and `name`. Record all view I
 
 ### 1d. Retrieve view images
 
-`get-view-image` requires a warm VizQL render cache. Views that haven't been recently
-visited in a browser will return 401 even with a valid token. The fix is a two-batch
-parallel approach — warm all views first, then fetch all images at once:
+`get-view-image` requires a warm VizQL session. The root cause of most 401s is
+**session contention**: firing many requests simultaneously causes them to compete
+for the same VizQL session, and most fail — regardless of whether the cache is warm
+or whether the view has been visited in a browser. Browser visits are not required.
 
-**Batch 1 — warm all views in parallel** (fire all simultaneously):
+**The reliable pattern — warm solo, then image solo, one view at a time:**
+
+Step 1 — warm the view:
 ```
 mcp__tableau__get-view-data   viewId="<id1>"
-mcp__tableau__get-view-data   viewId="<id2>"
-mcp__tableau__get-view-data   viewId="<id3>"
-...
 ```
-Note which succeeded vs 401'd. A 401 on `get-view-data` means the image will also
-fail — drop those view IDs entirely.
-
-**Batch 2 — fetch images in parallel** for all that succeeded:
+Step 2 — immediately fetch the image for that same view before starting the next:
 ```
 mcp__tableau__get-view-image   viewId="<id1>"   format="PNG"   width=1400   height=900
-mcp__tableau__get-view-image   viewId="<id2>"   format="PNG"   width=1400   height=900
-...
 ```
+Step 3 — repeat for each remaining view.
+
+If `get-view-data` returns 401, skip that view entirely — the image will also fail.
+
+> **Do not fire all views in a parallel batch.** Even if `get-view-data` succeeds in
+> a parallel batch, a concurrent `get-view-image` in the same batch will still 401
+> due to session contention. Process views one at a time.
 
 Use the images to understand:
 - How many KPIs are in the header row and what they measure
@@ -122,6 +124,11 @@ Fetch a token once now — it's valid for ~1 hour and covers all curl calls in P
 ```bash
 eval "$(scripts/get-token.sh)"
 ```
+
+> **Token persistence in multi-command blocks:** `eval` sets env vars in the current
+> shell. If you need to combine eval and curl in a single `bash -c '...'` block, keep
+> them in the same invocation. Never use `TOKEN=$(eval "$(scripts/get-token.sh)")` —
+> the `$()` creates a subshell where the exported var dies immediately.
 
 ### 2a. Find the connection
 
@@ -384,9 +391,10 @@ PUT preserves existing element IDs. Only newly added elements get new IDs.
 | `dependency not found: formula reference 'orders/state province'` | Same slash issue with "State/Province" | Rename to "State" |
 | All columns on a table fail together | One bad formula poisons the whole element | Find the specific failing ref in the error message; fix only that column |
 | `jq: parse error: Invalid numeric literal` | Sigma spec endpoints return YAML, not JSON | Parse with `ruby -r yaml -r json` instead |
-| `401` on `get-view-image` | View render cache is cold — view hasn't been visited recently | Call `get-view-data` for the same view first to warm the renderer, then retry `get-view-image` immediately |
+| `401` on `get-view-image` after solo `get-view-data` succeeded | Rare transient failure | Retry `get-view-image` solo immediately — no concurrent requests |
+| `401` on `get-view-image` despite `get-view-data` succeeding in same parallel batch | Session contention — concurrent requests compete for the same VizQL session | Retry the image solo with no other concurrent view requests |
 | `401` on both `get-view-data` and `get-view-image` | View uses a data connection the API token can't reach | Skip this view; it's inaccessible via MCP regardless of technique |
-| Batch `get-view-data` returns mostly 401s | Parallel batch overwhelms the rendering service | Expected — 1–3 views typically succeed per parallel batch; use whichever succeed |
+| Batch `get-view-data` returns mostly 401s | Session contention from parallel requests — not a cache issue | Switch to solo warm → solo image, one view at a time |
 | `429` on Tableau view image | Rate limited | Wait and retry the specific view |
 | Column fetch returns empty list | Response key is `entries`, not `columns` | Use `.get('entries', [])` when parsing column API responses |
 | PUT returns `invalid_request` with no field named | Read-only metadata fields included in PUT body | Strip `workbookId`, `url`, `ownerId`, `createdBy`, `updatedBy`, `createdAt`, `updatedAt`, `latestDocumentVersion` from the PUT body |
