@@ -287,7 +287,25 @@ On error: read `refs/column-gotchas.md` → fix the offending column formula →
 
 ## Phase 5 — Build the Sigma workbook
 
-### 5a. Write the workbook spec
+### 5a. Find your personal folderId
+
+Every workbook spec requires a `folderId`. Use the REST API — grab it from any existing workbook
+you own (they all share the same personal folder):
+
+```bash
+bash -c 'eval "$(/path/to/get-token.sh)" && \
+  curl -s -H "Authorization: Bearer $SIGMA_API_TOKEN" \
+    "$SIGMA_BASE_URL/v2/workbooks?limit=1" \
+  | python3 -c "import json,sys; e=json.load(sys.stdin)[\"entries\"][0]; print(e[\"folderId\"], e[\"name\"])"'
+```
+
+Record the first value — that is your personal `folderId`. Pass it as `"folderId": "<id>"` in the
+workbook spec top level.
+
+> **Why not MCP?** The Sigma MCP tools (`search`, `list_documents`) are content-oriented and do not
+> surface folder IDs. The REST API is the right tool here.
+
+### 5b. Write the workbook spec
 
 Source elements in the workbook from the data model:
 
@@ -330,7 +348,7 @@ For multi-series line charts (approximating Tableau small multiples):
 
 See `refs/workbook-layout.md` for full chart patterns.
 
-### 5b. POST the workbook spec
+### 5c. POST the workbook spec
 
 ```bash
 curl -s -X POST \
@@ -349,7 +367,7 @@ ruby -r yaml -r json -r date -e \
 > preserved. Always GET the spec back immediately after creation to retrieve the
 > real IDs before building layout XML.
 
-### 5c. GET the spec back and extract real IDs
+### 5d. GET the spec back and extract real IDs
 
 ```bash
 curl -s -H "Authorization: Bearer $SIGMA_API_TOKEN" \
@@ -367,7 +385,7 @@ end
 EOF
 ```
 
-### 5d. Build layout XML with Ruby — MANDATORY
+### 5e. Build layout XML with Ruby — MANDATORY
 
 **Never hand-write layout XML.** Always use `scripts/build-layout.rb` or write
 an equivalent Ruby script. See `refs/workbook-layout.md` for the full pattern
@@ -379,7 +397,7 @@ ruby scripts/build-layout.rb \
   --output /tmp/workbook-with-layout.json
 ```
 
-### 5e. PUT the spec with layout
+### 5f. PUT the spec with layout
 
 Build the PUT body from the GET YAML spec — strip read-only fields before writing:
 
