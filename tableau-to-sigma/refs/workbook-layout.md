@@ -299,25 +299,13 @@ SI-suffix format requires additional fields:
 
 ### Pivot table elements
 
-Two equivalent forms. The simple form uses string column ID arrays:
+**Always use `rowsBy`/`columnsBy` — never `rows`/`columnGroups`.**
 
-```json
-{
-  "kind": "pivot-table",
-  "columns": [
-    {"id": "pcy-cat",   "formula": "[Master/Category]", "name": "Category"},
-    {"id": "pcy-year",  "formula": "DateTrunc(\"year\", [Master/Order Date])", "name": "Year"},
-    {"id": "pcy-sales", "formula": "Sum([Master/Sales])", "name": "Sales"}
-  ],
-  "rows":         ["pcy-cat"],
-  "columnGroups": ["pcy-year"],
-  "values":       ["pcy-sales"]
-}
-```
+The `rows`/`columnGroups` string-array form is silently dropped by the API: the PUT returns
+`success: true` but the pivot renders as a single aggregate cell with no row or column breakdown.
+The `rowsBy`/`columnsBy` object-array form is the only form that persists correctly.
 
-Using `[{"id": "pcy-cat"}]` instead of `["pcy-cat"]` causes `"Invalid string: ...values[0], got object"`.
-
-The modern form uses `rowsBy`/`columnsBy` with object entries that support `sort`:
+The correct form uses `rowsBy`/`columnsBy` with object entries that support `sort`:
 
 ```json
 {
@@ -721,6 +709,7 @@ curl -s -X PUT \
 | Using `measures` instead of `yAxis` on bar/line charts | `"Invalid array: ...yAxis, got undefined"` | Replace `measures` with `yAxis` |
 | KPI missing `value` field | `"Invalid object: ...value, got undefined"` | Add `"value": {"id": "<col-id>"}` to every KPI element |
 | Pivot table `rows`/`values` as objects instead of strings | `"Invalid string: ...values[0], got object"` | Use `["col-id"]` not `[{"id": "col-id"}]` |
+| Using `rows`/`columnGroups` instead of `rowsBy`/`columnsBy` | PUT returns success but pivot shows one aggregate cell — rows/columns silently dropped | Replace with `rowsBy: [{"id": "..."}]` and `columnsBy: [{"id": "..."}]` |
 | Using IDs from POST body instead of GET response | Layout elements don't appear | Always GET spec after POST to get real IDs |
 | `<LayoutElement>` for a container | Empty container visible | Use `<GridContainer>` for elements that have children |
 | Hand-writing layout XML | Off-grid sizing, overlapping elements | Use Ruby helpers; let math determine positions |
