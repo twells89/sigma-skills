@@ -48,6 +48,11 @@ Column IDs in a data model spec can be any unique string. The server reassigns t
 IDs are just for cross-referencing within the JSON file you're writing. Short readable IDs like
 `"col-sales"` or `"met-profit-ratio"` are fine.
 
+In GET responses for workbooks built directly on warehouse tables (no data model), column IDs follow
+the inode-path format: `"inode-<inodeId>/<COLUMN_NAME>"`. These IDs appear in `sort.columnId` and
+other fields that reference columns by server ID. When constructing PUT bodies, preserve these IDs
+exactly as returned in the GET response.
+
 ## Metrics vs columns
 
 Metrics are aggregate formulas that live alongside columns but reference column names without a table prefix:
