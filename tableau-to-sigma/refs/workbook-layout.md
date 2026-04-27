@@ -54,14 +54,18 @@ A bare `<Page>` tag without `type`, `gridTemplateColumns`, `gridTemplateRows`, a
 
 ```xml
 <GridContainer elementId="container-id" type="grid"
-  gridColumn="1 / 25" gridRow="1 / 7"
+  gridColumn="1 / 25" gridRow="1 / 9"
   gridTemplateColumns="repeat(24, 1fr)" gridTemplateRows="auto">
-  <LayoutElement elementId="kpi-1-id" gridColumn="1 / 7" gridRow="1 / 2"/>
-  <LayoutElement elementId="kpi-2-id" gridColumn="7 / 13" gridRow="1 / 2"/>
-  <LayoutElement elementId="kpi-3-id" gridColumn="13 / 19" gridRow="1 / 2"/>
-  <LayoutElement elementId="kpi-4-id" gridColumn="19 / 25" gridRow="1 / 2"/>
+  <LayoutElement elementId="kpi-1-id" gridColumn="1 / 7" gridRow="1 / 9"/>
+  <LayoutElement elementId="kpi-2-id" gridColumn="7 / 13" gridRow="1 / 9"/>
+  <LayoutElement elementId="kpi-3-id" gridColumn="13 / 19" gridRow="1 / 9"/>
+  <LayoutElement elementId="kpi-4-id" gridColumn="19 / 25" gridRow="1 / 9"/>
 </GridContainer>
 ```
+
+**Critical:** Inner KPI `gridRow` must match the container's own row height — both should use `1 / 9`
+(or whatever the container's outer height is). Using `gridRow="1 / 2"` inside a container makes
+KPIs appear tiny because the inner grid row only allocates 1 unit of height.
 
 **Critical:** Container elements MUST use `<GridContainer>`, not `<LayoutElement type="grid">`.
 Using `<LayoutElement>` for a container causes empty containers to appear in the published workbook.
@@ -110,14 +114,15 @@ bar1_id       = els['Monthly Sales by Category']
 bar2_id       = els['Sales by Ship Mode']
 
 kpi_inner = [
-  le(kpi1_id,  1,  7, 1, 2),
-  le(kpi2_id,  7, 13, 1, 2),
-  le(kpi3_id, 13, 19, 1, 2),
-  le(kpi4_id, 19, 25, 1, 2)
+  le(kpi1_id,  1,  7, 1, 9),
+  le(kpi2_id,  7, 13, 1, 9),
+  le(kpi3_id, 13, 19, 1, 9),
+  le(kpi4_id, 19, 25, 1, 9)
 ].join("\n")
 
+# Container outer height (1/9) must match inner KPI height (1/9)
 overview_layout = "<Page>\n" \
-  "#{gc(container_id, 1, 25, 1, 7, kpi_inner)}\n" \
+  "#{gc(container_id, 1, 25, 1, 9, kpi_inner)}\n" \
   "#{le(line_id,  1, 25,  7, 20)}\n" \
   "#{le(bar1_id,  1, 13, 20, 32)}\n" \
   "#{le(bar2_id, 13, 25, 20, 32)}\n" \
@@ -128,11 +133,11 @@ overview_layout = "<Page>\n" \
 
 | Content | Typical row span |
 |---|---|
-| KPI row (container) | 6 rows (1→7) |
+| KPI row (container) | 8 rows (1→9) |
 | Wide line/area chart | 13 rows |
 | Bar chart (half-width) | 12 rows |
 | Data table | 15–20 rows |
-| Single KPI (inside container) | 1 row |
+| Single KPI (inside container) | Same as container height — `1 / 9` if container is `1 / 9` |
 
 ## Multi-series chart patterns
 

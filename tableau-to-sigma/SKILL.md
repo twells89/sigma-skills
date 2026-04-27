@@ -425,6 +425,7 @@ PUT preserves existing element IDs. Only newly added elements get new IDs.
 | PUT returns `Invalid 1: schemaVersion, got undefined` | `schemaVersion` was stripped from PUT body | Keep `schemaVersion` in the PUT body — it is required |
 | Layout PUT rejected, some elements not visible | `elementId=""` in layout XML from nil Ruby variable | Guard fallback element lookups: use `(le(id, ...) if id)` and `.compact` |
 | Pivot table shows single aggregate cell — no row or column breakdown | `rows`/`columnGroups` used instead of `rowsBy`/`columnsBy` — API silently drops these fields | Use `rowsBy: [{"id":"..."}]` and `columnsBy: [{"id":"..."}]`; see `refs/workbook-layout.md` |
+| KPIs inside container are tiny / barely visible | Inner KPI `gridRow` is `1 / 2` (1 unit) instead of matching container height | Set inner KPI `gridRow` to the same span as the container — e.g. container `gridRow="1 / 9"` → inner KPIs also `gridRow="1 / 9"` |
 | Layout has elements stacked vertically | No layout XML provided, or layout uses wrong IDs | GET spec after POST to get real IDs; rebuild layout with Ruby |
 | Empty containers visible on page | Container elements in spec but not referenced as `<GridContainer>` in layout XML | Add them to layout as `<GridContainer>` wrapping their child KPIs |
 | Wrong endpoint — workbook created instead of data model | Called `/v2/workbooks` instead of `/v2/dataModels/spec` | Delete the workbook; re-POST to the correct endpoint |
