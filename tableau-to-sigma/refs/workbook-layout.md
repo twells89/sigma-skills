@@ -442,14 +442,15 @@ Container elements group child elements and carry an optional background/border 
 - `borderColor` — hex color
 - `borderWidth` — border thickness in pixels; `0` for no visible border
 
-Containers that wrap children must use `<GridContainer>` in layout XML (not `<LayoutElement>`):
+Containers that wrap children must use `<GridContainer>` in layout XML (not `<LayoutElement>`).
+Inner KPI `gridRow` must match the container's outer height — both use the same row span (e.g. `1 / 9`):
 
 ```xml
 <GridContainer elementId="container-1" type="grid"
-  gridColumn="1 / 25" gridRow="1 / 7"
+  gridColumn="1 / 25" gridRow="1 / 9"
   gridTemplateColumns="repeat(24, 1fr)" gridTemplateRows="auto">
-  <LayoutElement elementId="kpi-1" gridColumn="1 / 7" gridRow="1 / 2"/>
-  <LayoutElement elementId="kpi-2" gridColumn="7 / 13" gridRow="1 / 2"/>
+  <LayoutElement elementId="kpi-1" gridColumn="1 / 7" gridRow="1 / 9"/>
+  <LayoutElement elementId="kpi-2" gridColumn="7 / 13" gridRow="1 / 9"/>
 </GridContainer>
 ```
 
