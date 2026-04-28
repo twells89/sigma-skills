@@ -4,10 +4,9 @@
 # Usage:
 #   ruby scripts/build-layout.rb --spec /tmp/current-spec.yaml --output /tmp/workbook-with-layout.json
 #
-# The script reads the current spec (YAML from GET /v2/workbooks/<id>/spec), builds
-# layout XML using the server-assigned element IDs, and writes JSON ready for PUT.
-#
-# Customize the LAYOUTS hash below for each page in your workbook.
+# NOTE: This script contains generic stubs. For workbooks with named pages and
+# specific element arrangements, write a custom layout script per the pattern in
+# refs/workbook-layout.md rather than extending this file.
 
 require 'yaml'
 require 'json'
@@ -25,12 +24,12 @@ def gc(eid, c0, c1, r0, r1, inner)
 end
 
 def le(eid, c0, c1, r0, r1)
-  "<LayoutElement elementId=\"#{eid}\" gridColumn=\"#{c0} / #{c1}\" gridRow=\"#{r0} / #{r1}\"/>"
+  "  <LayoutElement elementId=\"#{eid}\" gridColumn=\"#{c0} / #{c1}\" gridRow=\"#{r0} / #{r1}\"/>"
 end
 
 def page_xml(page_id, *children)
   header = "<Page type=\"grid\" gridTemplateColumns=\"repeat(24, 1fr)\" gridTemplateRows=\"auto\" id=\"#{page_id}\">"
-  [header, *children, "</Page>"].join("\n")
+  [header, *children.compact, "</Page>"].join("\n")
 end
 
 # ---------------------------------------------------------------------------
@@ -42,68 +41,40 @@ def element_map(page)
 end
 
 # ---------------------------------------------------------------------------
-# Layout builders per page
-# Customize this section for your specific workbook.
-# Each method receives the elements hash (name → server id) and returns XML.
+# KPI container helper
+# IMPORTANT: inner KPI gridRow spans MUST match the container's outer gridRow span.
+# gridTemplateRows="auto" does NOT expand rows to fill container height.
+# A KPI at inner gridRow="1 / 2" inside an 8-row container renders as a tiny sliver.
+#
+# Rule: container outer gridRow "r0 / r1" → KPIs inside use gridRow "r0 / r1" too.
+# For two rows of KPIs in one container (outer 1/13):
+#   Row 1: inner 1/7, Row 2: inner 7/13
 # ---------------------------------------------------------------------------
 
-def layout_overview(page_id, els)
-  container = els['KPI Row']
-  kpi1      = els['Total Sales']
-  kpi2      = els['Total Profit']
-  kpi3      = els['Profit Ratio']
-  kpi4      = els['Sales per Customer']
-  line      = els['Monthly Sales by Segment']
-  bar1      = els['Monthly Sales by Category']
-  bar2      = els['Sales by Ship Mode']
+def kpi_container(container_id, outer_r0, outer_r1, kpi_ids)
+  # Divide the container height evenly across rows of KPIs
+  # Determine columns: up to 4 per row, 6 cols wide each for 4; otherwise divide 24 evenly
+  cols_per_kpi = 24 / [kpi_ids.size, 4].min
+  rows_of_kpis = (kpi_ids.size.to_f / (24 / cols_per_kpi)).ceil
+  inner_height = outer_r1 - outer_r0
+  row_height   = inner_height / rows_of_kpis
 
-  if container && kpi1
-    kpi_inner = [
-      le(kpi1,  1,  7, 1, 2),
-      le(kpi2,  7, 13, 1, 2),
-      le(kpi3, 13, 19, 1, 2),
-      le(kpi4, 19, 25, 1, 2)
-    ].join("\n")
-    page_xml(page_id,
-      gc(container, 1, 25, 1, 7, kpi_inner),
-      le(line, 1, 25, 7, 20),
-      le(bar1, 1, 13, 20, 32),
-      le(bar2, 13, 25, 20, 32)
-    )
-  else
-    rows = 1
-    children = els.values.map do |eid|
-      x = le(eid, 1, 25, rows, rows + 12)
-      rows += 12
-      x
-    end
-    page_xml(page_id, *children)
-  end
+  inner = kpi_ids.each_with_index.map do |eid, i|
+    row_idx = i / (24 / cols_per_kpi)
+    col_idx = i % (24 / cols_per_kpi)
+    c0 = col_idx * cols_per_kpi + 1
+    c1 = c0 + cols_per_kpi
+    r0 = outer_r0 + row_idx * row_height
+    r1 = r0 + row_height
+    le(eid, c0, c1, r0, r1)
+  end.join("\n")
+
+  gc(container_id, 1, 25, outer_r0, outer_r1, inner)
 end
 
-def layout_product(page_id, els)
-  bar_sub   = els['Sales by Sub-Category'] || els.values[0]
-  bar_cat   = els['Profit by Category']    || els.values[1]
-  tbl       = els['Product Detail Table']  || els.values[2]
-  children  = [
-    le(bar_sub, 1, 13, 1, 16),
-    le(bar_cat, 13, 25, 1, 16),
-    (le(tbl, 1, 25, 16, 36) if tbl)
-  ].compact
-  page_xml(page_id, *children)
-end
-
-def layout_customers(page_id, els)
-  bar   = els['Top Customers by Sales'] || els.values[0]
-  chart = els['Sales by Segment']       || els.values[1]
-  tbl   = els['Customer Detail Table']  || els.values[2]
-  children = [
-    le(bar, 1, 13, 1, 16),
-    le(chart, 13, 25, 1, 16),
-    (le(tbl, 1, 25, 16, 36) if tbl)
-  ].compact
-  page_xml(page_id, *children)
-end
+# ---------------------------------------------------------------------------
+# Generic fallback layout: stack all elements full-width, 14 rows each
+# ---------------------------------------------------------------------------
 
 def layout_generic(page_id, els)
   rows = 1
@@ -114,17 +85,6 @@ def layout_generic(page_id, els)
   end
   page_xml(page_id, *children)
 end
-
-# ---------------------------------------------------------------------------
-# Page name → layout builder dispatch
-# Add entries here for each named page in the workbook.
-# ---------------------------------------------------------------------------
-
-PAGE_LAYOUTS = {
-  'Overview'   => method(:layout_overview),
-  'Product'    => method(:layout_product),
-  'Customers'  => method(:layout_customers),
-}.freeze
 
 # ---------------------------------------------------------------------------
 # Main
@@ -142,16 +102,23 @@ abort "Spec file not found: #{options[:spec]}"               unless File.exist?(
 spec = YAML.safe_load(File.read(options[:spec]), permitted_classes: [Date, Time])
 
 page_xmls = spec['pages'].map do |page|
-  els     = element_map(page)
-  builder = PAGE_LAYOUTS[page['name']] || method(:layout_generic)
-  xml     = builder.call(page['id'], els)
-  page.delete('layout')  # layout must NOT live on individual page objects
+  els = element_map(page)
+  xml = layout_generic(page['id'], els)
+  page.delete('layout')
   puts "Built layout for page: #{page['name']} (#{els.size} elements)"
   xml
 end
 
-# Single top-level layout field containing all pages
+# Strip read-only fields that cause PUT to fail
+%w[workbookId url ownerId createdBy updatedBy createdAt updatedAt latestDocumentVersion].each { |k| spec.delete(k) }
+
+# Single top-level layout field — never set on individual page objects
 spec['layout'] = ["<?xml version=\"1.0\" encoding=\"utf-8\"?>", *page_xmls].join("\n")
+
+# Guard: empty elementIds cause PUT rejection
+abort "ERROR: empty elementId found in layout XML — check element_map lookups" if spec['layout'].include?('elementId=""')
 
 File.write(options[:output], JSON.pretty_generate(spec))
 puts "\nWrote #{options[:output]}"
+puts "WARNING: This script uses a generic stacked layout. For proper page layouts,"
+puts "write a custom Ruby script following refs/workbook-layout.md patterns."

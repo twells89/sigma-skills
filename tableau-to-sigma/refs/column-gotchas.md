@@ -27,7 +27,7 @@ Tableau stores a human-readable "display name" that is almost never the actual S
 ```bash
 curl -s -H "Authorization: Bearer $SIGMA_API_TOKEN" \
   "$SIGMA_BASE_URL/v2/connections/tables/<urlId>/columns" \
-  | jq '[.columns[] | {name, dataType}]'
+  | jq '[.entries[] | {name, dataType}]'
 ```
 
 Never infer warehouse column names from Tableau display names.
@@ -47,11 +47,6 @@ The error message names the specific bad ref. Fix only that ref and retry; don't
 Column IDs in a data model spec can be any unique string. The server reassigns them on POST, so your
 IDs are just for cross-referencing within the JSON file you're writing. Short readable IDs like
 `"col-sales"` or `"met-profit-ratio"` are fine.
-
-In GET responses for workbooks built directly on warehouse tables (no data model), column IDs follow
-the inode-path format: `"inode-<inodeId>/<COLUMN_NAME>"`. These IDs appear in `sort.columnId` and
-other fields that reference columns by server ID. When constructing PUT bodies, preserve these IDs
-exactly as returned in the GET response.
 
 ## Metrics vs columns
 

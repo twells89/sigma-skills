@@ -96,15 +96,31 @@ Relationships belong on the **source** element, not the target. They link a sour
 
 ## Response
 
-The POST response is **YAML**. Parse with:
+The POST response is **YAML** and contains only `success` and `dataModelId` — **no element IDs**.
+
 ```bash
-ruby -r yaml -r json -r date -e \
-  "d=YAML.safe_load(STDIN.read,permitted_classes:[Date,Time]); \
-   puts 'dataModelId: ' + d['dataModelId'].to_s; \
-   d['pages'][0]['elements'].each{|e| puts \"  #{e['id']} #{e['name']}\"}"
+ruby -r yaml -r date -e \
+  "d=YAML.safe_load(File.read('/tmp/dm-response.yaml'),permitted_classes:[Date,Time]); \
+   puts 'dataModelId: ' + d['dataModelId'].to_s"
 ```
 
-Record the `dataModelId` and the server-assigned element IDs — you need both for workbook source references.
+Record the `dataModelId`, then **immediately GET the spec** to retrieve server-assigned element IDs:
+
+```bash
+curl -s -H "Authorization: Bearer $SIGMA_API_TOKEN" \
+  "$SIGMA_BASE_URL/v2/dataModels/<dataModelId>/spec" \
+  -o /tmp/dm-get.yaml
+
+ruby -r yaml -r date - <<'EOF'
+require 'date'
+d = YAML.safe_load(File.read('/tmp/dm-get.yaml'), permitted_classes: [Date, Time])
+puts "dataModelId: #{d['dataModelId']}"
+d['pages'].each do |pg|
+  puts "page: #{pg['id']} #{pg['name']}"
+  (pg['elements'] || []).each { |e| puts "  elementId: #{e['id']}  name: #{e['name']}" }
+end
+EOF
+```
 
 ## Workbook source reference to a data model element
 

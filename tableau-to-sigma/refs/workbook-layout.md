@@ -63,12 +63,14 @@ A bare `<Page>` tag without `type`, `gridTemplateColumns`, `gridTemplateRows`, a
 </GridContainer>
 ```
 
-**Critical:** Inner KPI `gridRow` must match the container's own row height — both should use `1 / 9`
-(or whatever the container's outer height is). Using `gridRow="1 / 2"` inside a container makes
-KPIs appear tiny because the inner grid row only allocates 1 unit of height.
-
 **Critical:** Container elements MUST use `<GridContainer>`, not `<LayoutElement type="grid">`.
 Using `<LayoutElement>` for a container causes empty containers to appear in the published workbook.
+
+**Critical — inner KPI row spans must match the container outer span.** `gridTemplateRows="auto"`
+does NOT fill available container height — rows size to content minimum. A KPI at `gridRow="1 / 2"`
+inside an 8-row container renders as a tiny sliver with truncated names. Always set the inner
+`gridRow` end value equal to the container's outer end value (e.g., container at `1 / 9` → KPIs
+at `1 / 9`).
 
 ## Ruby helpers
 
@@ -113,6 +115,8 @@ line_id       = els['Monthly Sales by Segment']
 bar1_id       = els['Monthly Sales by Category']
 bar2_id       = els['Sales by Ship Mode']
 
+# Container spans outer rows 1-9 (8 units). Inner KPIs MUST span rows 1-9 to fill the container.
+# Using 1/2 here would render KPIs as a tiny sliver — names invisible.
 kpi_inner = [
   le(kpi1_id,  1,  7, 1, 9),
   le(kpi2_id,  7, 13, 1, 9),
@@ -120,12 +124,11 @@ kpi_inner = [
   le(kpi4_id, 19, 25, 1, 9)
 ].join("\n")
 
-# Container outer height (1/9) must match inner KPI height (1/9)
 overview_layout = "<Page>\n" \
   "#{gc(container_id, 1, 25, 1, 9, kpi_inner)}\n" \
-  "#{le(line_id,  1, 25,  7, 20)}\n" \
-  "#{le(bar1_id,  1, 13, 20, 32)}\n" \
-  "#{le(bar2_id, 13, 25, 20, 32)}\n" \
+  "#{le(line_id,  1, 25,  9, 22)}\n" \
+  "#{le(bar1_id,  1, 13, 22, 34)}\n" \
+  "#{le(bar2_id, 13, 25, 22, 34)}\n" \
   "</Page>"
 ```
 
@@ -133,11 +136,24 @@ overview_layout = "<Page>\n" \
 
 | Content | Typical row span |
 |---|---|
-| KPI row (container) | 8 rows (1→9) |
+| KPI row container (single row of KPIs) | 8–9 outer rows |
+| KPI row container (two rows of KPIs) | 12–14 outer rows |
 | Wide line/area chart | 13 rows |
-| Bar chart (half-width) | 12 rows |
+| Bar chart (half-width) | 12–13 rows |
 | Data table | 15–20 rows |
-| Single KPI (inside container) | Same as container height — `1 / 9` if container is `1 / 9` |
+
+> **Critical — KPI inner row span must equal the container outer span.**
+> `gridTemplateRows="auto"` inside a GridContainer does NOT expand rows to fill
+> the container height. If your KPIs use `gridRow="1 / 2"` inside a container
+> that spans 6 outer rows, the KPIs render as a tiny sliver — names invisible,
+> values barely readable.
+>
+> **Rule:** inner `gridRow` end value must match the container's outer row span.
+> Container at `gridRow="1 / 9"` (8 outer rows) → KPIs inside at `gridRow="1 / 9"`.
+>
+> For two rows of KPIs in one container (container outer `1 / 13`):
+> - First row: inner `gridRow="1 / 7"` (6 inner units)
+> - Second row: inner `gridRow="7 / 13"` (6 inner units)
 
 ## Multi-series chart patterns
 
@@ -224,7 +240,7 @@ Sigma spec does not support geographic maps. Approximate "Sales by State" as a b
 
 | Sigma kind | Tableau equivalent |
 |---|---|
-| `kpi` | Big number / scorecard |
+| `kpi-chart` | Big number / scorecard |
 | `line-chart` | Line chart, small multiples (approximated) |
 | `bar-chart` | Bar chart, horizontal bar, histogram, map (approximated) |
 | `pie` | Pie chart |
@@ -232,8 +248,6 @@ Sigma spec does not support geographic maps. Approximate "Sales by State" as a b
 | `table` | Crosstab, text table |
 | `pivot-table` | Pivot / crosstab |
 | `control` | Dashboard filter, parameter (all types — see Control elements below) |
-| `divider` | Section separator (horizontal rule) |
-| `container` | Visual grouping box (background/border, wraps children in layout) |
 
 Not supported: scatter chart, map, bullet chart, gantt, small multiples / trellis.
 
@@ -241,11 +255,13 @@ Not supported: scatter chart, map, bullet chart, gantt, small multiples / trelli
 
 ### KPI elements
 
+> **`kpi-chart`, not `kpi`.** The API rejects `"kind": "kpi"` with `"Invalid kind: 'kpi'"`.
+
 KPI elements require a `value` field referencing one column ID:
 
 ```json
 {
-  "kind": "kpi",
+  "kind": "kpi-chart",
   "columns": [{"id": "k-sales", "formula": "Sum([Master/Sales])", "name": "Total Sales", "format": {"kind": "number", "formatString": "$,.0f"}}],
   "value": {"id": "k-sales"}
 }
@@ -259,36 +275,20 @@ Every column can carry an optional `format` object. Common patterns:
 
 **Number formats** (`kind: "number"`, d3-format strings):
 
-| `formatString` | Example output | Notes |
-|---|---|---|
-| `"$,.0f"` | $1,234 | currency, no decimals |
-| `"$,.2f"` | $1,234.56 | currency, 2 decimals |
-| `"$,.3s"` | $1.23M | SI suffix (K/M/B); add `"currencySymbol": "$"` |
-| `",.0f"` | 1,234 | comma-grouped, no decimals |
-| `",.1f"` | 1,234.5 | comma-grouped, 1 decimal |
-| `",.2f"` | 1,234.56 | comma-grouped, 2 decimals |
-| `",d"` | 1,234 | integer (d3 integer format) |
-| `","` | 1,234 | comma-grouped (shorthand) |
-| `",.0%"` | 12% | percent, no decimals |
-| `",.1%"` | 12.3% | percent, 1 decimal |
-| `",.2%"` | 12.34% | percent, 2 decimals |
-| `".1f"` | 1234.5 | fixed decimal, no comma |
-| `".0f"` | 1235 | fixed integer, no comma |
-
-SI-suffix format requires additional fields:
-```json
-{"kind": "number", "formatString": "$,.3s", "currencySymbol": "$", "decimalSymbol": ".", "digitGroupingSymbol": ","}
-```
+| `formatString` | Example output |
+|---|---|
+| `"$,.0f"` | $1,234 |
+| `"$,.2f"` | $1,234.56 |
+| `",.0f"` | 1,234 |
+| `",.2%"` | 12.34% |
 
 **Datetime formats** (`kind: "datetime"`, strftime strings):
 
 | `formatString` | Example output |
 |---|---|
 | `"%Y-%m-%d"` | 2026-04-21 |
-| `"%m/%d/%Y"` | 04/21/2026 |
 | `"%b %Y"` | Apr 2026 |
 | `"%B %Y"` | April 2026 |
-| `"%B %d %Y"` | April 21 2026 |
 | `"%Y-%m-%d %H:%M"` | 2026-04-21 14:30 |
 
 ```json
@@ -296,37 +296,28 @@ SI-suffix format requires additional fields:
  "format": {"kind": "datetime", "formatString": "%b %Y"}}
 ```
 
-**Hidden columns** — set `"hidden": true` on any column to hide it from the UI while keeping it available for formula references:
-
-```json
-{"id": "c-key", "formula": "[Master/Order ID]", "name": "Order ID", "hidden": true}
-```
-
 ### Pivot table elements
 
-**Always use `rowsBy`/`columnsBy` — never `rows`/`columnGroups`.**
+Use `rowsBy`, `columnsBy`, and `values`. **Do NOT use `rows` or `columnGroups`** — the API accepts them silently but the pivot does not render correctly.
 
-The `rows`/`columnGroups` string-array form is silently dropped by the API: the PUT returns
-`success: true` but the pivot renders as a single aggregate cell with no row or column breakdown.
-The `rowsBy`/`columnsBy` object-array form is the only form that persists correctly.
-
-The correct form uses `rowsBy`/`columnsBy` with object entries that support `sort`:
+- `values`: array of **string** column IDs
+- `rowsBy`: array of **objects** `{"id": "col-id"}` — row groupings (left axis)
+- `columnsBy`: array of **objects** `{"id": "col-id"}` — column pivots (top axis)
 
 ```json
 {
   "kind": "pivot-table",
   "columns": [
-    {"id": "pcy-cat",   "formula": "[Master/Category]", "name": "Category"},
-    {"id": "pcy-year",  "formula": "DateTrunc(\"year\", [Master/Order Date])", "name": "Year"},
-    {"id": "pcy-sales", "formula": "Sum([Master/Sales])", "name": "Sales"}
+    {"id": "pcy-cat",   "formula": "[Master/Category]",                        "name": "Category"},
+    {"id": "pcy-year",  "formula": "DateTrunc(\"year\", [Master/Order Date])",  "name": "Year"},
+    {"id": "pcy-month", "formula": "DateTrunc(\"month\", [Master/Order Date])", "name": "Month"},
+    {"id": "pcy-sales", "formula": "Sum([Master/Sales])",                       "name": "Sales"}
   ],
-  "rowsBy":    [{"id": "pcy-cat"}],
-  "columnsBy": [{"id": "pcy-year", "sort": {"by": "pcy-sales", "aggregation": "avg", "direction": "ascending"}}],
-  "values":    ["pcy-sales"]
+  "values":    ["pcy-sales"],
+  "rowsBy":    [{"id": "pcy-cat"}, {"id": "pcy-year"}],
+  "columnsBy": [{"id": "pcy-month"}]
 }
 ```
-
-`rowsBy`/`columnsBy` entries optionally include `sort` with `by` (column ID), `aggregation` (`"avg"`, `"sum"`, etc.), and `direction`. `values` still uses string column IDs in both forms.
 
 ### Pie and donut elements
 
@@ -375,109 +366,6 @@ Use a regular `bar-chart` with a manual `If()` bucketing formula as the `xAxis` 
   "yAxis": [{"id": "cnt"}]
 }
 ```
-
-### Table elements
-
-Table elements support `sort`, `groupings`, and `visibleAsSource` fields:
-
-```json
-{
-  "kind": "table",
-  "columns": [...],
-  "sort": [
-    {"columnId": "<col-id>", "direction": "ascending", "nulls": "connection-default"}
-  ],
-  "groupings": [
-    {"id": "grp-1", "groupBy": ["<col-id>"]},
-    {"id": "grp-2", "groupBy": ["<col-id>"], "calculations": ["<calc-col-id>"]}
-  ],
-  "visibleAsSource": false
-}
-```
-
-- `sort` — default sort order; `nulls` options: `"connection-default"`, `"first"`, `"last"`
-- `groupings` — row grouping definitions; `calculations` lists the column IDs to display under that group
-- `visibleAsSource` — set `false` to hide this table from the "Add Element" data source picker
-
-### Divider elements
-
-Dividers are horizontal rule elements used to visually separate sections on a page:
-
-```json
-{"id": "div-1", "kind": "divider", "style": {"color": "#33475B", "width": 1}}
-```
-
-`style` fields (all optional):
-- `color` — hex color or CSS variable (`"var(--colors-text)"`, `"#5787FF"`, etc.)
-- `width` — line thickness in pixels; omit for default hairline
-
-A divider with no `style` at all is valid:
-
-```json
-{"id": "div-bare", "kind": "divider"}
-```
-
-Place in layout like any element: `le(eid, 1, 25, r0, r1)` with a 1-row span.
-
-### Container elements (spec-level)
-
-Container elements group child elements and carry an optional background/border style:
-
-```json
-{
-  "id": "container-1",
-  "kind": "container",
-  "style": {
-    "backgroundColor": "#161628",
-    "borderRadius": "round",
-    "borderColor": "#00A0C0",
-    "borderWidth": 1
-  }
-}
-```
-
-`style` fields (all optional):
-- `backgroundColor` — hex color or CSS variable (`"var(--colors-borderNeutral)"`)
-- `borderRadius` — `"round"` for rounded corners
-- `borderColor` — hex color
-- `borderWidth` — border thickness in pixels; `0` for no visible border
-
-Containers that wrap children must use `<GridContainer>` in layout XML (not `<LayoutElement>`).
-Inner KPI `gridRow` must match the container's outer height — both use the same row span (e.g. `1 / 9`):
-
-```xml
-<GridContainer elementId="container-1" type="grid"
-  gridColumn="1 / 25" gridRow="1 / 9"
-  gridTemplateColumns="repeat(24, 1fr)" gridTemplateRows="auto">
-  <LayoutElement elementId="kpi-1" gridColumn="1 / 7" gridRow="1 / 9"/>
-  <LayoutElement elementId="kpi-2" gridColumn="7 / 13" gridRow="1 / 9"/>
-</GridContainer>
-```
-
-### Union source
-
-A workbook element can source from a union of two or more other elements:
-
-```json
-{
-  "id": "combined",
-  "kind": "table",
-  "name": "Combined Events",
-  "source": {
-    "kind": "union",
-    "sources": [
-      {"kind": "table", "elementId": "<element-id-A>"},
-      {"kind": "table", "elementId": "<element-id-B>"}
-    ],
-    "matches": [
-      {"outputColumnName": "Event Name", "sourceColumns": ["[Event Name]", "[Event Name]"]},
-      {"outputColumnName": "Created At",  "sourceColumns": ["[Created At]",  "[Created At]"]}
-    ]
-  }
-}
-```
-
-`matches` maps each output column to the source column expression for every source in `sources` (same ordering). The union element itself becomes a source for downstream charts and KPIs.
 
 ## Control elements
 
@@ -531,19 +419,6 @@ Dynamic source (values populated from a column):
   "filters": [{"source": {"kind": "warehouse-table", "connectionId": "<id>", "path": [...]}, "columnId": "ORDER_DATE"}]
 }
 ```
-
-Add `"unit"` to lock the control to a named time period. Combined with `"mode": "current"` it pre-selects the current period:
-
-```json
-{
-  "kind": "control", "controlId": "filter-date", "name": "Select a Date Range",
-  "controlType": "date-range", "mode": "current", "unit": "year",
-  "includeNulls": "when-no-value-is-selected",
-  "filters": [...]
-}
-```
-
-`unit` values: `"day"`, `"week"`, `"month"`, `"quarter"`, `"year"`.
 
 ### text — single-line text filter
 
@@ -710,12 +585,14 @@ curl -s -X PUT \
 
 | Mistake | Symptom | Fix |
 |---|---|---|
+| Using `"kind": "kpi"` | `"Invalid kind: 'kpi'"` | The correct kind is `"kpi-chart"` — never `"kpi"` |
+| KPI names invisible or truncated inside container | Inner `gridRow` too small — e.g., `1 / 2` inside a 6-row container | Set inner end value = container outer end value: container `1 / 9` → KPIs `1 / 9` |
+| KPIs appear as a tiny sliver at top of container | Same root cause as above | Same fix — match inner row span to container outer span |
 | Setting `layout` on each page object instead of top-level | PUT returns success but UI shows no layout change | Set `spec['layout']` once at the top level; strip `layout` from all page objects |
 | Bare `<Page>` tag without `type`/`id` attributes | Layout ignored silently | Use `<Page type="grid" gridTemplateColumns="repeat(24, 1fr)" gridTemplateRows="auto" id="<pageId>">` |
 | Using `measures` instead of `yAxis` on bar/line charts | `"Invalid array: ...yAxis, got undefined"` | Replace `measures` with `yAxis` |
-| KPI missing `value` field | `"Invalid object: ...value, got undefined"` | Add `"value": {"id": "<col-id>"}` to every KPI element |
-| Pivot table `rows`/`values` as objects instead of strings | `"Invalid string: ...values[0], got object"` | Use `["col-id"]` not `[{"id": "col-id"}]` |
-| Using `rows`/`columnGroups` instead of `rowsBy`/`columnsBy` | PUT returns success but pivot shows one aggregate cell — rows/columns silently dropped | Replace with `rowsBy: [{"id": "..."}]` and `columnsBy: [{"id": "..."}]` |
+| KPI missing `value` field | `"Invalid object: ...value, got undefined"` | Add `"value": {"id": "<col-id>"}` to every `kpi-chart` element |
+| Using `rows`/`columnGroups` on a pivot table | API accepts silently but pivot does not render | Use `rowsBy`/`columnsBy` (object arrays) and `values` (string array) |
 | Using IDs from POST body instead of GET response | Layout elements don't appear | Always GET spec after POST to get real IDs |
 | `<LayoutElement>` for a container | Empty container visible | Use `<GridContainer>` for elements that have children |
 | Hand-writing layout XML | Off-grid sizing, overlapping elements | Use Ruby helpers; let math determine positions |

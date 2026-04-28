@@ -101,12 +101,14 @@ Use the images to understand:
 - Which chart types are used (bar, line, scatter, map, small multiples)
 - The rough grid layout of each page (columns × rows)
 
-Sigma spec supports: `bar-chart`, `line-chart`, `kpi`, `pie`, `donut`, `table`, `pivot-table`, `control`, `divider`, `container`.
+Sigma spec supports: `bar-chart`, `line-chart`, `kpi-chart`, `pie`, `donut`, `table`, `pivot-table`, `control`.
 
-Does **not** support via spec API: maps, scatter charts, small multiples / trellis, bullet, gantt, dual-axis / combo charts (UI feature only — no spec kind).
-Approximate with: bar charts (for maps and scatter), multi-series line charts (for small multiples), two side-by-side charts (for dual-axis).
+> **`kpi-chart`, not `kpi`.** The API rejects `"kind": "kpi"` with `"Invalid kind: 'kpi'"`. The correct
+> kind is `"kpi-chart"`. Do not guess element kinds — if uncertain, GET an existing workbook spec
+> (`GET /v2/workbooks/<id>/spec`) and read the `kind` fields directly.
 
-Reference lines (average/target lines overlaid on charts) have no equivalent in the spec API — drop them silently.
+Does **not** support: maps, scatter charts, small multiples / trellis, bullet, gantt.
+Approximate with: bar charts (for maps), multi-series line charts (for small multiples).
 
 Control types supported: `list`, `date-range`, `text`, `text-area`, `segmented`, `number`, `number-range`, `slider`, `range-slider`, `top-n`.
 See `refs/workbook-layout.md` for full control element spec patterns.
@@ -169,27 +171,6 @@ These are the **exact** column names to use in data model element formulas:
 
 ---
 
-## Tableau → Sigma formula translation
-
-Tableau calculated fields do not map 1:1 to Sigma formulas. Always translate before writing element specs.
-
-| Tableau | Sigma | Notes |
-|---|---|---|
-| `COUNTD([Order ID])` | `CountDistinct([Order ID])` | |
-| `COUNTIF([Segment]="Consumer", [Order ID])` | `Count(If([Segment] = "Consumer", [Order ID], Null))` | `CountIf()` does not exist in Sigma |
-| `ZN([Sales])` | `IfNull([Sales], 0)` | |
-| `IIF(cond, a, b)` | `If(cond, a, b)` | |
-| `IF ISNULL([X]) THEN ... END` | `If(IsNull([X]), ...)` | |
-| `DATETRUNC("month", [Order Date])` | `DateTrunc("month", [Order Date])` | same semantics, Sigma uses camelCase |
-| `DATEDIFF("day", [Start], [End])` | `DateDiff("day", [Start], [End])` | |
-| `{ FIXED [Customer] : SUM([Sales]) }` | No direct equivalent — pre-aggregate in the data model or use a lookup join | LOD expressions have no spec API equivalent |
-| `WINDOW_SUM(SUM([Sales]))` | No direct equivalent — Sigma table calculations run in the UI, not the spec | |
-| `RUNNING_SUM(SUM([Sales]))` | No direct equivalent | |
-
-> **`CountIf` trap:** This is the most common formula error. Tableau's `COUNTIF` maps naturally to what looks like `CountIf()` in Sigma — but `CountIf()` does not exist. The correct translation is always `Count(If(condition, column, Null))`. An invalid formula silently produces an "Invalid function" query error at render time, not at spec POST time.
-
----
-
 ## Phase 3 — Build the data model spec
 
 Write the spec to `/tmp/<name>-datamodel-spec.json`. Full schema is in
@@ -200,19 +181,23 @@ Write the spec to `/tmp/<name>-datamodel-spec.json`. Full schema is in
 1. **Endpoint**: `POST /v2/dataModels/spec` — NOT `/v2/workbooks/spec`.
    These create completely different objects.
 
-2. **Column name special characters** — read `refs/column-gotchas.md` fully.
+2. **`folderId` is required.** The POST will fail with `"Expecting UUID at 0.folderId but instead got: undefined"`
+   if omitted. Find it by listing your documents: `GET /v2/files?typeFilters=workbook` — the `parentId`
+   on any of your workbooks is your My Documents folder ID.
+
+3. **Column name special characters** — read `refs/column-gotchas.md` fully.
    Key rule: rename any column whose `name` field contains `/` before saving
    the spec. "Country/Region" → `"name": "Country"`, "State/Province" → `"name": "State"`.
    Slashes in column names break formula references in every downstream workbook.
 
-3. **Element name = formula prefix**. The `name` field on a data model element
+4. **Element name = formula prefix**. The `name` field on a data model element
    (e.g. `"name": "Orders"`) becomes the prefix in all workbook formulas that
    reference it: `[Orders/Sales]`. Choose clean, stable names.
 
-4. **Relationships go on the source element**, not the target. See `refs/data-model-spec.md`
+5. **Relationships go on the source element**, not the target. See `refs/data-model-spec.md`
    for the exact shape.
 
-5. **Column formulas use the warehouse table name as prefix**:
+6. **Column formulas use the warehouse table name as prefix**:
    - Path `["CSA", "Tableau Test", "ORDERS"]` → prefix is `ORDERS`
    - Formula: `"[ORDERS/Column Name]"`
 
@@ -221,7 +206,7 @@ Write the spec to `/tmp/<name>-datamodel-spec.json`. Full schema is in
 ```bash
 python3 -c "
 import json, re, sys
-spec = json.load(open('/tmp/spec.json'))
+spec = json.load(open('/tmp/<name>-datamodel-spec.json'))  # update filename to match your spec
 errors = []
 for page in spec.get('pages', []):
     for el in page.get('elements', []):
@@ -236,9 +221,11 @@ for page in spec.get('pages', []):
                 if '/' not in ref and ref not in el_col_names:
                     errors.append(f'{name}: bare ref [{ref}] has no match')
 
-        # KPI must have value field
-        if kind == 'kpi' and 'value' not in el:
-            errors.append(f'{name}: kpi missing value field')
+        # KPI must use kind 'kpi-chart' (not 'kpi') and must have value field
+        if kind == 'kpi':
+            errors.append(f'{name}: invalid kind "kpi" — must be "kpi-chart"')
+        if kind == 'kpi-chart' and 'value' not in el:
+            errors.append(f'{name}: kpi-chart missing value field')
 
         # bar-chart and line-chart must use yAxis, not measures
         if kind in ('bar-chart', 'line-chart'):
@@ -247,12 +234,18 @@ for page in spec.get('pages', []):
             if 'yAxis' not in el:
                 errors.append(f'{name}: {kind} missing yAxis')
 
-        # pivot-table rows/columnGroups/values must be string arrays
+        # pivot-table must use rowsBy/columnsBy (object arrays) and values (string array)
+        # rows/columnGroups are silently accepted but do not render correctly
         if kind == 'pivot-table':
-            for field in ('rows', 'columnGroups', 'values'):
+            if 'rows' in el or 'columnGroups' in el:
+                errors.append(f'{name}: pivot-table must use rowsBy/columnsBy, not rows/columnGroups')
+            for field in ('rowsBy', 'columnsBy'):
                 arr = el.get(field, [])
-                if arr and isinstance(arr[0], dict):
-                    errors.append(f'{name}: pivot-table {field} must be string array not object array')
+                if arr and isinstance(arr[0], str):
+                    errors.append(f'{name}: pivot-table {field} must be object array [{{"id": "col-id"}}], not string array')
+            values = el.get('values', [])
+            if values and isinstance(values[0], dict):
+                errors.append(f'{name}: pivot-table values must be string array ["col-id"], not object array')
 
 for e in errors: print('ERROR:', e)
 sys.exit(len(errors))
@@ -278,8 +271,26 @@ curl -s -X POST \
 >   "puts JSON.pretty_generate(YAML.safe_load(STDIN.read, permitted_classes:[Date,Time]))"
 > ```
 
-The response contains the `dataModelId` and the server-assigned element IDs.
-Record them — you need them for the workbook source references.
+> **POST response only contains `dataModelId` — no element IDs.** After a successful POST,
+> immediately GET the data model spec to retrieve server-assigned element IDs:
+>
+> ```bash
+> curl -s -H "Authorization: Bearer $SIGMA_API_TOKEN" \
+>   "$SIGMA_BASE_URL/v2/dataModels/<dataModelId>/spec" \
+>   -o /tmp/dm-get.yaml
+>
+> ruby -r yaml -r date - <<'EOF'
+> require 'date'
+> d = YAML.safe_load(File.read('/tmp/dm-get.yaml'), permitted_classes: [Date, Time])
+> puts "dataModelId: #{d['dataModelId']}"
+> d['pages'].each do |pg|
+>   puts "page: #{pg['id']} #{pg['name']}"
+>   (pg['elements'] || []).each { |e| puts "  elementId: #{e['id']}  name: #{e['name']}" }
+> end
+> EOF
+> ```
+
+Record the `dataModelId` and element IDs — you need both for workbook source references.
 
 On error: read `refs/column-gotchas.md` → fix the offending column formula → retry.
 
@@ -287,25 +298,10 @@ On error: read `refs/column-gotchas.md` → fix the offending column formula →
 
 ## Phase 5 — Build the Sigma workbook
 
-### 5a. Find your personal folderId
+### 5a. Write the workbook spec
 
-Every workbook spec requires a `folderId`. Use the REST API — grab it from any existing workbook
-you own (they all share the same personal folder):
-
-```bash
-bash -c 'eval "$(/path/to/get-token.sh)" && \
-  curl -s -H "Authorization: Bearer $SIGMA_API_TOKEN" \
-    "$SIGMA_BASE_URL/v2/workbooks?limit=1" \
-  | python3 -c "import json,sys; e=json.load(sys.stdin)[\"entries\"][0]; print(e[\"folderId\"], e[\"name\"])"'
-```
-
-Record the first value — that is your personal `folderId`. Pass it as `"folderId": "<id>"` in the
-workbook spec top level.
-
-> **Why not MCP?** The Sigma MCP tools (`search`, `list_documents`) are content-oriented and do not
-> surface folder IDs. The REST API is the right tool here.
-
-### 5b. Write the workbook spec
+> **`folderId` is required here too.** Omitting it causes `"Expecting UUID at 0.folderId"`.
+> Use the same folder ID from Phase 3 (your My Documents folder ID).
 
 Source elements in the workbook from the data model:
 
@@ -329,15 +325,22 @@ Column formulas in the master table use the data model element's `name` as prefi
 (`[Orders/Sales]`, not the element ID).
 
 Charts and KPIs on content pages source the master table element and use ITS
-`name` as prefix:
+`name` as prefix. **Cross-page element references are fully supported** — it is
+correct and recommended to place the master table on a single "Data" page and
+reference it from every other page's elements via `"elementId": "master"`.
+
+> **KPI kind is `kpi-chart`, not `kpi`.** Using `"kind": "kpi"` produces
+> `"Invalid kind: 'kpi'"`. All KPI elements must use `"kind": "kpi-chart"`.
 
 ```json
 {
-  "kind": "kpi",
+  "kind": "kpi-chart",
   "source": { "kind": "table", "elementId": "master" },
   "columns": [
-    { "formula": "Sum([Master/Sales])" }
-  ]
+    { "id": "k-sales", "formula": "Sum([Master/Sales])", "name": "Total Sales",
+      "format": {"kind": "number", "formatString": "$,.0f"} }
+  ],
+  "value": { "id": "k-sales" }
 }
 ```
 
@@ -348,7 +351,7 @@ For multi-series line charts (approximating Tableau small multiples):
 
 See `refs/workbook-layout.md` for full chart patterns.
 
-### 5c. POST the workbook spec
+### 5b. POST the workbook spec
 
 ```bash
 curl -s -X POST \
@@ -367,7 +370,7 @@ ruby -r yaml -r json -r date -e \
 > preserved. Always GET the spec back immediately after creation to retrieve the
 > real IDs before building layout XML.
 
-### 5d. GET the spec back and extract real IDs
+### 5c. GET the spec back and extract real IDs
 
 ```bash
 curl -s -H "Authorization: Bearer $SIGMA_API_TOKEN" \
@@ -385,19 +388,23 @@ end
 EOF
 ```
 
-### 5e. Build layout XML with Ruby — MANDATORY
+### 5d. Build layout XML with Ruby — MANDATORY
 
-**Never hand-write layout XML.** Always use `scripts/build-layout.rb` or write
-an equivalent Ruby script. See `refs/workbook-layout.md` for the full pattern
-and grid sizing guide.
+**Never hand-write layout XML.** Write a fresh Ruby script for each workbook using the
+helpers and patterns in `refs/workbook-layout.md`. The script in `scripts/build-layout.rb`
+contains generic stubs but uses hardcoded element names — **do not call it directly**.
+Instead follow the full pattern from `refs/workbook-layout.md` using the real element IDs
+from step 5c.
 
-```bash
-ruby scripts/build-layout.rb \
-  --spec /tmp/current-spec.yaml \
-  --output /tmp/workbook-with-layout.json
-```
+The script must:
+1. Load `/tmp/current-spec.yaml` and build an element name→ID map per page
+2. Build page XML using `gc()` / `le()` / `page_xml()` helpers
+3. Strip all read-only fields (`workbookId`, `url`, `ownerId`, `createdBy`, `updatedBy`, `createdAt`, `updatedAt`, `latestDocumentVersion`) and per-page `layout` keys
+4. Set `spec['layout']` at the top level (never on individual page objects)
+5. Write JSON to `/tmp/workbook-with-layout.json`
+6. Verify no `elementId=""` before returning
 
-### 5f. PUT the spec with layout
+### 5e. PUT the spec with layout
 
 Build the PUT body from the GET YAML spec — strip read-only fields before writing:
 
@@ -428,7 +435,9 @@ PUT preserves existing element IDs. Only newly added elements get new IDs.
 
 | Error | Cause | Fix |
 |---|---|---|
-| `Invalid function` or chart renders empty with no data | `CountIf()` used — function does not exist in Sigma | Replace `CountIf(cond, col)` with `Count(If(cond, col, Null))` |
+| `Expecting UUID at 0.folderId but instead got: undefined` | `folderId` missing from data model or workbook spec | Find your folder ID with `GET /v2/files?typeFilters=workbook` — use the `parentId` of any existing workbook |
+| `Invalid kind: 'kpi'` | Used `"kind": "kpi"` — the correct kind is `"kpi-chart"` | Replace all `"kind": "kpi"` with `"kind": "kpi-chart"` in the spec |
+| Element kind rejected, not sure what's valid | Unknown/guessed element kind | `GET /v2/workbooks/<existing-id>/spec` and read the `kind` fields of real elements — never guess |
 | `dependency not found: formula reference 'orders/country region'` | Column named "Country/Region" has slash — unresolvable in formulas | Rename column to "Country" in the data model spec; re-POST |
 | `dependency not found: formula reference 'orders/state province'` | Same slash issue with "State/Province" | Rename to "State" |
 | All columns on a table fail together | One bad formula poisons the whole element | Find the specific failing ref in the error message; fix only that column |
@@ -442,8 +451,7 @@ PUT preserves existing element IDs. Only newly added elements get new IDs.
 | PUT returns `invalid_request` with no field named | Read-only metadata fields included in PUT body | Strip `workbookId`, `url`, `ownerId`, `createdBy`, `updatedBy`, `createdAt`, `updatedAt`, `latestDocumentVersion` from the PUT body |
 | PUT returns `Invalid 1: schemaVersion, got undefined` | `schemaVersion` was stripped from PUT body | Keep `schemaVersion` in the PUT body — it is required |
 | Layout PUT rejected, some elements not visible | `elementId=""` in layout XML from nil Ruby variable | Guard fallback element lookups: use `(le(id, ...) if id)` and `.compact` |
-| Pivot table shows single aggregate cell — no row or column breakdown | `rows`/`columnGroups` used instead of `rowsBy`/`columnsBy` — API silently drops these fields | Use `rowsBy: [{"id":"..."}]` and `columnsBy: [{"id":"..."}]`; see `refs/workbook-layout.md` |
-| KPIs inside container are tiny / barely visible | Inner KPI `gridRow` is `1 / 2` (1 unit) instead of matching container height | Set inner KPI `gridRow` to the same span as the container — e.g. container `gridRow="1 / 9"` → inner KPIs also `gridRow="1 / 9"` |
 | Layout has elements stacked vertically | No layout XML provided, or layout uses wrong IDs | GET spec after POST to get real IDs; rebuild layout with Ruby |
+| KPI names invisible or truncated inside container | Inner `gridRow` too small — `gridTemplateRows="auto"` does NOT expand to fill container height | Set inner KPI `gridRow` end value = container outer end value (e.g., container `1 / 9` → KPIs `1 / 9`) |
 | Empty containers visible on page | Container elements in spec but not referenced as `<GridContainer>` in layout XML | Add them to layout as `<GridContainer>` wrapping their child KPIs |
 | Wrong endpoint — workbook created instead of data model | Called `/v2/workbooks` instead of `/v2/dataModels/spec` | Delete the workbook; re-POST to the correct endpoint |
