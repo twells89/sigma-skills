@@ -303,13 +303,15 @@ On error: read `refs/column-gotchas.md` → fix the offending column formula →
 > **`folderId` is required here too.** Omitting it causes `"Expecting UUID at 0.folderId"`.
 > Use the same folder ID from Phase 3 (your My Documents folder ID).
 
-Source elements in the workbook from the data model:
+Source elements in the workbook from the data model. **Always set `visibleAsSource: false` on
+the master table** — it is a source for charts, not a table users should browse directly:
 
 ```json
 {
   "id": "master",
   "kind": "table",
   "name": "Master",
+  "visibleAsSource": false,
   "source": {
     "kind": "data-model",
     "dataModelId": "<dataModelId>",
@@ -317,7 +319,8 @@ Source elements in the workbook from the data model:
   },
   "columns": [
     { "id": "c-sales", "formula": "[Orders/Sales]", "name": "Sales" }
-  ]
+  ],
+  "order": ["c-sales"]
 }
 ```
 
@@ -455,3 +458,7 @@ PUT preserves existing element IDs. Only newly added elements get new IDs.
 | KPI names invisible or truncated inside container | Inner `gridRow` too small — `gridTemplateRows="auto"` does NOT expand to fill container height | Set inner KPI `gridRow` end value = container outer end value (e.g., container `1 / 9` → KPIs `1 / 9`) |
 | Empty containers visible on page | Container elements in spec but not referenced as `<GridContainer>` in layout XML | Add them to layout as `<GridContainer>` wrapping their child KPIs |
 | Wrong endpoint — workbook created instead of data model | Called `/v2/workbooks` instead of `/v2/dataModels/spec` | Delete the workbook; re-POST to the correct endpoint |
+| Bar chart renders vertical but Tableau shows horizontal bars | Bar chart orientation is UI-only — `"orientation": "horizontal"` is silently accepted and dropped | Set it manually post-publish: chart editor → Properties → Chart type → Horizontal icon |
+| Axis label rotation not applied | Axis rotation is UI-only — not stored in or returned by spec API | Set it manually post-publish: chart editor → Format → X-axis → Label rotation |
+| `mcp__sigma-mcp-v2__query` with `type: "workbook"` returns "Table X not found" | Workbook queries don't resolve element names (e.g., `"Master"`) as table refs | Use `type: "connection"` with the raw table inodeId for data validation queries |
+| Integer date key column renders as number axis on line chart | `ORDER_DATE_KEY` is stored as an integer (YYYYMMDD); Sigma treats it as a number | Cast in the workbook column: `DateParse("yyyyMMdd", ToText([Master/ORDER_DATE_KEY]))` — `Date(ToText(...))` fails |

@@ -236,6 +236,21 @@ Sigma spec does not support geographic maps. Approximate "Sales by State" as a b
 }
 ```
 
+## Visual formatting properties NOT available via spec API
+
+The following properties are **UI-only** — the API silently drops any field you add for these,
+and they do not appear in GET responses even after being set in the UI. Apply them manually in
+the chart editor after publish.
+
+| Property | Set via spec? | How to apply post-publish |
+|---|---|---|
+| Bar chart orientation (horizontal vs vertical) | No | Chart editor → Properties → Chart type → Horizontal icon |
+| Axis label rotation (0°, 45°, 90°) | No | Chart editor → Format → X-axis → Label rotation |
+| Chart color palette | No | Chart editor → Properties → Color |
+| Font size / axis title | No | Chart editor → Format tab |
+
+**`"orientation": "horizontal"` is silently accepted but ignored.** Do not include it — it does nothing.
+
 ## Element kinds supported
 
 | Sigma kind | Tableau equivalent |
@@ -317,6 +332,90 @@ Use `rowsBy`, `columnsBy`, and `values`. **Do NOT use `rows` or `columnGroups`**
   "rowsBy":    [{"id": "pcy-cat"}, {"id": "pcy-year"}],
   "columnsBy": [{"id": "pcy-month"}]
 }
+```
+
+**`conditionalFormats`** — Conditional formatting on pivot-table columns. Two supported types:
+
+`dataBars` — renders colored bars proportional to cell values:
+
+```json
+{
+  "conditionalFormats": [{
+    "type": "dataBars",
+    "columns": ["pcy-sales", "pcy-profit"],
+    "scheme": ["#FF9D99", "#A0CBE8"],
+    "includeValues": true,
+    "includeSubtotals": false
+  }]
+}
+```
+
+`backgroundScale` — applies a color gradient across cell values (diverging scale):
+
+```json
+{
+  "conditionalFormats": [{
+    "type": "backgroundScale",
+    "columns": ["pcy-margin"],
+    "scheme": ["rgb(140,13,37)", "rgb(255,255,255)", "rgb(19,75,133)"],
+    "includeValues": true
+  }]
+}
+```
+
+### Table element extras
+
+These fields are accepted on `table` (and master table) elements:
+
+**`visibleAsSource: false`** — Hides the element from being browsable as a standalone table in the
+workbook. **Always set this on the master/data table** — it should be a source for charts, not
+a table users can navigate to directly:
+
+```json
+{
+  "kind": "table",
+  "name": "Master",
+  "visibleAsSource": false,
+  "source": { "kind": "data-model", "dataModelId": "<id>", "elementId": "<id>" },
+  "columns": [...]
+}
+```
+
+**`order`** — Explicit column display order. Value is an array of column IDs. Without it, column
+order is undefined and may differ from the Tableau source:
+
+```json
+{
+  "kind": "table",
+  "columns": [...],
+  "order": ["col-channel", "col-ship", "col-status", "col-revenue", "col-orderid", "col-datekey"]
+}
+```
+
+**`groupings`** — Row groupings with subtotals (equivalent to Tableau row-level subtotals). Each
+entry specifies which columns to group by and which to aggregate:
+
+```json
+{
+  "groupings": [{
+    "id": "grp-dept",
+    "groupBy": ["col-department"],
+    "calculations": ["col-total-hours", "col-cost"],
+    "sort": [{"columnId": "col-total-hours", "direction": "descending", "nulls": "connection-default"}]
+  }]
+}
+```
+
+**`summary`** — Column IDs to show in a summary/footer row at the bottom of the table:
+
+```json
+{ "summary": ["col-revenue", "col-orders"] }
+```
+
+**`style`** — Table border styling:
+
+```json
+{ "style": {"borderRadius": "round", "borderColor": "#E0E0E0", "borderWidth": 1} }
 ```
 
 ### Pie and donut elements

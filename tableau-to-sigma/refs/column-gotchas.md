@@ -56,6 +56,24 @@ Metrics are aggregate formulas that live alongside columns but reference column 
 ```
 Note: `[Sales]` not `[ORDERS/Sales]` — within the same element, bare refs work.
 
+## Integer date keys (YYYYMMDD format)
+
+Snowflake warehouses commonly store dates as integers in `YYYYMMDD` format (e.g., `20240115`).
+Sigma line charts treat these as plain numbers — the axis shows integer values instead of dates
+and the trend renders incorrectly.
+
+**Rule:** Cast integer date keys to proper dates at the workbook column level using `DateParse`:
+
+```json
+{"id": "col-date", "formula": "DateParse(\"yyyyMMdd\", ToText([Master/ORDER_DATE_KEY]))", "name": "Order Date"}
+```
+
+`Date(ToText(...))` looks plausible but fails with `invalid query` at render time.
+`DateParse("yyyyMMdd", ToText(...))` is the correct form.
+
+Do this in the workbook master table column, not in the data model — keep the integer column
+as-is in the data model (useful for filtering/sorting) and cast only where you need a date axis.
+
 ## YAML response from spec endpoints
 
 `POST /v2/dataModels/spec` and `POST /v2/workbooks/spec` return **YAML**, not JSON.
