@@ -219,6 +219,63 @@ All `yAxis` entries are shown as separate series.
 
 `stacking` values: `"none"` (default, grouped), `"stacked"` (absolute), `"100"` (100% stacked).
 
+### Area chart
+
+Same spec as `line-chart` with `"kind": "area-chart"`. Supports `stacking` with the same values:
+
+```json
+{
+  "kind": "area-chart",
+  "columns": [
+    {"id": "a-date",    "formula": "DateTrunc(\"month\", [Master/Order Date])", "name": "Month"},
+    {"id": "a-revenue", "formula": "Sum([Master/Sales])", "name": "Revenue"}
+  ],
+  "xAxis": {"id": "a-date"},
+  "yAxis": [{"id": "a-revenue"}],
+  "stacking": "none"
+}
+```
+
+### Combo chart (bar + line overlay)
+
+Uses `"kind": "combo-chart"`. All `yAxis` entries default to bars. Add `"type": "line"` to any
+entry to render that series as a line instead:
+
+```json
+{
+  "kind": "combo-chart",
+  "columns": [
+    {"id": "c-channel", "formula": "[Master/Channel]",     "name": "Channel"},
+    {"id": "c-rev",     "formula": "Sum([Master/Revenue])", "name": "Revenue"},
+    {"id": "c-orders",  "formula": "Count([Master/OrderId])", "name": "Orders"}
+  ],
+  "xAxis": {"id": "c-channel"},
+  "yAxis": [
+    {"id": "c-rev"},
+    {"id": "c-orders", "type": "line"}
+  ]
+}
+```
+
+Only `"type": "line"` has been observed. Omitting `type` defaults to bar.
+
+### Scatter chart
+
+Uses `"kind": "scatter-chart"` with the same `xAxis`/`yAxis` shape. Assign a measure to each axis:
+
+```json
+{
+  "kind": "scatter-chart",
+  "columns": [
+    {"id": "s-profit", "formula": "Sum([Master/Profit])", "name": "Profit"},
+    {"id": "s-sales",  "formula": "Sum([Master/Sales])",  "name": "Sales"},
+    {"id": "s-cat",    "formula": "[Master/Category]",    "name": "Category"}
+  ],
+  "xAxis": {"id": "s-sales"},
+  "yAxis": [{"id": "s-profit"}]
+}
+```
+
 ### Map → bar chart
 
 Sigma spec does not support geographic maps. Approximate "Sales by State" as a bar chart sorted descending:
@@ -257,14 +314,17 @@ the chart editor after publish.
 |---|---|
 | `kpi-chart` | Big number / scorecard |
 | `line-chart` | Line chart, small multiples (approximated) |
+| `area-chart` | Area chart (filled line) |
 | `bar-chart` | Bar chart, horizontal bar, histogram, map (approximated) |
+| `combo-chart` | Dual-axis / combination chart (bar + line) |
+| `scatter-chart` | Scatter / bubble chart |
 | `pie` | Pie chart |
 | `donut` | Donut / ring chart |
 | `table` | Crosstab, text table |
 | `pivot-table` | Pivot / crosstab |
 | `control` | Dashboard filter, parameter (all types — see Control elements below) |
 
-Not supported: scatter chart, map, bullet chart, gantt, small multiples / trellis.
+Not supported: map, bullet chart, gantt, small multiples / trellis.
 
 ## Element-type field requirements
 

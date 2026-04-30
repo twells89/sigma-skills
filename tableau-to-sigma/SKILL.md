@@ -101,13 +101,13 @@ Use the images to understand:
 - Which chart types are used (bar, line, scatter, map, small multiples)
 - The rough grid layout of each page (columns × rows)
 
-Sigma spec supports: `bar-chart`, `line-chart`, `kpi-chart`, `pie`, `donut`, `table`, `pivot-table`, `control`.
+Sigma spec supports: `bar-chart`, `line-chart`, `area-chart`, `combo-chart`, `scatter-chart`, `kpi-chart`, `pie`, `donut`, `table`, `pivot-table`, `control`.
 
 > **`kpi-chart`, not `kpi`.** The API rejects `"kind": "kpi"` with `"Invalid kind: 'kpi'"`. The correct
 > kind is `"kpi-chart"`. Do not guess element kinds — if uncertain, GET an existing workbook spec
 > (`GET /v2/workbooks/<id>/spec`) and read the `kind` fields directly.
 
-Does **not** support: maps, scatter charts, small multiples / trellis, bullet, gantt.
+Does **not** support: maps, small multiples / trellis, bullet, gantt.
 Approximate with: bar charts (for maps), multi-series line charts (for small multiples).
 
 Control types supported: `list`, `date-range`, `text`, `text-area`, `segmented`, `number`, `number-range`, `slider`, `range-slider`, `top-n`.
@@ -227,8 +227,8 @@ for page in spec.get('pages', []):
         if kind == 'kpi-chart' and 'value' not in el:
             errors.append(f'{name}: kpi-chart missing value field')
 
-        # bar-chart and line-chart must use yAxis, not measures
-        if kind in ('bar-chart', 'line-chart'):
+        # chart types that must use yAxis, not measures
+        if kind in ('bar-chart', 'line-chart', 'area-chart', 'combo-chart', 'scatter-chart'):
             if 'measures' in el:
                 errors.append(f'{name}: use yAxis not measures for {kind}')
             if 'yAxis' not in el:
