@@ -62,14 +62,18 @@ Snowflake warehouses commonly store dates as integers in `YYYYMMDD` format (e.g.
 Sigma line charts treat these as plain numbers — the axis shows integer values instead of dates
 and the trend renders incorrectly.
 
-**Rule:** Cast integer date keys to proper dates at the workbook column level using `DateParse`:
+**Rule:** Cast integer date keys to proper dates at the workbook column level by building an ISO
+string and passing it to `Date()`:
 
 ```json
-{"id": "col-date", "formula": "DateParse(\"yyyyMMdd\", ToText([Master/ORDER_DATE_KEY]))", "name": "Order Date"}
+{"id": "col-date", "formula": "Date(Left(Text([Master/ORDER_DATE_KEY]), 4) & \"-\" & Mid(Text([Master/ORDER_DATE_KEY]), 5, 2) & \"-\" & Right(Text([Master/ORDER_DATE_KEY]), 2))", "name": "Order Date"}
 ```
 
-`Date(ToText(...))` looks plausible but fails with `invalid query` at render time.
-`DateParse("yyyyMMdd", ToText(...))` is the correct form.
+Key points:
+- `Text()` is the correct string conversion function — `ToText()` does not exist in Sigma
+- `Date()` takes a single ISO date string (`"YYYY-MM-DD"`) — it does not accept 3 separate arguments
+- `DateParse()` does not exist in Sigma — do not use it
+- `Mid()` is 1-indexed (position 5 gives the month digits of a YYYYMMDD integer)
 
 Do this in the workbook master table column, not in the data model — keep the integer column
 as-is in the data model (useful for filtering/sorting) and cast only where you need a date axis.
