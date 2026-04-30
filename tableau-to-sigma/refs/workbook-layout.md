@@ -303,10 +303,20 @@ the chart editor after publish.
 |---|---|---|
 | Bar chart orientation (horizontal vs vertical) | No | Chart editor → Properties → Chart type → Horizontal icon |
 | Axis label rotation (0°, 45°, 90°) | No | Chart editor → Format → X-axis → Label rotation |
+| Series color | No (not yet) | Chart editor → Properties → Color |
 | Chart color palette | No | Chart editor → Properties → Color |
 | Font size / axis title | No | Chart editor → Format tab |
 
 **`"orientation": "horizontal"` is silently accepted but ignored.** Do not include it — it does nothing.
+
+**Series `color` on `yAxis` entries is silently accepted but not persisted.** PUT succeeds without error but GET strips the field. Expected shape for when this is wired up:
+```json
+"yAxis": [
+  {"id": "col-revenue", "color": "#E84393"},
+  {"id": "col-orders", "type": "line", "color": "#2196F3"}
+]
+```
+Check GET round-trip before relying on this — when GET starts returning `color`, it's safe to use.
 
 ## Element kinds supported
 
