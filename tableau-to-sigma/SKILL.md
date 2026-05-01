@@ -13,7 +13,7 @@ user-invocable: true
 Convert a Tableau datasource into a Sigma data model, then build a Sigma workbook
 that mirrors the Tableau dashboard layout as closely as possible.
 
-**Read before starting:**
+**Read ALL of the following before replying or taking any action. Do not make assumptions about skill conventions, prompts, or global instructions — read the files.**
 - `refs/column-gotchas.md` — column naming rules and special-character landmines
 - `refs/data-model-spec.md` — data model JSON schema, element format, relationship format
 - `refs/workbook-layout.md` — Ruby layout generation (mandatory), multi-series chart patterns
@@ -101,11 +101,16 @@ Use the images to understand:
 - Which chart types are used (bar, line, scatter, map, small multiples)
 - The rough grid layout of each page (columns × rows)
 
-Sigma spec supports: `bar-chart`, `line-chart`, `area-chart`, `combo-chart`, `scatter-chart`, `kpi-chart`, `pie`, `donut`, `table`, `pivot-table`, `control`.
+Sigma spec supports: `bar-chart`, `line-chart`, `area-chart`, `combo-chart`, `scatter-chart`, `kpi-chart`, `pie-chart`, `donut-chart`, `table`, `pivot-table`, `control`, `text`, `image`, `container`.
 
-> **`kpi-chart`, not `kpi`.** The API rejects `"kind": "kpi"` with `"Invalid kind: 'kpi'"`. The correct
-> kind is `"kpi-chart"`. Do not guess element kinds — if uncertain, GET an existing workbook spec
-> (`GET /v2/workbooks/<id>/spec`) and read the `kind` fields directly.
+> **Common kind mistakes — all three are rejected by the API:**
+> - `"kpi"` → must be `"kpi-chart"`
+> - `"pie"` → must be `"pie-chart"`
+> - `"donut"` → must be `"donut-chart"`
+>
+> The official Sigma example library shows `kpi`, `pie`, and `donut` — all three are wrong. Do not
+> follow it. If uncertain about a kind, GET an existing workbook spec (`GET /v2/workbooks/<id>/spec`)
+> and read the `kind` fields directly.
 
 Does **not** support: maps, small multiples / trellis, bullet, gantt.
 Approximate with: bar charts (for maps), multi-series line charts (for small multiples).
@@ -221,11 +226,26 @@ for page in spec.get('pages', []):
                 if '/' not in ref and ref not in el_col_names:
                     errors.append(f'{name}: bare ref [{ref}] has no match')
 
-        # KPI must use kind 'kpi-chart' (not 'kpi') and must have value field
+        # Common kind mistakes — API rejects all three
         if kind == 'kpi':
             errors.append(f'{name}: invalid kind "kpi" — must be "kpi-chart"')
+        if kind == 'pie':
+            errors.append(f'{name}: invalid kind "pie" — must be "pie-chart"')
+        if kind == 'donut':
+            errors.append(f'{name}: invalid kind "donut" — must be "donut-chart"')
+
+        # kpi-chart must have value field
         if kind == 'kpi-chart' and 'value' not in el:
             errors.append(f'{name}: kpi-chart missing value field')
+
+        # pie-chart and donut-chart must have color + value
+        if kind in ('pie-chart', 'donut-chart'):
+            if 'color' not in el:
+                errors.append(f'{name}: {kind} missing color field')
+            if 'value' not in el:
+                errors.append(f'{name}: {kind} missing value field')
+        if kind == 'donut-chart' and 'holeValue' not in el:
+            errors.append(f'{name}: donut-chart missing holeValue field')
 
         # chart types that must use yAxis, not measures
         if kind in ('bar-chart', 'line-chart', 'area-chart', 'combo-chart', 'scatter-chart'):
@@ -440,6 +460,8 @@ PUT preserves existing element IDs. Only newly added elements get new IDs.
 |---|---|---|
 | `Expecting UUID at 0.folderId but instead got: undefined` | `folderId` missing from data model or workbook spec | Find your folder ID with `GET /v2/files?typeFilters=workbook` — use the `parentId` of any existing workbook |
 | `Invalid kind: 'kpi'` | Used `"kind": "kpi"` — the correct kind is `"kpi-chart"` | Replace all `"kind": "kpi"` with `"kind": "kpi-chart"` in the spec |
+| `Invalid kind: 'pie'` | Used `"kind": "pie"` — the official example library shows this but it's wrong | Replace with `"kind": "pie-chart"` |
+| `Invalid kind: 'donut'` | Used `"kind": "donut"` — the official example library shows this but it's wrong | Replace with `"kind": "donut-chart"` |
 | Element kind rejected, not sure what's valid | Unknown/guessed element kind | `GET /v2/workbooks/<existing-id>/spec` and read the `kind` fields of real elements — never guess |
 | `dependency not found: formula reference 'orders/country region'` | Column named "Country/Region" has slash — unresolvable in formulas | Rename column to "Country" in the data model spec; re-POST |
 | `dependency not found: formula reference 'orders/state province'` | Same slash issue with "State/Province" | Rename to "State" |

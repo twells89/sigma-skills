@@ -261,7 +261,7 @@ Only `"type": "line"` has been observed. Omitting `type` defaults to bar.
 
 ### Scatter chart
 
-Uses `"kind": "scatter-chart"` with the same `xAxis`/`yAxis` shape. Assign a measure to each axis:
+Uses `"kind": "scatter-chart"`. `xAxis` takes a single column ID; `yAxis` is an array and **supports multiple measures** — each becomes an independent y-axis series plotted against the same x-axis:
 
 ```json
 {
@@ -269,12 +269,15 @@ Uses `"kind": "scatter-chart"` with the same `xAxis`/`yAxis` shape. Assign a mea
   "columns": [
     {"id": "s-profit", "formula": "Sum([Master/Profit])", "name": "Profit"},
     {"id": "s-sales",  "formula": "Sum([Master/Sales])",  "name": "Sales"},
+    {"id": "s-qty",    "formula": "Sum([Master/Quantity])", "name": "Quantity"},
     {"id": "s-cat",    "formula": "[Master/Category]",    "name": "Category"}
   ],
   "xAxis": {"id": "s-sales"},
-  "yAxis": [{"id": "s-profit"}]
+  "yAxis": [{"id": "s-profit"}, {"id": "s-qty"}]
 }
 ```
+
+Single-measure yAxis (`"yAxis": [{"id": "s-profit"}]`) is also valid — same array shape, one entry.
 
 ### Map → bar chart
 
@@ -320,7 +323,7 @@ Check GET round-trip before relying on this — when GET starts returning `color
 
 ## Element kinds supported
 
-| Sigma kind | Tableau equivalent |
+| Sigma kind | Tableau equivalent / use |
 |---|---|
 | `kpi-chart` | Big number / scorecard |
 | `line-chart` | Line chart, small multiples (approximated) |
@@ -328,11 +331,16 @@ Check GET round-trip before relying on this — when GET starts returning `color
 | `bar-chart` | Bar chart, horizontal bar, histogram, map (approximated) |
 | `combo-chart` | Dual-axis / combination chart (bar + line) |
 | `scatter-chart` | Scatter / bubble chart |
-| `pie` | Pie chart |
-| `donut` | Donut / ring chart |
+| `pie-chart` | Pie chart |
+| `donut-chart` | Donut / ring chart |
 | `table` | Crosstab, text table |
 | `pivot-table` | Pivot / crosstab |
 | `control` | Dashboard filter, parameter (all types — see Control elements below) |
+| `text` | Text / markdown block |
+| `image` | Embedded image |
+| `container` | Card group / container (wraps other elements) |
+
+> **`pie-chart` not `pie`, `donut-chart` not `donut`.** The API rejects `"kind": "pie"` and `"kind": "donut"` with `Invalid kind`. Always use the `-chart` suffix for these two. The official example library shows the wrong values — do not follow it.
 
 Not supported: map, bullet chart, gantt, small multiples / trellis.
 
@@ -490,11 +498,13 @@ entry specifies which columns to group by and which to aggregate:
 
 ### Pie and donut elements
 
+> **`pie-chart` and `donut-chart`** — NOT `pie` / `donut`. Both are rejected by the API with `Invalid kind`.
+
 Both use `color` for the dimension (slice category) and `value` for the measure. Donut additionally requires `holeValue` for the center label.
 
 ```json
 {
-  "kind": "pie",
+  "kind": "pie-chart",
   "columns": [
     {"id": "dim-region", "formula": "[Master/Region]", "name": "Region"},
     {"id": "mea-sales",  "formula": "Sum([Master/Sales])", "name": "Sales"}
@@ -506,7 +516,7 @@ Both use `color` for the dimension (slice category) and `value` for the measure.
 
 ```json
 {
-  "kind": "donut",
+  "kind": "donut-chart",
   "columns": [
     {"id": "dim-seg",    "formula": "[Master/Segment]", "name": "Segment"},
     {"id": "mea-sales",  "formula": "Sum([Master/Sales])", "name": "Sales"},
@@ -519,6 +529,46 @@ Both use `color` for the dimension (slice category) and `value` for the measure.
 ```
 
 `holeValue` can reference the same aggregate as `value` (just a second column definition) or a different one.
+
+### Text element
+
+Uses `"kind": "text"`. The `body` field is a plain markdown string. No `source`, `columns`, or axes.
+
+```json
+{
+  "id": "txt-header",
+  "kind": "text",
+  "body": "## Sales Overview\n\nThis dashboard covers order performance by region and segment."
+}
+```
+
+### Image element
+
+Uses `"kind": "image"`. The `url` field is a public remote image URL. No `source`, `columns`, or axes.
+
+```json
+{
+  "id": "img-logo",
+  "kind": "image",
+  "url": "https://example.com/logo.png"
+}
+```
+
+In layout XML, image elements use a standard `<LayoutElement>`:
+```xml
+<LayoutElement elementId="img-logo" gridColumn="1 / 9" gridRow="1 / 9"/>
+```
+
+### Container element
+
+Uses `"kind": "container"`. The element spec has no extra fields — children are nested inside it via `<GridContainer>` in the layout XML (see GridContainer section above).
+
+```json
+{
+  "id": "kpi-row",
+  "kind": "container"
+}
+```
 
 ### Histogram
 
@@ -755,6 +805,8 @@ curl -s -X PUT \
 | Mistake | Symptom | Fix |
 |---|---|---|
 | Using `"kind": "kpi"` | `"Invalid kind: 'kpi'"` | The correct kind is `"kpi-chart"` — never `"kpi"` |
+| Using `"kind": "pie"` | `"Invalid kind: 'pie'"` | The correct kind is `"pie-chart"` — the official example library is wrong here |
+| Using `"kind": "donut"` | `"Invalid kind: 'donut'"` | The correct kind is `"donut-chart"` — the official example library is wrong here |
 | KPI names invisible or truncated inside container | Inner `gridRow` too small — e.g., `1 / 2` inside a 6-row container | Set inner end value = container outer end value: container `1 / 9` → KPIs `1 / 9` |
 | KPIs appear as a tiny sliver at top of container | Same root cause as above | Same fix — match inner row span to container outer span |
 | Setting `layout` on each page object instead of top-level | PUT returns success but UI shows no layout change | Set `spec['layout']` once at the top level; strip `layout` from all page objects |
