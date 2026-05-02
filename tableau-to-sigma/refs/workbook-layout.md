@@ -309,6 +309,7 @@ the chart editor after publish.
 | Series color | No (not yet) | Chart editor → Properties → Color |
 | Chart color palette | No | Chart editor → Properties → Color |
 | Font size / axis title | No | Chart editor → Format tab |
+| Text element alignment (center / right) | No | Element editor → Format → Alignment. Confirmed UI-only: spec GET returns only `id`/`kind`/`body` even after centering in the UI. Markdown `# Heading` in `body` always renders left-aligned. |
 
 **`"orientation": "horizontal"` is silently accepted but ignored.** Do not include it — it does nothing.
 
@@ -541,6 +542,15 @@ Uses `"kind": "text"`. The `body` field is a plain markdown string. No `source`,
   "body": "## Sales Overview\n\nThis dashboard covers order performance by region and segment."
 }
 ```
+
+**Use a text element to recreate Tableau dashboard titles and section headers.** Renaming the
+page (`page['name']`) only changes the tab label; it does not put a heading on the canvas.
+If the Tableau dashboard image shows a title at the top, add `{ "kind": "text", "body": "# Title" }`
+and reserve the top ~2 grid rows for it in the layout XML.
+
+**Alignment is UI-only.** Markdown `# Heading` in `body` always renders left-aligned. Centering
+or right-aligning has to be applied post-publish via the element editor's Format tab — the spec
+GET round-trip confirms only `id`/`kind`/`body` survive on text elements.
 
 ### Image element
 

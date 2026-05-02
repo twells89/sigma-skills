@@ -100,6 +100,7 @@ Use the images to understand:
 - How many KPIs are in the header row and what they measure
 - Which chart types are used (bar, line, scatter, map, small multiples)
 - The rough grid layout of each page (columns × rows)
+- **Page titles, section headers, and any free-text annotations on the dashboard surface** — these are real content (not metadata) and need to be recreated as `text` elements in the Sigma spec. The page tab name (`page['name']`) is *not* a substitute; it only appears in the tab bar, not on the canvas. If the Tableau dashboard shows a heading like "Orders Dashboard" at the top of the page, add a `text` element with `body: "# Orders Dashboard"` and reserve a row for it in the layout.
 
 Sigma spec supports: `bar-chart`, `line-chart`, `area-chart`, `combo-chart`, `scatter-chart`, `kpi-chart`, `pie-chart`, `donut-chart`, `table`, `pivot-table`, `control`, `text`, `image`, `container`.
 
@@ -530,6 +531,7 @@ alongside them. Don't mistake the noise for a real query failure.
 | Wrong endpoint — workbook created instead of data model | Called `/v2/workbooks` instead of `/v2/dataModels/spec` | Delete the workbook; re-POST to the correct endpoint |
 | Bar chart renders vertical but Tableau shows horizontal bars | Bar chart orientation is UI-only — `"orientation": "horizontal"` is silently accepted and dropped | Set it manually post-publish: chart editor → Properties → Chart type → Horizontal icon |
 | Axis label rotation not applied | Axis rotation is UI-only — not stored in or returned by spec API | Set it manually post-publish: chart editor → Format → X-axis → Label rotation |
+| Dashboard title appears left-aligned despite Tableau showing it centered | Text element alignment is UI-only — `text` element spec only persists `id`/`kind`/`body` | Set in element editor → Format → Alignment after publish |
 | `mcp__sigma-mcp-v2__query` with `type: "workbook"` returns "Table X not found" | Workbook queries don't resolve element names (e.g., `"Master"`) as table refs | Use `type: "connection"` with the raw table inodeId for data validation queries |
 | Workbook query result rows include `--metric-["..."]` columns whose values say `Column "X.--metric-[...]" does not exist.` | Synthetic metric-projection columns appended by the query engine on `type="workbook"` queries — harmless | Ignore them; your explicitly-SELECTed columns return correct values alongside the noise |
 | Integer date key column renders as number axis on line chart | `ORDER_DATE_KEY` is stored as an integer (YYYYMMDD); Sigma treats it as a number | Cast in the workbook column: `Date(Left(Text([Master/ORDER_DATE_KEY]), 4) & "-" & Mid(Text([Master/ORDER_DATE_KEY]), 5, 2) & "-" & Right(Text([Master/ORDER_DATE_KEY]), 2))` — `DateParse()` and `ToText()` do not exist in Sigma |
