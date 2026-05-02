@@ -18,6 +18,8 @@ that mirrors the Tableau dashboard layout as closely as possible.
 - `refs/data-model-spec.md` — data model JSON schema, element format, relationship format
 - `refs/workbook-layout.md` — Ruby layout generation (mandatory), multi-series chart patterns
 
+**For canonical workbook spec shape** (element kinds, source kinds, controls, formulas, formatting), defer to the sibling **`sigma-workbooks`** skill at `~/sigma-skills/sigma-workbooks/`. This skill restates only the Tableau-conversion-specific patterns; everything else (KPI fields, color channel, pivot-table shape, manual sources, container styling, YAML default, etc.) lives there. Read `sigma-workbooks/reference/specification/` whenever you need the current spec surface.
+
 ---
 
 ## Prerequisites

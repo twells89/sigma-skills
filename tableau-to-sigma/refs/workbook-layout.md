@@ -1,5 +1,7 @@
 # Workbook Layout Reference
 
+> **Spec shape lives in `sigma-workbooks`.** This file is Tableau-conversion-specific: Ruby layout generation, multi-series chart patterns, dashboard-translation idioms. For the canonical workbook spec shape (element kinds, sources, controls, formulas, formatting), read `~/sigma-skills/sigma-workbooks/reference/specification/`. Treat that as the source of truth — when this file disagrees, the sigma-workbooks reference wins.
+
 Layout is always generated with Ruby. Never hand-write layout XML.
 
 ## Grid system
