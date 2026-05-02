@@ -78,6 +78,39 @@ Key points:
 Do this in the workbook master table column, not in the data model — keep the integer column
 as-is in the data model (useful for filtering/sorting) and cast only where you need a date axis.
 
+## Cross-year month rollup (Tableau MONTH part vs Sigma DateTrunc)
+
+A Tableau dimension built from `MONTH([Order Date])` (the date *part*, not a truncation)
+produces 12 month-name buckets that aggregate across **all years** in the data — January
+2024 and January 2025 collapse into a single "January" point.
+
+Sigma's `DateTrunc("month", [date])` does **not** do this. It preserves the year, so the
+same data renders as 24 month-year points (Jan 2024, Jan 2025, …) instead of 12.
+
+When the Tableau view CSV shows month names without years (e.g. `"Month of Order Date Key,Gross Revenue\nJanuary,1224.88\n..."`),
+the original chart is using the part-extraction form. To match it in Sigma, synthesize a
+single-year date inside the formula so all years share an axis:
+
+```json
+{
+  "id": "mr-month",
+  "formula": "Date(\"2024-\" & Mid(Text([Master/Order Date Key]), 5, 2) & \"-01\")",
+  "name": "Month",
+  "format": {"kind": "datetime", "formatString": "%B"}
+}
+```
+
+The year `"2024-"` is arbitrary — any constant works because it's stripped by the `%B`
+format. Same trick adapts to `Year`-stripped quarters (use a fixed year and the quarter's
+first month) or weeks (fixed year + ISO week).
+
+If the Tableau CSV shows month-year together (`"January 2024,664.94\n..."`), the chart is
+using `DateTrunc` and you don't need this workaround — plain `DateTrunc("month", [Master/Order Date])`
+matches.
+
+> **Always confirm by inspecting the CSV before picking a formula.** Tableau worksheet titles
+> ("Monthly Revenue Trend") don't tell you which form is in use; the CSV does.
+
 ## YAML response from spec endpoints
 
 `POST /v2/dataModels/spec` and `POST /v2/workbooks/spec` return **YAML**, not JSON.

@@ -454,6 +454,54 @@ PUT preserves existing element IDs. Only newly added elements get new IDs.
 
 ---
 
+## Phase 6 — Verify chart data matches Tableau
+
+> **This step is mandatory. PUT returning `success: true` only proves the spec parsed —
+> it tells you nothing about whether each chart shows the right numbers.** A bad column
+> formula can resolve to type `error` and silently render an empty chart; a wrong
+> dimension or aggregation can ship "successful" but display the wrong story.
+
+For every content chart, query the workbook element via Sigma MCP and compare row-by-row
+to the `mcp__tableau__get-view-data` CSV captured in Phase 1.
+
+### 6a. Query each chart element
+
+Use the spec column IDs you wrote (preserved on PUT) and the workbook ID returned by POST:
+
+```
+mcp__sigma-mcp-v2__query  type="workbook"  workbookId="<wbId>"
+  sql='SELECT "<dim-col-id>", ROUND("<measure-col-id>"::numeric, 2) FROM "workbook"."<element-id>" ORDER BY 1'
+```
+
+Run the queries in parallel — they're independent reads, no session contention.
+
+### 6b. Compare to Tableau CSVs
+
+Every row from the Sigma query must match a row in the corresponding Tableau view CSV
+(modulo float-precision rounding). If anything diverges:
+- **Numbers wrong by a constant factor** → check aggregation (Sum vs Avg vs CountDistinct).
+- **Wrong dimension values** → check the `[Master/...]` formula references the right column.
+- **Date axis has 24 buckets where Tableau shows 12** → see `refs/column-gotchas.md` "Cross-year month rollup".
+- **Empty result / column resolves as `error`** → run `mcp__sigma-mcp-v2__describe` on the element; column type `error` means the formula failed to compile (often `IsIn`, an unsupported window function, or a missing-column ref).
+
+### 6c. Trust the CSV, not the dashboard caption
+
+A Tableau dashboard's chart title is hardcoded text on the dashboard, not derived from
+the underlying view. When a Tableau author replaces a chart's data without updating the
+title, the caption lies. **The view's `get-view-data` CSV is the source of truth** —
+build the Sigma chart against the CSV's actual columns and pick a truthful Sigma name,
+even if it disagrees with what's printed above the bars in Tableau.
+
+### 6d. Phantom `--metric-["..."]` columns in workbook query results
+
+`mcp__sigma-mcp-v2__query` with `type="workbook"` appends synthetic columns to every
+result row of the form `--metric-["<colId>"]` whose values look like
+`Column "X.--metric-[...]" does not exist.`. These are harmless artifacts of the
+metric-projection layer — your explicitly-SELECTed columns return correct values
+alongside them. Don't mistake the noise for a real query failure.
+
+---
+
 ## Troubleshooting
 
 | Error | Cause | Fix |
@@ -483,4 +531,6 @@ PUT preserves existing element IDs. Only newly added elements get new IDs.
 | Bar chart renders vertical but Tableau shows horizontal bars | Bar chart orientation is UI-only — `"orientation": "horizontal"` is silently accepted and dropped | Set it manually post-publish: chart editor → Properties → Chart type → Horizontal icon |
 | Axis label rotation not applied | Axis rotation is UI-only — not stored in or returned by spec API | Set it manually post-publish: chart editor → Format → X-axis → Label rotation |
 | `mcp__sigma-mcp-v2__query` with `type: "workbook"` returns "Table X not found" | Workbook queries don't resolve element names (e.g., `"Master"`) as table refs | Use `type: "connection"` with the raw table inodeId for data validation queries |
+| Workbook query result rows include `--metric-["..."]` columns whose values say `Column "X.--metric-[...]" does not exist.` | Synthetic metric-projection columns appended by the query engine on `type="workbook"` queries — harmless | Ignore them; your explicitly-SELECTed columns return correct values alongside the noise |
 | Integer date key column renders as number axis on line chart | `ORDER_DATE_KEY` is stored as an integer (YYYYMMDD); Sigma treats it as a number | Cast in the workbook column: `Date(Left(Text([Master/ORDER_DATE_KEY]), 4) & "-" & Mid(Text([Master/ORDER_DATE_KEY]), 5, 2) & "-" & Right(Text([Master/ORDER_DATE_KEY]), 2))` — `DateParse()` and `ToText()` do not exist in Sigma |
+| Sigma line chart shows 24 month-year buckets where Tableau shows 12 month names | Tableau MONTH part collapses across years; Sigma `DateTrunc("month", ...)` preserves year | See `refs/column-gotchas.md` "Cross-year month rollup" — synthesize a single-year date in the formula |
