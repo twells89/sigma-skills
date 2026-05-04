@@ -651,6 +651,32 @@ Dynamic source (values populated from a column):
 }
 ```
 
+**Default value.** Two shapes, depending on whether you want a relative or fixed window:
+
+```json
+// Relative: "current year", "year to date", etc. — rolls forward over time
+"mode": "current",
+"unit": "year"
+```
+
+```json
+// Fixed: explicit start/end dates — does not change as time passes
+"mode": "between",
+"startDate": "2026-01-01T00:00:00Z",
+"endDate": "2026-12-31T23:59:59Z"
+```
+
+`unit` for relative defaults: `"year"`, `"quarter"`, `"month"`, `"week"`, `"day"` (likely also `"hour"` / `"minute"` for time-of-day filters; verify by setting in UI and round-tripping).
+
+`startDate` / `endDate` are ISO 8601 timestamps with explicit timezone (UTC `Z` suffix is what Sigma round-trips). Top-level fields on the control object — NOT nested inside `value` / `default` / similar.
+
+> **`value: {min, max}` is silently dropped.** A natural-looking shape like
+> `"value": {"min": "2026-01-01", "max": "2026-12-31"}` is accepted by POST/PUT
+> without error, GET strips it on round-trip, and the control renders with no
+> default. Tableau dashboards translated as fixed date filters will look like
+> they're missing their default after publish — confirm by GET-ing the control
+> and checking for `startDate` / `endDate` at the top level.
+
 ### text — single-line text filter
 
 ```json
