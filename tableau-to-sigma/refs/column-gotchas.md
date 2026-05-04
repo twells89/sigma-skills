@@ -78,6 +78,37 @@ Key points:
 Do this in the workbook master table column, not in the data model — keep the integer column
 as-is in the data model (useful for filtering/sorting) and cast only where you need a date axis.
 
+## Tableau IF/ELSE-catches-null vs Sigma If
+
+Tableau's `IF x >= 5000 THEN "Platinum" ELSEIF x >= 2000 THEN "Gold" … ELSE "Bronze" END`
+sends NULL `x` to the ELSE branch — `NULL >= 5000` evaluates to NULL, every comparison
+falls through, and the ELSE arm fires. Sigma's `If(NULL >= 5000, ..., ...)` returns NULL,
+not the false-arm. The downstream symptom is an extra NULL bucket on a chart that has no
+NULL bucket in Tableau, plus skewed totals in the Tableau-equivalent ELSE bucket.
+
+This shows up most often after a `Lookup()` for orphan-joined fact rows (no matching dim
+key → null lookup → null bucket).
+
+**Fix — wrap the lookup with `Coalesce`:**
+
+```json
+{
+  "formula": "Coalesce(Lookup([Customer Dim/Customer Value Tier], [Customer Key], [Customer Dim/Customer Key]), \"Bronze\")"
+}
+```
+
+Or coalesce the base measure before the comparison chain:
+
+```json
+{
+  "formula": "If(Coalesce([Lifetime Revenue], -1) >= 5000, \"Platinum\", If(Coalesce([Lifetime Revenue], -1) >= 2000, \"Gold\", If(Coalesce([Lifetime Revenue], -1) >= 500, \"Silver\", \"Bronze\")))"
+}
+```
+
+Use whichever default value lands the null rows in the same bucket Tableau's ELSE was
+catching them in (-1 forces "Bronze" for the lifetime-revenue tier; pick a value below
+all thresholds).
+
 ## Cross-year month rollup (Tableau MONTH part vs Sigma DateTrunc)
 
 A Tableau dimension built from `MONTH([Order Date])` (the date *part*, not a truncation)

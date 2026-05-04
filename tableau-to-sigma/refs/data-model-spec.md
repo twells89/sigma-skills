@@ -86,6 +86,26 @@ Relationships belong on the **source** element, not the target. They link a sour
 - Multiple keys supported for composite joins
 - One relationship per join pair; n-way joins use multiple relationship entries
 
+## Denormalizing dim columns onto a fact element — use `Lookup()`, not bare refs
+
+Relationships enable query-time joins, but they do **not** auto-resolve cross-element references inside calc-column formulas. A formula like `[Customer Dim/Region]` on an `Order Fact` calc column compiles cleanly, GET round-trips it, and `describe` reports the column type as `text` — but every row returns `NULL`. There is no error.
+
+To pull a dim column onto a fact element, use `Lookup()`:
+
+```json
+{
+  "id": "of-region",
+  "name": "Region",
+  "formula": "Lookup([Customer Dim/Region], [Customer Key], [Customer Dim/Customer Key])"
+}
+```
+
+`Lookup(<value-from-other-element>, <local-key>, <other-element-key>)`. The local key column (`[Customer Key]`) must already exist on the fact element. The other-element columns are referenced with the standard `[Element Name/Column Name]` prefix.
+
+Use this pattern whenever the workbook needs to slice the fact by a dim attribute (Region, Category, Tier, etc.) — denormalize once on the data-model element so the workbook master table sees a flat row.
+
+**Null-tolerance for Tableau-style ELSE catches:** Tableau's `IF x >= 5000 THEN "Platinum" … ELSE "Bronze"` collapses NULL `x` into the ELSE branch (`NULL >= 5000` is NULL → falls through). Sigma's `If(NULL >= ..., ...)` returns NULL, not the false-arm — so orphan-joined rows where the lookup returns NULL produce a NULL bucket instead of joining the default category. To match Tableau, wrap the lookup: `Coalesce(Lookup([Customer Dim/Customer Value Tier], ...), "Bronze")`. Equivalent fix: `If(Coalesce([Lifetime Revenue], -1) >= 5000, ...)` if computing the bucket directly from the looked-up base column.
+
 ## Format objects
 
 ```json

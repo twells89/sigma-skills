@@ -392,9 +392,12 @@ ruby -r yaml -r json -r date -e \
    puts 'workbookId: ' + d['workbookId'].to_s"
 ```
 
-> **IDs are reassigned on POST.** The element IDs you wrote in the spec are NOT
-> preserved. Always GET the spec back immediately after creation to retrieve the
-> real IDs before building layout XML.
+> **Always GET the spec back before building layout XML.** Workbook-spec POST often
+> preserves readable string element IDs (e.g. `master`, `el-rev-by-region`) verbatim,
+> but this is not contractual — it has been observed to vary. Data-model-spec POST
+> *always* reassigns element IDs regardless of what you supplied. Either way, GET
+> the spec immediately after POST and use whatever IDs come back when wiring the
+> layout XML; never assume your spec IDs survived.
 
 ### 5c. GET the spec back and extract real IDs
 
