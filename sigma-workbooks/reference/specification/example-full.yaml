@@ -59,7 +59,7 @@ pages:
       - id: GlZTnW60cY
         kind: container
       - id: _vo5wivHIk
-        kind: kpi
+        kind: kpi-chart
         source:
           elementId: XnyLSupesM
           kind: table
@@ -73,7 +73,7 @@ pages:
           id: gBXB7mNDp6
         name: Total sales
       - id: YBiGG5m5kY
-        kind: kpi
+        kind: kpi-chart
         source:
           elementId: XnyLSupesM
           kind: table
@@ -117,7 +117,7 @@ pages:
           id: uHU1J_MXtl
         name: Sales over time
       - id: 17QGJ7ZJxQ
-        kind: kpi
+        kind: kpi-chart
         source:
           elementId: XnyLSupesM
           kind: table
@@ -131,7 +131,7 @@ pages:
           id: wB0OB8xetX
         name: Total orders
       - id: wQ5ezUY81K
-        kind: kpi
+        kind: kpi-chart
         source:
           elementId: XnyLSupesM
           kind: table
@@ -168,7 +168,7 @@ pages:
         stacking: none
         name: Sales by region
       - id: z9QWSXomyE
-        kind: donut
+        kind: donut-chart
         source:
           elementId: XnyLSupesM
           kind: table
@@ -451,7 +451,7 @@ pages:
       - id: 2B07dCkvIY
         kind: container
       - id: CE_TB50vql
-        kind: kpi
+        kind: kpi-chart
         source:
           elementId: XnyLSupesM
           kind: table
@@ -466,7 +466,7 @@ pages:
           id: 6bTPYGXwIm
         name: Total customers
       - id: rhbytbOPeu
-        kind: kpi
+        kind: kpi-chart
         source:
           elementId: XnyLSupesM
           kind: table
@@ -481,7 +481,7 @@ pages:
           id: TofUW7R0OU
         name: Avg spend per customer
       - id: MvuERTuXJl
-        kind: kpi
+        kind: kpi-chart
         source:
           elementId: XnyLSupesM
           kind: table

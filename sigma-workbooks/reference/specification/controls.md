@@ -45,6 +45,10 @@ Controls are interactive filter elements — dropdowns, date pickers, text input
 
 ## Date Range
 
+A date-range control filters one or more date columns. The widget shape is determined by `mode`, and each mode takes different additional fields. Eight modes are supported. No `source` is needed — the column is defined by the `filters` binding.
+
+Common shape:
+
 ```json
 {
   "kind": "control",
@@ -52,7 +56,7 @@ Controls are interactive filter elements — dropdowns, date pickers, text input
   "controlId": "DateFilter",
   "name": "Date range",
   "controlType": "date-range",
-  "mode": "between",
+  "mode": "<see below>",
   "includeNulls": "when-no-value-is-selected",
   "filters": [
     { "source": { "kind": "table", "elementId": "sales-table" }, "columnId": "col-date" }
@@ -60,7 +64,64 @@ Controls are interactive filter elements — dropdowns, date pickers, text input
 }
 ```
 
-No `source` needed — the date column is defined by the `filters` binding.
+`includeNulls`: `"always"` | `"never"` | `"when-no-value-is-selected"`.
+
+### Modes
+
+| Mode | Extra fields | Use for |
+|---|---|---|
+| `between` | `startDate?`, `endDate?` (ISO 8601) | Inclusive range. Both fields optional — omitting them shows the picker with no preset. |
+| `last` | `value` (number), `unit`, `includeToday` (bool) | "Last N days/weeks/months." |
+| `next` | `value`, `unit`, `includeToday` | "Next N days/weeks/months." |
+| `current` | `unit` | "This year/quarter/month/week/day." |
+| `on` | `date` (ISO 8601) | Exact date match. |
+| `before` | `date` | Strictly before a fixed date. |
+| `after` | `date` | Strictly after a fixed date. |
+| `custom` | `startDate`, `endDate` (each: ISO string OR `{ op, unit, value }` for relative) | Mixed fixed/relative bounds. |
+
+`unit` values: `"year"`, `"quarter"`, `"month"`, `"week-starting-sunday"`, `"week-starting-monday"`, `"day"`, `"hour"`, `"minute"`.
+
+For relative `startDate` / `endDate` shapes (used in `custom` mode):
+
+```json
+{ "op": "now-minus", "unit": "day", "value": 30 }
+```
+
+`op`: `"now-minus"` or `"now-plus"`.
+
+### Common Examples
+
+**Last 70 days:**
+
+```json
+"mode": "last",
+"value": 70,
+"unit": "day",
+"includeToday": true
+```
+
+**This quarter:**
+
+```json
+"mode": "current",
+"unit": "quarter"
+```
+
+**Fixed range:**
+
+```json
+"mode": "between",
+"startDate": "2026-01-01",
+"endDate": "2026-03-31"
+```
+
+**Last 90 days through today (custom mode with relative bounds):**
+
+```json
+"mode": "custom",
+"startDate": { "op": "now-minus", "unit": "day", "value": 90 },
+"endDate":   { "op": "now-minus", "unit": "day", "value": 0 }
+```
 
 ## Text
 

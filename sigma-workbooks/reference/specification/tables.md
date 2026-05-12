@@ -109,19 +109,37 @@ Every column needs `id`, `name`, and `formula`. Optional: `format` (see `formatt
 {
   "id": "sales-pivot",
   "kind": "pivot-table",
+  "name": "Sales by region and quarter",
   "source": { "kind": "table", "elementId": "sales-table" },
   "columns": [
     { "id": "col-region",  "formula": "[Master/Store Region]" },
     { "id": "col-quarter", "formula": "DateTrunc(\"quarter\", [Master/Date])" },
     { "id": "col-sales",   "formula": "Sum([Master/Sales Amount])" }
   ],
-  "rowsBy":    ["col-region"],
-  "columnsBy": ["col-quarter"],
+  "rowsBy":    [{ "id": "col-region" }],
+  "columnsBy": [{ "id": "col-quarter" }],
   "values":    ["col-sales"]
 }
 ```
 
-- `rowsBy` — column IDs that become row headers.
-- `columnsBy` — column IDs that become column headers (cross-tab dimension).
-- `values` — column IDs (typically aggregations) shown in the cells.
-- `conditionalFormats` — optional array of conditional-formatting rules applied to value cells.
+| Field | Required | Notes |
+|---|---|---|
+| `id` | yes | Unique on the page |
+| `kind` | yes | Always `"pivot-table"` |
+| `source` | yes | Same source kinds as `table` |
+| `columns` | yes | Same shape as `table`'s `columns` (id + formula + name + format) |
+| `values` | yes | Array of column ID strings — the **measure** columns (cells of the pivot) |
+| `rowsBy` | yes (in practice) | Array of `{ "id": "<col-id>" }` objects — columns to roll up on the left axis |
+| `columnsBy` | optional | Array of `{ "id": "<col-id>" }` objects — columns to roll out across the top header |
+| `name` | no | Display title — accepted even though not in the OpenAPI required list |
+| `conditionalFormats` | no | Array of conditional-formatting rules applied to value cells |
+
+**Don't use `rows`, `columns`, `pivotRows`, or `columnGroups` as alternative names** — the API silently accepts those but the element renders incorrectly.
+
+### What happens when you omit `rowsBy`/`columnsBy`
+
+Verified on staging (May 2026): a pivot-table with only `columns` + `values` is accepted by POST and round-trips cleanly, **but at render time it collapses to a single grand-total row** — no dimension breakouts. Sigma does not infer dimensions from non-`values` columns. You must explicitly assign them via `rowsBy`/`columnsBy`.
+
+### Round-trip column reordering
+
+When `rowsBy` / `columnsBy` are present, Sigma preserves the `columns` array order on round-trip. When they are absent (the broken grand-total mode), Sigma reorders columns with values first. Either way, the `values`, `rowsBy`, and `columnsBy` arrays preserve the IDs you submitted.

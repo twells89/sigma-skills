@@ -6,13 +6,13 @@ When an element sources another element (e.g., a KPI or chart sourcing a table),
 
 **Wrong:**
 ```json
-{ "kind": "kpi", "source": { "kind": "table", "elementId": "usage-table" },
+{ "kind": "kpi-chart", "source": { "kind": "table", "elementId": "usage-table" },
   "columns": [{ "name": "Total", "formula": "Count([Question ID])" }] }
 ```
 
 **Right:**
 ```json
-{ "kind": "kpi", "source": { "kind": "table", "elementId": "usage-table" },
+{ "kind": "kpi-chart", "source": { "kind": "table", "elementId": "usage-table" },
   "columns": [{ "name": "Total", "formula": "Count([AI Usage Data/Question ID])" }] }
 ```
 

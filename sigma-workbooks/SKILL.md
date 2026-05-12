@@ -34,10 +34,12 @@ The reference is feature-sliced — don't read every file up-front. The index be
 | `reference/specification/formulas.md` | Always — load before drafting any spec. Formula syntax, qualification, special characters, the #1 mistake. |
 | `reference/specification/sources-warehouse.md` | Always — load before drafting any spec. Warehouse-table source (Snowflake, BigQuery, Databricks, Redshift, Postgres/MySQL). |
 | `reference/specification/sources.md` | Reference another chart/table/element, derive from existing element, join, combine tables, data model / semantic-layer source, custom SQL, union, transpose, unpivot. |
-| `reference/specification/tables.md` | Table element, tabular data, data grid, spreadsheet-style list. Also element-level filters (top N, limit, rank) and groupings (pivot, group by, roll up). |
+| `reference/specification/tables.md` | Table element, tabular data, data grid, spreadsheet-style list. Also element-level filters (top N, limit, rank), groupings (pivot, group by, roll up), and the `pivot-table` element kind. |
 | `reference/specification/charts.md` | Chart, graph, visualization, line / bar / column / stacked / grouped / donut / pie / share-of / breakdown. |
 | `reference/specification/kpis.md` | KPI, stat, big number, single value, metric card. |
 | `reference/specification/controls.md` | Filter, dropdown, picker, multi-select, date range, date picker, text filter, number range, slider. |
+| `reference/specification/text.md` | Text element / Markdown block — dashboard titles, descriptions, callouts, prose alongside charts. |
+| `reference/specification/others.md` | Divider and image elements — small visual elements for dashboard polish. |
 | `reference/specification/formatting.md` | Format, currency, percentage, date format, decimals — column formatting. |
 | `reference/specification/layout.md` | Layout, grid, arrange, position, container, dashboard arrangement, layout XML. |
 | `reference/specification/example-full.yaml` | A real multi-page reference spec (KPIs, charts, joins, controls, layout) — copy shapes from when in doubt. |

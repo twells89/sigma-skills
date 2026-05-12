@@ -1,12 +1,12 @@
 # Charts
 
-Chart elements: `line-chart`, `bar-chart`, `area-chart`, `combo-chart`, `donut`. They share the same skeleton — a `source`, a `columns` array, and axis/value pointers that reference column IDs.
+Chart elements: `line-chart`, `bar-chart`, `area-chart`, `combo-chart`, `donut-chart`. They share the same skeleton — a `source`, a `columns` array, and axis/value pointers that reference column IDs.
 
 ## Common Fields
 
 | Field | Required | Notes |
 |---|---|---|
-| `kind` | yes | `"line-chart"`, `"bar-chart"`, `"area-chart"`, `"combo-chart"`, or `"donut"` |
+| `kind` | yes | `"line-chart"`, `"bar-chart"`, `"area-chart"`, `"combo-chart"`, or `"donut-chart"` |
 | `id` | yes | Unique on the page |
 | `name` | yes | Display title |
 | `source` | yes | Usually `{ "kind": "table", "elementId": "<source-table-id>" }` — see `sources.md` |
@@ -133,7 +133,7 @@ Uses `value` and `color` instead of `xAxis` / `yAxis`.
 ```json
 {
   "id": "sales-by-family",
-  "kind": "donut",
+  "kind": "donut-chart",
   "name": "Sales by product family",
   "source": { "kind": "table", "elementId": "sales-table" },
   "columns": [
@@ -141,18 +141,34 @@ Uses `value` and `color` instead of `xAxis` / `yAxis`.
     { "id": "col-sales",  "formula": "Sum([Master/Sales Amount])", "name": "Sales",
       "format": { "kind": "number", "formatString": "$,.0f" } }
   ],
-  "value":     { "id": "col-sales" },
-  "color":     { "id": "col-family",
-                 "sort": { "by": "col-sales", "direction": "descending" } },
-  "holeValue": 0.5
+  "value": { "id": "col-sales" },
+  "color": { "id": "col-family",
+             "sort": { "by": "col-sales", "direction": "descending" } }
 }
 ```
 
-**Required:** `holeValue` (0.0 = pie, 1.0 = all hole). Donut specs without it are rejected.
+`holeValue` is optional. The donut renders fine without it (verified May 2026). When set, it must reference a column ID — not a literal float (`"holeValue": 0.5` is rejected with `Invalid object: number`):
+
+```json
+"holeValue": { "id": "col-sales-hole" }
+```
+
+> **Watch out — silent element drop.** If `holeValue.id` equals `value.id` (i.e., they reference the same column), the POST succeeds but the entire donut element is silently dropped from the saved spec. Define a **second column** with a distinct ID (same formula is fine) and point `holeValue` at it:
+>
+> ```json
+> "columns": [
+>   { "id": "col-family",     "formula": "[Master/Family]" },
+>   { "id": "col-sales",      "formula": "Sum([Master/Sales Amount])" },
+>   { "id": "col-sales-hole", "formula": "Sum([Master/Sales Amount])" }
+> ],
+> "value":     { "id": "col-sales" },
+> "color":     { "id": "col-family" },
+> "holeValue": { "id": "col-sales-hole" }
+> ```
 
 ## Element-Level Filters (Top-N, etc.)
 
-Charts take the same `filters` array as tables — the top-N example in `tables.md` applies to `bar-chart`, `line-chart`, `area-chart`, `combo-chart`, `donut`, and `kpi-chart` without changes. Use this to cap a chart to the top N categories by some measure.
+Charts take the same `filters` array as tables — the top-N example in `tables.md` applies to `bar-chart`, `line-chart`, `area-chart`, `combo-chart`, `donut-chart`, and `kpi-chart` without changes. Use this to cap a chart to the top N categories by some measure.
 
 Top 10 regions by `Sales` on a bar chart:
 
@@ -188,7 +204,15 @@ Top 10 regions by `Sales` on a bar chart:
 
 ## Known Unsupported Features
 
-- No `scatter` element kind.
-- No delta / comparison field on `kpi-chart` (see `kpis.md`).
+- No `scatter` element kind. Use `scatter-chart` (see Other Chart Kinds below).
+- No delta / comparison field on `kpi-chart` (see `kpis.md`). To show a comparison, stack two `kpi-chart` elements side-by-side via `layout.md` or use a chart.
 
-For `text` (free-form rich text) and `divider` (visual separator) elements, see `layout.md`.
+## Other Chart Kinds
+
+These are all valid `kind` values per the OpenAPI; documented examples for the most common are above. The shape mirrors the `bar-chart`/`line-chart` pattern (`source`, `columns`, `xAxis`, `yAxis`):
+
+- `area-chart`, `combo-chart`, `scatter-chart` — same shape as `bar-chart`/`line-chart`, just a different `kind`.
+- `pie-chart` — same shape as `donut-chart` (`value` + `color`).
+- `pivot-table` — uses `values` instead of `yAxis`; useful for cross-tab analysis.
+
+For element-level reference of `kind: "text"` (free-form Markdown blocks), see `text.md`.

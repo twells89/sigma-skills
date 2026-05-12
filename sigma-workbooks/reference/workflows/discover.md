@@ -22,7 +22,7 @@ curl -s -H "Authorization: Bearer $SIGMA_API_TOKEN" \
 
 This returns connections with their `connectionId`, `name`, and `type`.
 
-### Step 2: Resolve the Table Path
+### Step 2: Resolve the Table Path and Capture the `inodeId`
 
 Ask the user for the fully-qualified table path. Path depth varies by database:
 
@@ -32,20 +32,33 @@ Ask the user for the fully-qualified table path. Path depth varies by database:
 - **Redshift**: `["SCHEMA", "TABLE"]`
 - **PostgreSQL / MySQL**: `["SCHEMA", "TABLE"]`
 
-Verify the path resolves on the connection:
+Verify the path resolves and capture the `inodeId` — Step 3 needs it:
 
 ```bash
-curl -s -X POST -H "Authorization: Bearer $SIGMA_API_TOKEN" \
+INODE_ID=$(curl -sf -X POST -H "Authorization: Bearer $SIGMA_API_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"path": ["SALES_DB", "PUBLIC", "ORDERS"]}' \
-  "$SIGMA_BASE_URL/v2/connection/<connection-id>/lookup"
+  "$SIGMA_BASE_URL/v2/connection/<connection-id>/lookup" \
+  | jq -r '.inodeId')
 ```
 
 Use the verified path in the source definition.
 
-### Step 3: Get Column Names
+### Step 3: Discover Column Names via the API
 
-Ask the user for the column names (or have them query the warehouse directly — `DESCRIBE TABLE`, `INFORMATION_SCHEMA.COLUMNS`, etc.). Use those names verbatim in formulas; do not invent or transform them.
+Use the `inodeId` from Step 2 to list the table's columns directly — no need to ask the user or have them query the warehouse:
+
+```bash
+curl -sf -H "Authorization: Bearer $SIGMA_API_TOKEN" \
+  "$SIGMA_BASE_URL/v2/connections/tables/$INODE_ID/columns" \
+  | jq '.entries[] | {name, type}'
+```
+
+Each entry has `name`, `type`, `description`, and `visibility`. Use the `name` value verbatim in formulas — do not invent or transform it.
+
+Public docs: <https://help.sigmacomputing.com/reference/listconnectiontablecolumns>.
+
+If the call fails (rare — connector quirks, permissions), fall back to asking the user for column names or having them run `DESCRIBE TABLE` / `INFORMATION_SCHEMA.COLUMNS` against the warehouse.
 
 For a warehouse-table source with path `["SALES_DB", "PUBLIC", "ORDERS"]`, the formula for a column is `[ORDERS/order_id]` (last path segment + column name).
 

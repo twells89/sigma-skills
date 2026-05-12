@@ -7,9 +7,12 @@ Every call includes `-H "Authorization: Bearer $SIGMA_API_TOKEN"`. Auth comes fr
 ## Endpoints
 
 ```bash
-# CREATE — POST the spec, response includes workbookId
+# CREATE — POST the spec, response includes workbookId.
+# Send Accept: application/json — without it the response body is YAML
+# (`success: true\nworkbookId: ...`) and `jq -r '.workbookId'` will fail.
 curl -s -X POST -H "Authorization: Bearer $SIGMA_API_TOKEN" \
   -H "Content-Type: application/json" \
+  -H "Accept: application/json" \
   -d @/tmp/workbook-spec.json \
   "$SIGMA_BASE_URL/v2/workbooks/spec"
 
@@ -18,9 +21,11 @@ curl -s -H "Authorization: Bearer $SIGMA_API_TOKEN" \
   -H "Accept: application/json" \
   "$SIGMA_BASE_URL/v2/workbooks/<workbook-id>/spec"
 
-# UPDATE — PUT replaces the entire spec
+# UPDATE — PUT replaces the entire spec.
+# Send Accept: application/json so the response body is JSON, not YAML.
 curl -s -X PUT -H "Authorization: Bearer $SIGMA_API_TOKEN" \
   -H "Content-Type: application/json" \
+  -H "Accept: application/json" \
   -d @/tmp/workbook-spec.json \
   "$SIGMA_BASE_URL/v2/workbooks/<workbook-id>/spec"
 ```
@@ -50,9 +55,11 @@ The server rejects a spec whose `schemaVersion` doesn't match what the current A
 
 The CREATE response shape is `{"success": true, "workbookId": "..."}`. Extract `workbookId` to construct the workbook URL or drive subsequent updates.
 
-## GET Returns YAML by Default
+## All Spec Endpoints Return YAML by Default
 
-`GET /v2/workbooks/<id>/spec` responds with `application/yaml` unless you send `Accept: application/json`. If you pipe the response into `jq` without that header and it chokes, the response is YAML, not JSON — add the header.
+`POST`, `GET`, and `PUT` against `/v2/workbooks(/<id>)/spec` all respond with `application/yaml` unless you send `Accept: application/json`. If you pipe the response into `jq` without that header and it chokes, the response is YAML, not JSON — add the header.
+
+For CREATE, that means the body looks like `success: true\nworkbookId: <uuid>\n` instead of `{"success": true, "workbookId": "..."}` — extracting the workbook ID with `jq -r '.workbookId'` silently fails without the header.
 
 ## Persisting the Spec
 
@@ -105,6 +112,7 @@ curl -s -H "Authorization: Bearer $SIGMA_API_TOKEN" \
 # Edit /tmp/current-spec.json on disk, then:
 curl -s -X PUT -H "Authorization: Bearer $SIGMA_API_TOKEN" \
   -H "Content-Type: application/json" \
+  -H "Accept: application/json" \
   -d @/tmp/current-spec.json \
   "$SIGMA_BASE_URL/v2/workbooks/<workbook-id>/spec" | jq .
 
