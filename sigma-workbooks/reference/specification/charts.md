@@ -286,6 +286,8 @@ Rejected: `us-zip`, `us-msa`, `us-congressional-district`, `world-country`, `sta
 | `color` | no | `{ "by": "category", "column": "<colId>" }` — `by: "value"` is rejected; category coloring only |
 | `label` | no | `[{ id }, …]` |
 
+> **One channel per column.** A column referenced from one map channel cannot also appear in another channel. Putting the same column ID on `size` and `label` (or `region` and `color`, etc.) is rejected with *"Column X is referenced from both 'size' and 'label'; a column can only be on one channel at a time"*. Workaround: add a second column to `columns` with the same formula but a distinct `id`, and reference each ID from a different channel.
+
 ### Invalid map kinds
 
 The API rejects `bubble-map`, `geo-map`, `heat-map`, `choropleth-map`, `us-map`, and `map` with `Invalid kind`. Use `region-map` or `point-map`.
