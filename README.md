@@ -1,8 +1,21 @@
-# Sigma Claude Code Skills
+# Sigma AI Coding-Agent Skills
 
-Claude Code CLI skills for building and maintaining analytics in Sigma Computing.
+Skills for building and maintaining analytics in Sigma Computing from any AI coding agent.
 
-The skills split along the surfaces of the Sigma REST API — one for data models, one for workbooks, plus utility skills that orchestrate them. Each skill is a self-contained directory; place this repo (or a symlink to each skill) under `~/.claude/skills/`.
+The skills split along the surfaces of the Sigma REST API — one for data models, one for workbooks, plus utility skills that orchestrate them. Each skill is a self-contained directory.
+
+**Supported agents** (`generated/` outputs per skill, install via `scripts/install-into-project.sh`):
+
+| Agent | Format | How it loads |
+|---|---|---|
+| Claude Code | `SKILL.md` (canonical) | Symlink the skill into `~/.claude/skills/` |
+| Cortex Code (Snowflake) | `SKILL.md` (same as Claude Code) | Symlink into `~/.snowflake/cortex/skills/` or rely on its `~/.claude/skills/` fallback |
+| Codex (OpenAI CLI) | `AGENTS.md` | Drop `generated/codex/AGENTS.md` into project root or `~/.codex/AGENTS.md` |
+| Cursor | `.cursor/rules/<name>.mdc` | Drop `generated/cursor/rules/<skill>.mdc` into `<project>/.cursor/rules/` |
+| Cline / Roo | `.clinerules/<name>.md` | Drop `generated/cline/<skill>.md` into `<project>/.clinerules/` |
+| Continue.dev | `.continue/rules/<name>.md` | Drop `generated/continue/<skill>.md` into `<project>/.continue/rules/` |
+
+See [Installation](#installation) below for the install helper.
 
 ## Skills
 
@@ -58,9 +71,7 @@ Sigma client credentials are issued from **Administration → Developer Access**
 
 ## Installation
 
-These are Claude Code skills. Two ways to use them:
-
-### Option A — Symlink each skill
+### Claude Code & Cortex Code (use SKILL.md directly)
 
 ```bash
 git clone https://github.com/twells89/sigma-skills.git ~/sigma-skills
@@ -71,9 +82,43 @@ for d in ~/sigma-skills/*/; do
 done
 ```
 
-### Option B — Drop the whole repo as a plugin
+Cortex Code reads `~/.claude/skills/` as a fallback, so the same setup works for both. Or symlink into `~/.snowflake/cortex/skills/` explicitly.
 
-Place this repo under `.claude/plugins/` or reference it via the `sigma-computing` plugin marketplace.
+### Codex / Cursor / Cline / Continue (use generated files)
+
+Each skill ships pre-built outputs in `generated/`. Use the install helper to drop them into a project (or your user-global config):
+
+```bash
+# Project-local install
+~/sigma-skills/scripts/install-into-project.sh tableau-to-sigma codex ~/work/myproject
+~/sigma-skills/scripts/install-into-project.sh sigma-workbooks   cursor ~/work/myproject
+~/sigma-skills/scripts/install-into-project.sh sigma-workbooks   all    ~/work/myproject
+
+# User-global install
+~/sigma-skills/scripts/install-into-project.sh sigma-workbooks   codex  --global   # → ~/.codex/AGENTS.md
+~/sigma-skills/scripts/install-into-project.sh sigma-workbooks   cursor --global   # → ~/.cursor/rules/
+```
+
+The Codex installer appends to an existing `AGENTS.md` rather than overwriting, so you can layer multiple skills.
+
+### Regenerating outputs after a SKILL.md edit
+
+```bash
+ruby ~/sigma-skills/scripts/sync-targets.rb ~/sigma-skills/<skill>
+```
+
+The rewriter strips Claude-only marker blocks, reveals non-Claude marker blocks, and injects each target's expected frontmatter. Markers in `SKILL.md`:
+
+```markdown
+<!-- agents:claude-only -->
+This text appears only in the canonical SKILL.md (Claude Code, Cortex Code).
+<!-- /agents:claude-only -->
+
+<!-- agents:non-claude
+This text appears only in the non-Claude generated outputs (Codex, Cursor, …).
+The whole block is one HTML comment, so Claude/Cortex see nothing.
+agents:end -->
+```
 
 ## Updating
 
