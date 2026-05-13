@@ -1,6 +1,6 @@
 # Charts
 
-Chart elements: `line-chart`, `bar-chart`, `area-chart`, `combo-chart`, `donut-chart`. They share the same skeleton — a `source`, a `columns` array, and axis/value pointers that reference column IDs.
+Chart elements: `line-chart`, `bar-chart`, `area-chart`, `combo-chart`, `donut-chart`, `region-map`, `point-map`. They share the same skeleton — a `source`, a `columns` array, and axis/value/region pointers that reference column IDs.
 
 ## Common Fields
 
@@ -216,3 +216,76 @@ These are all valid `kind` values per the OpenAPI; documented examples for the m
 - `pivot-table` — uses `values` instead of `yAxis`; useful for cross-tab analysis.
 
 For element-level reference of `kind: "text"` (free-form Markdown blocks), see `text.md`.
+
+## Maps
+
+Two map kinds are spec-supported. Both use the standard `source` + `columns` skeleton and reference column IDs from `columns` in their geometry/encoding fields.
+
+### `region-map` — choropleth (filled regions)
+
+```json
+{
+  "id": "employees-by-state",
+  "kind": "region-map",
+  "name": "Employees by State",
+  "source": { "kind": "table", "elementId": "master" },
+  "columns": [
+    { "id": "rm-state", "formula": "[Master/State]",              "name": "State" },
+    { "id": "rm-count", "formula": "Count([Master/Employee ID])", "name": "Employees" }
+  ],
+  "region": { "id": "rm-state", "regionType": "us-state" },
+  "label":  [{ "id": "rm-count" }]
+}
+```
+
+| Field | Required | Shape | Notes |
+|---|---|---|---|
+| `region` | yes | `{ id, regionType }` | `id` references a column in `columns`; the column's values are looked up against the named region set |
+| `label` | no | `[{ id }, …]` | Values rendered inside each region. Almost always the measure column. |
+| `tooltip` | no | `[{ id }, …]` | Extra columns shown on hover |
+| `color` | no | `{ "by": "category", "column": "<colId>" }` | Categorical fill. `column` **must differ** from `region.id` — API rejects reuse: *"Column X is referenced from both 'region' and 'color'"*. `by: "value"` is rejected; the default value-based heat shading is automatic when `color` is omitted. |
+| `size` | — | silently dropped | Choropleths don't size |
+
+Valid `regionType` values (verified via POST round-trip):
+
+- `us-state` — 50 US states + DC
+- `us-county` — US counties
+- `us-zipcode` — US ZIP codes (**not** `us-zip`)
+- `us-cbsa` — US Core-Based Statistical Areas (**not** `us-msa`)
+- `country` — country names / ISO codes
+
+Rejected: `us-zip`, `us-msa`, `us-congressional-district`, `world-country`, `state`, `province`, `continent` — all surface as `region.regionType: Invalid value: string` on POST.
+
+### `point-map` — lat/long bubbles
+
+```json
+{
+  "id": "stores",
+  "kind": "point-map",
+  "name": "Stores",
+  "source": { "kind": "table", "elementId": "master" },
+  "columns": [
+    { "id": "p-lat",  "formula": "[Master/Lat]",          "name": "Lat" },
+    { "id": "p-lng",  "formula": "[Master/Long]",         "name": "Long" },
+    { "id": "p-sz",   "formula": "Sum([Master/Revenue])", "name": "Revenue" },
+    { "id": "p-cat",  "formula": "[Master/Region]",       "name": "Region" }
+  ],
+  "latitude":  { "id": "p-lat" },
+  "longitude": { "id": "p-lng" },
+  "size":      { "id": "p-sz" },
+  "color":     { "by": "category", "column": "p-cat" },
+  "label":     [{ "id": "p-sz" }]
+}
+```
+
+| Field | Required | Shape |
+|---|---|---|
+| `latitude`  | yes | `{ id }` (object, not array) |
+| `longitude` | yes | `{ id }` |
+| `size`  | no | `{ id }` — bubble size encodes a measure |
+| `color` | no | `{ "by": "category", "column": "<colId>" }` — `by: "value"` is rejected; category coloring only |
+| `label` | no | `[{ id }, …]` |
+
+### Invalid map kinds
+
+The API rejects `bubble-map`, `geo-map`, `heat-map`, `choropleth-map`, `us-map`, and `map` with `Invalid kind`. Use `region-map` or `point-map`.
