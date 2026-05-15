@@ -1,17 +1,30 @@
 ---
 name: custom-sql-to-data-model
 description: >-
-  Scan Sigma workbooks for custom SQL elements and convert them into proper
-  Sigma data models using the SQL-to-Sigma MCP converter. Use when you want
-  to find ad-hoc SQL in workbooks and promote it to a reusable data model.
+  Scan Sigma workbooks for custom SQL elements, dedupe across workbooks, build
+  or reuse Sigma data models, then repoint the workbooks via the v3alpha
+  `:swapSources` endpoint. Use when you want to find ad-hoc SQL in workbooks
+  and promote it to one reusable data model per unique query.
 user-invocable: true
 ---
 
 # Custom SQL → Data Model
 
-Scan all workbooks for elements sourced from raw SQL (`source.kind: "sql"`),
-build a Sigma data model spec for each workbook, POST it, then optionally
-repoint the source workbook to use the new data model.
+End-to-end flow:
+
+1. Scan workbooks for `source.kind: "sql"` elements (Phase 1).
+2. Scan data models to index every existing SQL or warehouse-table source (Phase 1.5).
+3. Group manifest entries by normalized SQL; for each group, decide **reuse**
+   an existing DM element or **build** a new one (Phase 1.5 → plan).
+4. Build DMs only for the to-build groups (Phase 2 / 3 / 4).
+5. Drive `:swapSources` from the plan, one workbook at a time (Phase 5).
+6. Audit and repair residual `[Prefix/SNAKE_CASE]` formulas left behind by
+   Sigma's auto-match (Phase 6).
+
+The key win versus the legacy GET/mutate/PUT approach: one workbook with N
+SQL elements is one API call with N entries in `sourceMapping`, and the
+auto-match handles formula rewrites — except for the rough edges Phase 6
+catches.
 
 ---
 
@@ -39,7 +52,7 @@ eval "$(bash scripts/get-token.sh)" && ruby scripts/scan-workbooks.rb
 Reads every workbook spec in the org, finds all elements where
 `source.kind == "sql"`, and writes `/tmp/custom-sql-manifest.json`.
 
-Each entry in the manifest:
+Each entry:
 
 ```json
 {
@@ -54,57 +67,121 @@ Each entry in the manifest:
 }
 ```
 
-`folder_id` comes directly from the source workbook's own spec — it is always
-a real folder and is where the new data model will be placed.
+`element_id` is the same value as the `customSqlId` consumed by `:swapSources`
+in Phase 5 — no extra lookup needed.
 
-Review the findings and confirm with the user which to convert before proceeding.
+Review the findings and confirm with the user which workbooks to convert.
 
 ---
 
-## Phase 2 — Build the data model spec
+## Phase 1.5 — Index existing DMs and plan dedup
 
-### One data model per workbook
+### Scan DMs
 
-Group all SQL elements from the same workbook into **one data model** with one
-page per element. Do not create a separate data model per element — that
-produces unnecessary fragmentation.
+```bash
+eval "$(bash scripts/get-token.sh)" && ruby scripts/scan-data-models.rb
+```
+
+Writes `/tmp/dm-sql-index.json`. The scanner emits one entry per existing DM
+element of either kind:
+
+- `kind: "sql"` — indexed by normalized SQL text
+- `kind: "warehouse-table"` — indexed by a synthetic `select * from <path>`
+  string, so trivial `SELECT *` custom-SQL maps to the right table-backed DM
+
+Each entry also tracks `dmElementCount` (total elements in that DM) so the
+planner can prefer focused DMs over kitchen-sink ones.
+
+### Build the swap plan
+
+```bash
+ruby scripts/plan-dedup.rb
+```
+
+Writes `/tmp/swap-plan.json`. The planner:
+
+1. Groups manifest entries by normalized SQL (whitespace/case-collapsed, but
+   no semantic reformatting — copy/paste duplicates collapse, semantically-
+   equivalent rewrites do not).
+2. For each group, looks up the DM index. If a candidate exists, marks the
+   group `status: "existing"` and picks the best target (same connection,
+   fewest DM elements, stable tiebreak). Otherwise marks it `to-build`.
+3. Prints a human-readable summary:
+
+```
+[REUSE] group 1: 3 occurrence(s)
+  SQL: select * from csa.tj.customer_dim
+    - Custom Sql Test / Custom Sql Test SQL (6YSI-SjSmz)
+    - Dedup Test Alpha / Customer Source  (el-customers)
+    - Dedup Test Beta  / Customer Source  (el-customers-dup)
+  -> Customer Dim / Customer Dim  (54d1f450-... / ROZzp25zn9)
+
+[BUILD] group 2: 1 occurrence(s)
+  SQL: with monthly as ( select employee_id, date_trunc('month', date) as month, …
+    - Dedup Test Alpha / OT Summary (el-ot-summary)
+  -> needs new DM (connection cb2f5180-..., folder 57e59735-...)
+
+Summary: 3 unique SQL strings → 1 reuse, 2 build. 5 total swap actions.
+```
+
+Confirm with the user before continuing — a `[REUSE]` decision is only as
+good as the picked candidate. If the heuristic picked the wrong DM, edit
+`/tmp/swap-plan.json` to point `target.dataModelId` / `target.elementId` at
+the preferred DM before Phase 5.
+
+---
+
+## Phase 2 — Build the data models for to-build groups
+
+Build one DM per `to-build` group in the plan. Phases 1.5 → 2 → 3 → 4 — only
+the to-build groups need this; reuse groups skip straight to Phase 5.
+
+### One DM per to-build group
+
+A group is "one unique SQL across N workbook occurrences" — build a single
+DM with one element wrapping that SQL, then the same DM/element pair gets
+referenced by every occurrence in the swap call. Do not build per-workbook.
 
 ### Try the converter first
 
-For each SQL element, call:
+For each to-build group:
 
 ```
 mcp__sigma-data-model__convert_sql_to_sigma
-  statements    = [{"name": "<element_name>", "sql": "<sql>"}]
+  statements    = [{"name": "<group label>", "sql": "<representative sql>"}]
   connection_id = "<connection_id from manifest>"
   database      = ""
   schema        = ""
 ```
 
-`database` and `schema` can be left empty — the converter infers them from
-the SQL (e.g. `CSA.TJ.CUSTOMER_DIM` → database `CSA`, schema `TJ`).
+`database` / `schema` are inferred from the SQL.
 
 ### What the converter produces
 
 | SQL type | Converter output | Action |
 |---|---|---|
-| `SELECT *` or `SELECT cols` from one table | Single `warehouse-table` element, no columns | Fetch columns — see below |
+| `SELECT *` / `SELECT cols` from one table | Single `warehouse-table` element, no columns | Fetch columns — see below |
 | `SELECT` with JOINs | Multiple `warehouse-table` elements + relationships | Use as-is |
 | `SELECT` with aggregates (GROUP BY) | Elements + `metrics` array | Check child usage — see note below |
 | CTEs (`WITH ...`) | Element with `path: ["CTE_NAME"]` — fake table | Discard — build manually |
 | Subqueries / implicit joins | `Custom SQL` element | Use as-is |
 
-> **Aggregated SQL with GROUP BY**: The warehouse-table + metrics approach only
-> exposes GROUP BY dimensions as direct columns; aggregate expressions are placed
-> in the `metrics` array. If child workbook elements reference ALL output columns
-> (including aggregates) as direct column references — not as metrics — the DM
-> page must use a `sql` source instead. Build it manually with the full SQL and
-> enumerate all output columns explicitly. Symptom: child element `describe` shows
-> missing columns or the workbook PUT fails with dependency errors on metric columns.
+> **Aggregated SQL with GROUP BY**: The warehouse-table + metrics shape only
+> exposes GROUP BY dimensions as direct columns; aggregates land in `metrics`.
+> If child workbook elements reference aggregate columns as direct columns,
+> the DM page must use a `sql` source instead — build manually with the full
+> SQL and enumerate all output columns.
 
-### Column formula rules — read carefully
+### Column display names — matter for Phases 5 + 6
 
-Column `formula` is **always required** — the API rejects columns with a missing formula field.
+The swap auto-matches columns between source and target by **display name**,
+case- and punctuation-insensitive (`CUSTOMER_KEY` ↔ `Customer Key`). Most
+columns match cleanly. **The auto-match has known silent misses** — see
+Phase 6 — but those are post-swap-repairable, so don't over-engineer at
+build time. Just ensure the DM column `name` fields are reasonable display
+names ("Total Hours", "OT Hours", …), not SQL aliases.
+
+### Column formula rules (for the DM itself)
 
 | Source kind | Formula inside the DM element | Formula in workbook referencing the DM |
 |---|---|---|
@@ -113,13 +190,12 @@ Column `formula` is **always required** — the API rejects columns with a missi
 
 **Key rules:**
 - Inside a `sql` DM element, the formula prefix is always the literal string `Custom SQL` —
-  never the element's own `name` field. `name` is only used by elements referencing it from outside.
+  never the element's own `name` field.
 - Workbook formulas reference DM columns by **display name** (the column's `name` field),
-  not by the server-assigned column `id`. Display names are stable across DM PUTs;
-  column IDs are reassigned every time you PUT the spec.
+  not by server-assigned column `id`. Display names are stable across DM PUTs;
+  column IDs are reassigned every PUT.
 
 ```python
-# Column object for a sql source element
 def col(sql_alias, display=None):
     title = display or sql_alias.replace("_", " ").title()
     return {"id": sql_alias, "name": title, "formula": f"[Custom SQL/{sql_alias}]"}
@@ -129,65 +205,21 @@ def col(sql_alias, display=None):
 
 When the converter returns a `warehouse-table` element with no columns:
 
-**Step 1** — Find the table's inodeId:
-```
-mcp__sigma-mcp-v2__search
-  query       = "<TABLE_NAME>"   (last segment, e.g. "CUSTOMER_DIM")
-  entityTypes = ["table"]
-```
-
-**Step 2** — Get column names from the DDL:
-```
-mcp__sigma-mcp-v2__describe
-  object = {"type": "table", "inodeId": "<inodeId>"}
-```
-
-**Step 3** — Build columns using `warehouse-table` format:
-```python
-columns = [
-    {"id": col_name, "formula": f"[CUSTOMER_DIM/{col_name}]", "name": col_name.replace('_', ' ').title()}
-    for col_name in column_names_from_ddl
-]
-spec['pages'][0]['elements'][0]['columns'] = columns
-spec['pages'][0]['elements'][0]['order']   = [c['id'] for c in columns]
-```
+1. `mcp__sigma-mcp-v2__search query="<TABLE_NAME>" entityTypes=["table"]` → inodeId
+2. `mcp__sigma-mcp-v2__describe object={"type":"table","inodeId":"<inodeId>"}` → column names
+3. Build columns with `formula: [TABLE/<col>]`, `name: "<Title Case>"`.
 
 ### CTEs — discard converter output, build manually
 
-When the converter returns `path: ["CTE_NAME"]`, the CTE name is being used as
-a fake warehouse table path. This will never resolve. Discard the converter
-output entirely and build a `sql` element by hand:
-
-```json
-{
-  "id": "my-element",
-  "name": "RFM Customer Analysis",
-  "kind": "table",
-  "source": {
-    "kind": "sql",
-    "connectionId": "<connection_id>",
-    "statement": "<full CTE SQL here>"
-  },
-  "columns": [
-    {"id": "CUSTOMER_KEY", "name": "Customer Key", "formula": "[Custom SQL/CUSTOMER_KEY]"},
-    {"id": "CUSTOMER_NAME", "name": "Customer Name", "formula": "[Custom SQL/CUSTOMER_NAME]"}
-  ],
-  "order": ["CUSTOMER_KEY", "CUSTOMER_NAME"]
-}
-```
-
-Enumerate the output columns from the final `SELECT` of the CTE.
+When the converter returns `path: ["CTE_NAME"]`, that CTE name is being used
+as a fake warehouse table path. Discard the converter output and build a
+`sql` element by hand with the full CTE in `source.statement`. Enumerate the
+output columns from the final `SELECT`.
 
 ### Set folderId
 
-Always set `folderId` from the manifest entry before writing the spec file:
-
-```python
-import json
-spec = json.load(open('/tmp/<name>-datamodel-spec.json'))
-spec['folderId'] = '<folder_id from manifest>'
-json.dump(spec, open('/tmp/<name>-datamodel-spec.json', 'w'), indent=2)
-```
+Always set `folderId` from the plan's `representative.folder_id` (taken
+from the source workbook's own folder — guaranteed real).
 
 ---
 
@@ -204,7 +236,6 @@ curl -s -X POST \
     d = YAML.safe_load(STDIN.read, permitted_classes: [Date, Time])
     if d['dataModelId']
       puts 'SUCCESS  dataModelId: ' + d['dataModelId'].to_s
-      d['pages']&.each { |p| p['elements']&.each { |e| puts \"  elementId: #{e['id']}  name: #{e['name']}\" } }
     else
       puts 'ERROR: ' + d.inspect
     end
@@ -213,182 +244,278 @@ curl -s -X POST \
 
 > Response is YAML — never pipe to `jq`.
 
-Record the `dataModelId` and server-assigned element IDs.
+After POST, fetch the spec back with `Accept: application/json` to learn the
+server-assigned element IDs:
+
+```bash
+curl -s -H "Authorization: Bearer $SIGMA_API_TOKEN" -H "Accept: application/json" \
+  "$SIGMA_BASE_URL/v2/dataModels/<dataModelId>/spec" \
+  | jq '.pages[].elements[] | {id, name}'
+```
+
+Update the plan: fill in `target.dataModelId` / `target.elementId` on every
+`to-build` entry with the new IDs.
 
 ---
 
-## Phase 4 — Validate with MCP tools
+## Phase 4 — Validate the new DMs with MCP
 
-Always validate before declaring success. Describe every element to check for
-schema errors, then query each one to confirm data flows end-to-end.
-
-### Describe all elements
+For each newly-built DM:
 
 ```
 mcp__sigma-mcp-v2__describe
-  object = {"type": "datamodel", "dataModelId": "<dataModelId>"}
+  object = {"type": "datamodel", "dataModelId": "<dmId>"}
 ```
 
 Then for each element listed:
 
 ```
 mcp__sigma-mcp-v2__describe
-  object = {"type": "datamodel-element", "dataModelId": "<dataModelId>", "elementId": "<elementId>"}
+  object = {"type": "datamodel-element", "dataModelId": "<dmId>", "elementId": "<elId>"}
 ```
-
-A healthy element returns a `CREATE TABLE` DDL with all columns and their
-formulas. An element with broken column references returns an error or empty schema.
-
-### Query each element
 
 ```
 mcp__sigma-mcp-v2__query
-  query = {
-    "type": "datamodel",
-    "dataModelId": "<dataModelId>",
-    "sql": "SELECT <col1>, <col2> FROM \"datamodel\".\"<elementId>\" LIMIT 3"
-  }
+  query = { "type": "datamodel", "dataModelId": "<dmId>",
+            "sql": "SELECT * FROM \"datamodel\".\"<elId>\" LIMIT 3" }
 ```
 
-Column identifiers in the SQL must be the server-assigned column IDs from the
-`describe` DDL (the quoted identifiers, e.g. `"tJw4NSd3yp"`), not display names.
+Column identifiers in the SQL are the server-assigned IDs from the
+`describe` DDL, not display names.
 
-If all elements describe and query cleanly, proceed to Phase 5.
+If anything fails, fix and re-PUT before Phase 5.
 
 ---
 
-## Phase 5 — Repoint the source workbook
+## Phase 5 — Repoint workbooks via `:swapSources`
 
-Replaces each workbook element's raw SQL source with a reference to the new
-data model. **This step is mandatory** — the DM is only useful if the workbook
-actually references it.
+Endpoint: `POST /v3alpha/workbooks/{workbookId}:swapSources`.
 
-### Identify root vs. child elements
+The call atomically:
 
-Before patching, determine which workbook elements are **root** SQL elements
-(source.kind = "sql") and which are **child** elements (source.elementId pointing
-to a root SQL element). Only root elements get repointed to the DM. Child elements
-stay sourced from the workbook root elements — do NOT repoint them to the DM.
+- flips `source.kind: "sql"` → `"data-model"` on each root SQL element,
+- rewrites root column formulas from `[Custom SQL/SQL_ALIAS]` to
+  `[DM Element Name/Display Name]`,
+- rewrites child element formulas that referenced the root by name.
+
+### Step 1 — Name unnamed root SQL elements first (CRITICAL)
+
+If a root SQL element has `name: null` (or empty string), child elements
+that referenced it used the implicit prefix `"Custom SQL"`. The swap rewrites
+the root's own formulas correctly but **breaks child formulas to
+`[Missing node/...]`** — and **reversing the swap does not fix them**; the
+"Missing node" placeholder is sticky and requires a manual spec edit to
+recover.
+
+**Always set a real name on each unnamed root SQL element before swapping**,
+and update any child formulas that used the `Custom SQL` prefix to use the
+new name. Then the swap auto-rewrites cleanly.
 
 ```ruby
-# Collect root SQL element IDs
-root_ids = Set.new
-spec['pages'].each do |page|
-  page['elements'].each do |el|
-    root_ids << el['id'] if el.dig('source', 'kind') == 'sql'
-  end
-end
+require 'json'
+WB = '<workbookId>'
+raw = `curl -s -H "Authorization: Bearer $SIGMA_API_TOKEN" -H "Accept: application/json" "$SIGMA_BASE_URL/v2/workbooks/#{WB}/spec"`
+spec = JSON.parse(raw)
 
-# Child elements: source.elementId is a root SQL element
-child_parent = {}  # child_id => parent root element_id
+manifest = JSON.parse(File.read('/tmp/custom-sql-manifest.json'))
+new_names = manifest
+  .select { |m| m['workbook_id'] == WB }
+  .to_h    { |m| [m['element_id'], m['element_name']] }
+
+# Children that referenced a root we're renaming
+child_parent = {}
 spec['pages'].each do |page|
   page['elements'].each do |el|
     parent = el.dig('source', 'elementId')
-    child_parent[el['id']] = parent if parent && root_ids.include?(parent)
+    child_parent[el['id']] = parent if parent && new_names.key?(parent)
   end
 end
-```
-
-### Unnamed SQL elements and the "Custom SQL" formula prefix
-
-If a root SQL element has no `name` field (or name = ""), Sigma defaults to
-`"Custom SQL"` as the formula prefix for all child elements that reference it.
-When you repoint the root element and give it a real name, all child element
-column formulas must be updated from `[Custom SQL/...]` to `[New Name/...]`.
-
-```ruby
-conversions = {
-  '<root_element_id>' => {
-    dataModelId: '<dataModelId>',
-    elementId:   '<server-assigned-element-id>',
-    elementName: 'Order Summary'   # new unique name — replaces "Custom SQL" prefix
-  }
-}
 
 spec['pages'].each do |page|
   page['elements'].each do |el|
-    conv = conversions[el['id']]
-    if conv
-      # Root element → repoint to DM
-      el['name']   = conv[:elementName]
-      el['source'] = {
-        'kind'        => 'data-model',
-        'dataModelId' => conv[:dataModelId],
-        'elementId'   => conv[:elementId]
-      }
-      (el['columns'] || []).each do |col|
-        sql_alias = col['id']
-        display   = sql_alias.split('_').map(&:capitalize).join(' ')
-        col['formula'] = "[#{conv[:elementName]}/#{display}]"
-      end
-
-    elsif child_parent[el['id']]
-      # Child element → update formula prefix only (do NOT change source)
-      parent_id = child_parent[el['id']]
-      parent_conv = conversions[parent_id]
-      next unless parent_conv
-      new_prefix = parent_conv[:elementName]
+    if new_names.key?(el['id'])
+      el['name'] = new_names[el['id']] if el['name'].to_s.strip.empty?
+    elsif (parent = child_parent[el['id']])
+      new_prefix = new_names[parent]
       (el['columns'] || []).each do |col|
         col['formula'] = col['formula']&.gsub('[Custom SQL/', "[#{new_prefix}/")
       end
     end
   end
 end
-```
 
-### Formula rule for workbook → DM references
-
+%w[workbookId url ownerId createdBy updatedBy createdAt updatedAt latestDocumentVersion documentVersion].each { |k| spec.delete(k) }
+File.write('/tmp/wb-pre-swap.json', JSON.pretty_generate(spec))
 ```
-[DM Element Name/Column Display Name]
-```
-
-- Prefix = the DM element's `name` field (e.g. `RFM Customer Analysis`)
-- Suffix = the column's display `name` in the DM (e.g. `Customer Key`)
-- **Not** the column's server-assigned `id` — those change on every DM PUT
 
 ```bash
-eval "$(bash scripts/get-token.sh)" && \
-curl -s -H "Authorization: Bearer $SIGMA_API_TOKEN" \
-  "$SIGMA_BASE_URL/v2/workbooks/<workbookId>/spec" \
-  > /tmp/wb-spec.yaml
+curl -s -X PUT \
+  -H "Authorization: Bearer $SIGMA_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json" \
+  -d @/tmp/wb-pre-swap.json \
+  "$SIGMA_BASE_URL/v2/workbooks/<workbookId>/spec"
 ```
+
+> Skip this step only if every root SQL element already has a non-empty
+> `name` AND no child formula references `[Custom SQL/...]`.
+
+### Step 2 — Call `:swapSources` per workbook, batched
+
+For each workbook in the plan, batch all of that workbook's swaps into a
+single call. The example below assumes the plan groups Alpha's two SQL
+elements together; the planner output gives you the mapping.
+
+```bash
+WB="<workbookId>"
+curl -s -X POST \
+  -H "Authorization: Bearer $SIGMA_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json" \
+  -d '{
+    "sourceMapping": [
+      { "from": { "type": "custom-sql", "customSqlId": "<element_id 1>" },
+        "to":   { "type": "data-model", "dataModelId": "<dmId 1>", "elementId": "<elId 1>" } },
+      { "from": { "type": "custom-sql", "customSqlId": "<element_id 2>" },
+        "to":   { "type": "data-model", "dataModelId": "<dmId 2>", "elementId": "<elId 2>" } }
+    ]
+  }' \
+  "${SIGMA_BASE_URL}/v3alpha/workbooks/${WB}:swapSources"
+```
+
+> **Shell gotcha**: the URL contains a `:` which collides with parameter
+> expansion in zsh/bash. Always wrap the variable in braces:
+> `${WB}:swapSources`, not `$WB:swapSources` (`bad substitution` error).
+
+A successful response is HTTP 200 with body `{}`.
+
+### Step 3 — Verify the swap had effect
+
+The endpoint has two specific behaviors to guard against:
+
+| Behavior | Symptom | Mitigation |
+|---|---|---|
+| Bogus `from.customSqlId` (typo or stale) | HTTP 200, `{}` — silent no-op | Re-list `/v2/workbooks/{id}/sources` and assert no `custom-sql` entries remain |
+| Bogus `to` (e.g. wrong DM `elementId`) | HTTP 400 `"Element X not found in data model"` | Match each plan entry's `target` against the Phase 3 readback |
+
+```bash
+curl -s -H "Authorization: Bearer $SIGMA_API_TOKEN" \
+  "${SIGMA_BASE_URL}/v2/workbooks/${WB}/sources" | jq '[.[] | .type] | unique'
+# expect: ["data-model"] (or empty / no custom-sql)
+```
+
+### Column name misalignment — `columnMapping` override (proactive)
+
+The swap auto-matches columns by display name, case- and punctuation-
+insensitive. If you know in advance that some DM column display names won't
+match the custom-SQL aliases (and won't auto-resolve), pass `columnMapping`
+in the same request:
+
+```json
+{
+  "sourceMapping": [
+    {
+      "from": { "type": "custom-sql", "customSqlId": "..." },
+      "to":   { "type": "data-model", "dataModelId": "...", "elementId": "..." },
+      "columnMapping": [
+        { "fromColumn": ["C_KEY"],     "toColumn": ["customer_key"] },
+        { "fromColumn": ["TOTAL_REV"], "toColumn": ["lifetime_revenue"] }
+      ]
+    }
+  ]
+}
+```
+
+For cases you didn't anticipate, Phase 6 cleans up after the fact.
+
+---
+
+## Phase 6 — Audit and repair residual SNAKE_CASE formulas
+
+The auto-match has documented silent misses: short uppercase aliases and
+some token patterns survive the swap as `[Prefix/SNAKE_CASE]` even though
+the DM element's column display name is something like `OT Hours`. The
+broken formula:
+
+- Does **not** error at PUT time.
+- Surfaces at query time as a value-cell error: `Column "[OT Summary/OT_HOURS]" does not exist`.
+- Cascades into child elements that referenced the workbook column by its
+  display name (`[OT Summary/OT Flag]`) — the child returns the same error
+  string as a data value, not a query failure.
+
+The audit script walks each workbook's elements, finds formulas of the form
+`[Prefix/UPPERCASE_TOKEN]` where the local sibling column's `id` matches
+the token but its display `name` differs, and rewrites the suffix to the
+display name. Warehouse-table prefixes are left alone.
+
+```bash
+# audit specific workbooks
+ruby scripts/audit-formulas.rb <workbookId> [<workbookId> ...]
+
+# or audit every workbook touched by the current plan
+ruby scripts/audit-formulas.rb --from-plan
+```
+
+The script reports `N formula(s) repaired` per workbook. Idempotent — safe
+to re-run.
+
+After audit, re-validate with MCP to confirm the cells now return data, not
+error strings:
+
+```
+mcp__sigma-mcp-v2__query
+  query = {"type": "workbook", "workbookId": "<wb>",
+           "sql": "SELECT <cols> FROM \"workbook\".\"<elementId>\" LIMIT 3"}
+```
+
+---
+
+## Manual fallback (legacy, no `:swapSources`)
+
+If `:swapSources` doesn't fit (e.g., a partial swap, or a column remap that's
+easier as a spec edit), the older GET/mutate/PUT approach still works. The
+cost: you keep prefix/display-name rewrite logic in sync with the DM, you
+must strip response-only fields, and layout edits may get rebuilt server-
+side. Prefer `:swapSources` whenever it works.
 
 ```ruby
 require 'yaml'; require 'json'; require 'date'
 spec = YAML.safe_load(File.read('/tmp/wb-spec.yaml'), permitted_classes: [Date, Time])
 
-# Map each workbook sql element to its new data model source
 conversions = {
-  '<element_id_from_manifest>' => {
+  '<root_element_id>' => {
     dataModelId: '<dataModelId>',
     elementId:   '<server-assigned-element-id>',
-    elementName: '<DM element name, e.g. RFM Customer Analysis>'
+    elementName: '<DM element name, e.g. Customer Dim>'
   }
 }
 
+root_ids = conversions.keys.to_set
+child_parent = {}
 spec['pages'].each do |page|
   page['elements'].each do |el|
-    conv = conversions[el['id']]
-    next unless conv
+    parent = el.dig('source', 'elementId')
+    child_parent[el['id']] = parent if parent && root_ids.include?(parent)
+  end
+end
 
-    el['source'] = {
-      'kind'        => 'data-model',
-      'dataModelId' => conv[:dataModelId],
-      'elementId'   => conv[:elementId]
-    }
-
-    # Rewrite formulas: workbook references DM columns by display name
-    (el['columns'] || []).each do |col|
-      sql_alias = col['id']  # workbook column id is the SQL alias
-      display   = sql_alias.split('_').map(&:capitalize).join(' ')
-      col['formula'] = "[#{conv[:elementName]}/#{display}]"
+spec['pages'].each do |page|
+  page['elements'].each do |el|
+    if (conv = conversions[el['id']])
+      el['name']   = conv[:elementName]
+      el['source'] = { 'kind' => 'data-model', 'dataModelId' => conv[:dataModelId], 'elementId' => conv[:elementId] }
+      (el['columns'] || []).each do |col|
+        display = col['id'].split('_').map(&:capitalize).join(' ')
+        col['formula'] = "[#{conv[:elementName]}/#{display}]"
+      end
+    elsif (parent = child_parent[el['id']])
+      new_prefix = conversions[parent][:elementName]
+      (el['columns'] || []).each { |c| c['formula'] = c['formula']&.gsub('[Custom SQL/', "[#{new_prefix}/") }
     end
   end
 end
 
 %w[workbookId url ownerId createdBy updatedBy createdAt updatedAt latestDocumentVersion].each { |k| spec.delete(k) }
-spec['pages'].each { |p| p.delete('layout') }
-
 File.write('/tmp/wb-updated.json', JSON.pretty_generate(spec))
 ```
 
@@ -397,42 +524,45 @@ curl -s -X PUT \
   -H "Authorization: Bearer $SIGMA_API_TOKEN" \
   -H "Content-Type: application/json" \
   -d @/tmp/wb-updated.json \
-  "$SIGMA_BASE_URL/v2/workbooks/<workbookId>/spec" \
-  | ruby -r yaml -r json -r date -e "
-    d = YAML.safe_load(STDIN.read, permitted_classes: [Date, Time])
-    puts d['workbookId'] ? 'SUCCESS' : 'ERROR: ' + d.inspect
-  "
+  "$SIGMA_BASE_URL/v2/workbooks/<workbookId>/spec"
 ```
 
-After PUT, validate the workbook elements too:
+---
+
+## Data model swap-sources
+
+The same v3alpha shape works for DMs:
 
 ```
-mcp__sigma-mcp-v2__describe
-  object = {"type": "workbook-element", "workbookId": "<workbookId>", "elementId": "<elementId>"}
-
-mcp__sigma-mcp-v2__query
-  query = {"type": "workbook", "workbookId": "<workbookId>",
-           "sql": "SELECT <cols> FROM \"workbook\".\"<elementId>\" LIMIT 3"}
+POST /v3alpha/dataModels/{dataModelId}:swapSources
 ```
+
+Use this when a DM itself contains a custom-SQL element you want to promote.
+Same `sourceMapping[].from` / `.to` shape; same silent-no-op gotcha for
+bogus `from.customSqlId`. Not part of the standard Phase 1–6 flow — included
+for completeness.
 
 ---
 
 ## Troubleshooting
 
-| Error | Cause | Fix |
+| Error / symptom | Cause | Fix |
 |---|---|---|
-| `Token missing or malformed` | Token expired between commands | Re-run `eval "$(bash scripts/get-token.sh)"` — always chain with `&&` |
-| `Invalid array: ...columns, got undefined` | Converter returned no columns (SELECT * case) | Fetch columns via `mcp__sigma-mcp-v2__describe` on the table and add them manually |
+| `Token missing or malformed` | Token expired between commands | Re-run `eval "$(bash scripts/get-token.sh)"` — chain with `&&` |
+| `:swapSources` returns HTTP 200 `{}` but nothing changed | `from.customSqlId` doesn't match a real element (typo or already swapped) | Re-list `/v2/workbooks/{id}/sources`; assert no `custom-sql` entries remain |
+| `Element X not found in data model` (400) on `:swapSources` | `to.elementId` doesn't exist in the DM | Use the server-assigned ID from Phase 3, not your authoring ID |
+| `bad substitution` on the curl URL | Shell expanded `$WB:swapSources` as a parameter modifier | Wrap in braces: `${WB}:swapSources` |
+| Child element formulas show `[Missing node/...]` after swap | Root SQL element was unnamed; the implicit "Custom SQL" prefix lost its referent | **Sticky** — must be fixed manually. Pre-swap: name the root element AND rewrite child formulas to use that name |
+| Query returns an error string inside a data cell, e.g. `Column "[OT Summary/OT_HOURS]" does not exist` | Auto-match silently missed a SNAKE_CASE column alias; formula points at a column ID the DM doesn't expose | Run `scripts/audit-formulas.rb --from-plan` (Phase 6). For repeat offenders, pass `columnMapping` in the swap call proactively |
+| `service_error` 500 on a swap whose `to.definition` contains SQL with single quotes | Heredoc / shell expansion mangled the SQL string | Use a JSON file with `-d @<file>` instead of inline `-d '...'`, or escape carefully |
+| Plan picked the wrong reuse target | The DM with the lowest `dmElementCount` and matching connection was not the most appropriate | Edit `/tmp/swap-plan.json` to point `target.dataModelId` / `target.elementId` at the preferred DM before Phase 5 |
+| `Invalid array: ...columns, got undefined` | Converter returned no columns (SELECT * case) | Fetch columns via `mcp__sigma-mcp-v2__describe` and add them manually |
 | `formula: Invalid string: undefined` | Column missing `formula` field | Every column needs `formula` — `[Custom SQL/SQL_ALIAS]` for sql, `[TABLE/COL]` for warehouse-table |
-| `Circular column reference` | Formula used the column's own display name with no prefix | Use `[Custom SQL/SQL_ALIAS]` — bare `[Display Name]` self-references the column |
+| `Circular column reference` | Formula used the column's own display name with no prefix | Use `[Custom SQL/SQL_ALIAS]` — bare `[Display Name]` self-references |
 | `Unknown column '[ALIAS]'` | Bare alias with no prefix | Add the `Custom SQL` prefix: `[Custom SQL/ALIAS]` |
 | `dependency not found: formula reference 'element name/col'` | Used element's own name as formula prefix inside the element | Inside a sql element, always use `[Custom SQL/...]`, never `[ElementName/...]` |
-| `document parent must be a folder` | `folderId` points to a workbook or data model, not a folder | Use `folder_id` from the scan manifest — taken from the workbook's own `folderId`, always a real folder |
-| Converter returns `path: ["CTE_NAME"]` | Converter treated CTE name as a warehouse table path | Discard converter output; build a `source.kind: "sql"` element manually with the full SQL |
+| `document parent must be a folder` | `folderId` points to a workbook or DM, not a folder | Use `folder_id` from the manifest — taken from the workbook's own folder, always a real folder |
+| Converter returns `path: ["CTE_NAME"]` | Converter treated CTE name as a warehouse table path | Discard converter output; build a `source.kind: "sql"` element manually |
 | `Column '[Element/id]' does not exist` after DM PUT | DM PUT reassigned column IDs — old IDs are stale | Workbook formulas must use display names not IDs: `[Element Name/Column Display Name]` |
-| `dataModelId` missing from response | POST failed silently | Check the full response for a `message` field with schema errors |
-| `schemaVersion` error on workbook PUT | Field was stripped | Keep `schemaVersion` in the PUT body — it is required |
-| Multiple separate data models created | Each SQL element treated as its own model | Group all elements from one workbook into one data model, one page per element |
-| Child elements break after Phase 5 (`[Custom SQL/col]` dependency not found) | Root element was renamed but child formulas still use `[Custom SQL/...]` prefix | Update child element column formulas: replace `[Custom SQL/` with `[New Name/` |
-| Child elements sourced from DM instead of workbook table | Child elements were incorrectly repointed to the DM | Only root SQL elements get DM sources; child elements keep `source.elementId` pointing to the root workbook element |
-| Metric columns missing on child elements referencing aggregated SQL | Warehouse-table + metrics approach; child references aggregate as a direct column | Rebuild the DM page as a `sql` source element with all output columns enumerated explicitly |
+| `dataModelId` missing from response | POST failed silently | Check the full response for a `message` field |
+| Metric columns missing on child elements referencing aggregated SQL | warehouse-table + metrics approach; child references aggregate as a direct column | Rebuild the DM page as a `sql` source with all output columns enumerated explicitly |

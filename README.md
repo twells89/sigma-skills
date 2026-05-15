@@ -23,7 +23,7 @@ See [Installation](#installation) below for the install helper.
 |-------|---------|
 | [`sigma-data-models`](sigma-data-models/) | Author Sigma data models from existing warehouse tables — sources, columns, metrics, relationships, filters, calc columns, CLS. Covers spec shape, discovery, CRUD, validation, and authoring judgment calls. **Out of scope: converting from another BI tool's format** (use the converter MCP / browser tool). |
 | [`sigma-workbooks`](sigma-workbooks/) | Build, edit, and iterate on Sigma workbook specs — pages, layout, controls, charts (line/bar/area/combo/donut), KPIs, tables, pivot tables, formulas, sources. Canonical reference for the workbook spec; other skills cross-link here for spec shape. |
-| [`custom-sql-to-data-model`](custom-sql-to-data-model/) | Scan Sigma workbooks for custom SQL elements and promote them into proper data models, then repoint the source workbook. |
+| [`custom-sql-to-data-model`](custom-sql-to-data-model/) | Scan Sigma workbooks for custom SQL elements, dedupe across workbooks, build or reuse data models, then repoint via the v3alpha `:swapSources` endpoint. Handles many workbooks pointing at one shared model. |
 
 > **Looking for `tableau-to-sigma` or `tableau-vds-to-snowflake`?** Those skills are still iterating and live in the private [`twells89/sigma-skills-staging`](https://github.com/twells89/sigma-skills-staging) repo. They graduate here once they're stable across multiple real conversions.
 
