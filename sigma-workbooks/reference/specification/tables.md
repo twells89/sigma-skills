@@ -51,12 +51,24 @@ Pivot / aggregation views. Each grouping has an `id`, a `groupBy` list of column
 
 `sort[].nulls` — `"first"` | `"last"` | `"connection-default"` (defer to the warehouse connection's null-ordering setting).
 
+### `description`
+Optional free-text description shown alongside the table title in the UI. Round-trips verbatim.
+
+```json
+"description": "Rows with Annual Salary < 50,000 highlight red; status formula highlights inactive in gray."
+```
+
+Only the `table` element kind currently carries a `description` field — `pivot-table` and charts do not.
+
 ### `style`
 Optional styling on the table element itself.
 
 ```json
 "style": { "borderRadius": "round", "borderColor": "#E0E0E0", "borderWidth": 1 }
 ```
+
+### `conditionalFormats`
+Optional row/cell coloring rules applied to value cells. Same shape on `table` and `pivot-table`. See the "Conditional Formatting" section at the bottom of this file for the full rule reference.
 
 ### `filters`
 Element-level row filters. Top-N is the most common variant:
@@ -143,3 +155,69 @@ Verified on staging (May 2026): a pivot-table with only `columns` + `values` is 
 ### Round-trip column reordering
 
 When `rowsBy` / `columnsBy` are present, Sigma preserves the `columns` array order on round-trip. When they are absent (the broken grand-total mode), Sigma reorders columns with values first. Either way, the `values`, `rowsBy`, and `columnsBy` arrays preserve the IDs you submitted.
+
+## Conditional Formatting
+
+Both `table` and `pivot-table` take a `conditionalFormats` array. Each entry is one rule. Three rule types: `single`, `backgroundScale`, `dataBars`.
+
+```json
+"conditionalFormats": [
+  { "type": "single", "columns": ["col-sal"], "condition": "<", "value": 50000,
+    "style": { "color": "#B00020" } },
+  { "type": "single", "columns": ["col-status"], "condition": "formula",
+    "formula": "[Status] = \"Inactive\"",
+    "style": { "backgroundColor": "#D4D4D4" } },
+  { "type": "single", "columns": ["col-name"], "condition": "IsNull",
+    "style": { "backgroundColor": "#FFE0E0" } },
+  { "type": "dataBars",        "columns": ["col-sal"],
+    "scheme": ["#A0CBE8", "#1F77B4"] },
+  { "type": "backgroundScale", "columns": ["col-ot"],
+    "scheme": ["#FFFFFF", "#FDD49E", "#FC8D59", "#B30000"],
+    "includeValues": true }
+]
+```
+
+### `type: "single"` — one condition, one style
+
+| Field | Required | Notes |
+|---|---|---|
+| `columns` | yes | Array of column IDs the rule applies to. May span several columns at once. |
+| `condition` | yes | `"<"`, `">"`, `"="`, `"IsNull"`, `"IsNotNull"`, or `"formula"` |
+| `value` | conditional | Required when `condition` is `<`/`>`/`=`. Literal value (number, string). |
+| `formula` | conditional | Required when `condition: "formula"`. A Sigma boolean formula evaluated per row — e.g. `"[Status] = \"Inactive\""`. Bare `[col]` refs inside the formula are resolved against the element's own columns. |
+| `style` | conditional | `{ "backgroundColor"?: "#RRGGBB", "color"?: "#RRGGBB" }`. Required for value/formula conditions; optional for `IsNull`/`IsNotNull` (a default style is applied). |
+| `includeValues` | no | `true` (default) shows the underlying value; `false` blanks the cell. |
+| `includeSubtotals` | no | Apply the rule to subtotal rows as well |
+| `includeGrandTotals` | no | Apply the rule to grand-total rows as well |
+
+### `type: "backgroundScale"` — gradient over a range
+
+Cells are colored along a multi-stop gradient based on their value's rank within the column's range.
+
+```json
+{ "type": "backgroundScale", "columns": ["col-ot"],
+  "scheme": ["#FFFFFF", "#FDD49E", "#FC8D59", "#B30000"],
+  "includeValues": true,
+  "order": "descending" }
+```
+
+| Field | Notes |
+|---|---|
+| `scheme` | Array of CSS colors (hex or `rgb(...)`), bottom-of-scale → top-of-scale. 2 colors = simple gradient; more = piecewise. |
+| `order` | `"ascending"` (default, low→high) or `"descending"` (high→low) |
+| `includeValues` | `true` keeps the value visible over the colored cell; `false` shows only the color |
+
+### `type: "dataBars"` — horizontal bars inside cells
+
+```json
+{ "type": "dataBars", "columns": ["col-sal"],
+  "scheme": ["#A0CBE8", "#1F77B4"],
+  "includeSubtotals": false }
+```
+
+| Field | Notes |
+|---|---|
+| `scheme` | Two colors: `[negative-color, positive-color]`. If all values are positive, only the second is used. |
+| `includeSubtotals` | Default `false`. Bars are drawn on detail rows only unless this is set. |
+
+> **Round-trip gap:** `dataBars` rules drop `includeValues: true` on readback. The bar still renders correctly in the UI but a subsequent `GET` won't include the field. Don't iterate on this — it's cosmetic. (Verified 2026-05.)

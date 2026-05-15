@@ -25,7 +25,8 @@ The `kpi-chart` element is a single-value stat card. Typically it points at a ta
 - `columns` — define exactly one column (the value you want displayed). More columns are allowed but only `value.id` is rendered.
 - `value.id` — the column ID to show in the card.
 - `format` on the column controls the displayed format. See `formatting.md`.
-- `name` — optional display title on the card.
+- `name` — optional display title on the card. Accepts dynamic `{{formula | fmt}}` (see `charts.md` > Dynamic Titles).
+- `style` — optional `{ "backgroundColor": "#RRGGBB" | "var(--colors-*)", "padding": "none" }`. **`padding` only accepts `"none"` or omitted** — other values (e.g. `"medium"`) are rejected with `must be 'none' or omitted`. To pad a KPI, wrap it in a `container` (see `layout.md`).
 - `filters` — optional element-level filters (same shape as `tables.md` and `charts.md`). Useful for KPIs scoped to a subset like "Active customers" without re-deriving the source.
 
 ```json

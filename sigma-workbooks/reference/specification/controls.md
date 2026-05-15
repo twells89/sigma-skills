@@ -186,7 +186,7 @@ Single-handle slider — use `number-range` with `mode: "between"` and a two-ele
 }
 ```
 
-> **Round-trip gap:** as of 2026-04, `values` on a `number-range` control does not reliably round-trip. A `PUT` with `values: [1, 10]` reads back as `values: null` on the next `GET`. The UI still respects the initial value when the workbook renders, but the source-of-truth view via the API shows `null`. Don't rely on a subsequent `GET` to confirm the value stuck — open the workbook or trust the last-known `PUT`.
+> **Round-trip gap:** as of 2026-05, neither `values` nor `mode` on a `number-range` control reliably round-trips. A `POST`/`PUT` with `mode: "between"` and `values: [1, 10]` can read back as `mode: null` and `values: null` on the next `GET`. The UI still respects the submitted values when the workbook renders, but the source-of-truth view via the API shows `null`. Don't rely on a subsequent `GET` to confirm — open the workbook or trust the last-known `PUT`.
 
 ## Text Area
 
@@ -226,6 +226,8 @@ Boolean switch. Both `"toggle"` and `"checkbox"` share the shape — the type ju
   ]
 }
 ```
+
+> **`filters` cannot be empty.** Submitting a toggle/checkbox with `"filters": []` is rejected with a misleading `Invalid kind: "control"` (the toggle needs a target column to bind to). Always bind to at least one boolean column. If you don't have a boolean to filter on, use a `list` control with the relevant categorical column instead.
 
 ## Dropdown / Radio
 

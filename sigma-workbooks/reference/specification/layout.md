@@ -89,6 +89,8 @@ A container can also carry inline `style` for visual treatment (background, bord
 
 `style` accepts CSS color literals, theme variables (`var(--colors-*)`), and the same `borderRadius` / `borderColor` / `borderWidth` shape used on `table` elements (see `tables.md`).
 
+> **`backgroundImage` is not supported via the spec API (verified 2026-05).** Submitting `style.backgroundImage: "https://..."` does **not** error — the POST returns 200 — but the field is silently dropped from the readback. Containers can only carry a `backgroundColor`. Don't iterate on field names; this is a gap in the spec API, not a syntax problem.
+
 ## Text and Divider Elements
 
 Two simple non-data elements that live in `pages[].elements`:

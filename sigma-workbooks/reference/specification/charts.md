@@ -1,20 +1,62 @@
 # Charts
 
-Chart elements: `line-chart`, `bar-chart`, `area-chart`, `combo-chart`, `donut-chart`, `region-map`, `point-map`. They share the same skeleton — a `source`, a `columns` array, and axis/value/region pointers that reference column IDs.
+Chart elements: `line-chart`, `bar-chart`, `area-chart`, `combo-chart`, `scatter-chart`, `pie-chart`, `donut-chart`, `region-map`, `point-map`. They share the same skeleton — a `source`, a `columns` array, and axis/value/region pointers that reference column IDs.
 
 ## Common Fields
 
 | Field | Required | Notes |
 |---|---|---|
-| `kind` | yes | `"line-chart"`, `"bar-chart"`, `"area-chart"`, `"combo-chart"`, or `"donut-chart"` |
+| `kind` | yes | `"line-chart"`, `"bar-chart"`, `"area-chart"`, `"combo-chart"`, `"scatter-chart"`, `"pie-chart"`, or `"donut-chart"` |
 | `id` | yes | Unique on the page |
-| `name` | yes | Display title |
+| `name` | yes | Display title. Accepts embedded `{{formula \| fmt}}` for dynamic titles — see "Dynamic Titles" below. |
 | `source` | yes | Usually `{ "kind": "table", "elementId": "<source-table-id>" }` — see `sources.md` |
 | `columns` | yes | Inline column definitions for the chart's own columns |
+| `legend` | no | Legend customization (`position`, `fontSize`, `visibility`, `sizeLegend`) — see "Legend" below |
+| `style` | no | Visual treatment (`padding`, `backgroundColor`) — see "Style" below |
 
 Every column in `columns` gets an `id`, a `formula`, a `name`, and optional `format` (see `formatting.md`).
 
 Remember: formulas on a chart that sources another element must use the source's prefix (`[<SourceName>/col]`). See `formulas.md`.
+
+## Dynamic Titles
+
+The `name` field on any chart element supports embedded formulas using the same `{{ast | fmt}}` syntax as `text` element bodies (`text.md`) and `image` URLs (`others.md`). The result is computed at render time and substituted into the title.
+
+```json
+"name": "Overtime by Department — total {{Sum([Master/Overtime Hours]) | ,.0f}} hrs"
+```
+
+The pipe + d3 format spec is optional. `{{[Master/Department]}}` is valid; `{{[Master/Department] | }}` (empty format) is normalized back to `{{[Master/Department]}}` on round-trip.
+
+## Legend
+
+Optional. All keys are optional inside `legend`.
+
+```json
+"legend": { "position": "top", "fontSize": 12 }
+```
+
+| Field | Values |
+|---|---|
+| `position` | `"top"`, `"right"`, `"bottom"`, `"top-left"` |
+| `fontSize` | number (e.g. `12`, `14`) |
+| `visibility` | `"hidden"` to hide the legend entirely |
+| `sizeLegend` | `"hidden"` — hides the size-channel legend on point-maps |
+
+## Style
+
+Optional. Charts support a thin `style` object for padding and background.
+
+```json
+"style": { "padding": "none", "backgroundColor": "#F8FAFC" }
+```
+
+| Field | Notes |
+|---|---|
+| `padding` | **Only `"none"` or omitted.** Other values (e.g. `"medium"`) are rejected with `must be 'none' or omitted`. |
+| `backgroundColor` | CSS color literal or `var(--colors-*)` theme variable |
+
+Border + corner-radius styling (`borderColor`, `borderRadius`, `borderWidth`) lives on `container` elements, not directly on charts — wrap a chart in a `container` if you need bordered framing. See `layout.md`.
 
 ---
 
@@ -74,6 +116,8 @@ Same axis shape as line-chart. Adds `stacking`.
 ```
 
 `stacking`: `"none"` | `"stacked"` | `"100"`
+
+`orientation`: `"horizontal"` flips a bar chart so categories run down the y-axis (the default is vertical columns). Verified value: `"horizontal"`.
 
 Add a sort to put categories in descending order of a measure:
 
@@ -202,20 +246,53 @@ Top 10 regions by `Sales` on a bar chart:
 
 `rowCount` takes a number literal — it cannot be bound to a control (see `controls.md`, "Where Control Bindings Apply").
 
+## Scatter Chart
+
+```json
+{
+  "id": "salary-vs-ot",
+  "kind": "scatter-chart",
+  "name": "Salary vs Overtime",
+  "source": { "kind": "table", "elementId": "master" },
+  "columns": [
+    { "id": "s-sal", "formula": "Max([Master/Annual Salary])",   "name": "Salary" },
+    { "id": "s-ot",  "formula": "Sum([Master/Overtime Hours])",  "name": "OT" },
+    { "id": "s-dep", "formula": "Max([Master/Department])",      "name": "Department" }
+  ],
+  "xAxis": { "id": "s-sal" },
+  "yAxis": [{ "id": "s-ot" }],
+  "color": { "by": "category", "column": "s-dep" }
+}
+```
+
+Optional `size: { "id": "<colId>" }` makes a bubble chart (size encodes a measure).
+
+## Pie Chart
+
+Same shape as `donut-chart` (`value` + `color`), just without `holeValue`.
+
+```json
+{
+  "id": "ot-by-loc",
+  "kind": "pie-chart",
+  "name": "OT share by Location",
+  "source": { "kind": "table", "elementId": "master" },
+  "columns": [
+    { "id": "pi-loc", "formula": "[Master/Location]",              "name": "Location" },
+    { "id": "pi-ot",  "formula": "Sum([Master/Overtime Hours])",   "name": "OT Hours" }
+  ],
+  "value": { "id": "pi-ot" },
+  "color": { "id": "pi-loc", "sort": { "by": "pi-ot", "direction": "descending" } }
+}
+```
+
 ## Known Unsupported Features
 
-- No `scatter` element kind. Use `scatter-chart` (see Other Chart Kinds below).
 - No delta / comparison field on `kpi-chart` (see `kpis.md`). To show a comparison, stack two `kpi-chart` elements side-by-side via `layout.md` or use a chart.
 
 ## Other Chart Kinds
 
-These are all valid `kind` values per the OpenAPI; documented examples for the most common are above. The shape mirrors the `bar-chart`/`line-chart` pattern (`source`, `columns`, `xAxis`, `yAxis`):
-
-- `area-chart`, `combo-chart`, `scatter-chart` — same shape as `bar-chart`/`line-chart`, just a different `kind`.
-- `pie-chart` — same shape as `donut-chart` (`value` + `color`).
-- `pivot-table` — uses `values` instead of `yAxis`; useful for cross-tab analysis.
-
-For element-level reference of `kind: "text"` (free-form Markdown blocks), see `text.md`.
+`pivot-table` is a separate element kind (uses `values` instead of `yAxis`) — see `tables.md`. For element-level reference of `kind: "text"` (free-form Markdown blocks), see `text.md`.
 
 ## Maps
 
