@@ -40,6 +40,7 @@ The reference is feature-sliced — don't read every file up-front. The index be
 | `reference/specification/controls.md` | Filter, dropdown, picker, multi-select, date range, date picker, text filter, number range, slider. |
 | `reference/specification/text.md` | Text element / Markdown block — dashboard titles, descriptions, callouts, prose alongside charts. |
 | `reference/specification/others.md` | Divider and image elements — small visual elements for dashboard polish. |
+| `reference/specification/containers.md` | Container element styling — `backgroundImage` (URL, fit, alignment, tiling) and the `style` block. Pair with `<GridContainer>` in layout XML. |
 | `reference/specification/formatting.md` | Format, currency, percentage, date format, decimals — column formatting. |
 | `reference/specification/layout.md` | Layout, grid, arrange, position, container, dashboard arrangement, layout XML. |
 | `reference/specification/example-full.yaml` | A real multi-page reference spec (KPIs, charts, joins, controls, layout) — copy shapes from when in doubt. |
@@ -51,6 +52,8 @@ The reference is feature-sliced — don't read every file up-front. The index be
 | `reference/workflows/discover.md` | Finding connections, tables, and column names. Load before composing a new spec. |
 | `reference/workflows/crud.md` | POST / GET / PUT against the workbook spec endpoints. Load when creating, retrieving, or updating a workbook (covers create-required fields, the GET `Accept: application/json` gotcha, and PUT full-replacement + ID-remap semantics). |
 | `reference/workflows/validate.md` | Pre-submit validation. Load before any POST or PUT (`validate-spec.sh` + manual formula checklist + decoding cryptic server errors). |
+| `reference/workflows/from-image.md` | Building a workbook from a screenshot, mockup, or PDF — explicit interpretation step before drafting spec. Use for any visual-driven workbook brief, including migrations from Tableau / Looker / PowerBI. |
+| `scripts/verify-workbook.sh <workbook-id>` | Post-PUT compile check. POST accepts specs whose formulas don't actually resolve; this script asks the server's compiler via `/v2/workbooks/{id}/elements/{eid}/query` and greps for `Unknown column` / `Circular column reference` markers. Catches what spec-level validation misses. |
 
 ## Required Workflow
 
