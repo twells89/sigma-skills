@@ -233,11 +233,13 @@ Trendlines are rejected when the chart has no `xAxis`, uses stacking on bar/area
 
 ```yaml
 dataLabel:
-  labels: shown               # shown | hidden
-  labelDisplay: all-points    # all-points | maximum | min-max | ...
-  valueFormat: percent
-  totals: { display: shown }
+  labels: shown               # shown | hidden — the only required field
+  labelDisplay: all-points    # optional: all-points | maximum | min-max | ...
+  valueFormat: percent        # optional
+  totals: { display: shown }  # optional
 ```
+
+**Canonical default** (verified 2026-05-22 against a UI-built workbook readback): when the user just enables "show data labels" with no further customization, Sigma writes only `{ labels: shown }` — every other field is optional and absent. Add the optional fields only when the user actually customized them, otherwise omit them to match the canonical default.
 
 For `combo-chart`, optional `seriesDataLabel` is a map keyed by layer shape (`bar`, `line`, `area`, `scatter`) with per-shape overrides:
 
