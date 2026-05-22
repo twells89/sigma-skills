@@ -44,6 +44,40 @@ yAxis:
 - `xAxis.sort` shape: `{ by: <colId>, direction: ascending | descending }`
 - Optional `format` on each axis configures title, labels, marks, and scale — fetch `CartesianAxisFormat` from the OpenAPI for the full shape
 
+**Verified axis `format` shapes** (UI-built workbook readback 2026-05-22):
+
+```yaml
+xAxis:
+  columnId: <id>
+  format:
+    marks: tick                   # toggle tick marks
+    scale:
+      type: time                  # time (datetime axis) | linear | log
+      zero: false
+
+yAxis:
+  columnIds: [<id>]
+  format:
+    scale:
+      type: log                   # linear (default) | log
+      domain: { min: 500000, max: 1000000 }   # explicit bounds
+      zero: true                  # include zero baseline
+```
+
+**Per-column number format lives on the column entry, NOT on the axis.** Verified shape:
+
+```yaml
+columns:
+  - id: <id>
+    formula: '[Metrics/Total Revenue]'
+    format:
+      kind: number                # number | datetime | percent
+      formatString: "$,.2f"       # d3-format syntax
+      currencySymbol: "$"
+```
+
+So configuring "Total Revenue should display as `$1,234,567.00`" is done on the column, not via `yAxis.format`. The axis `format` only controls scale type, domain, ticks, and zero.
+
 ## Bar chart (revenue by category)
 
 Same axis shape as line-chart. Adds `stacking`.
