@@ -71,6 +71,20 @@ joins:
 - Joined-table columns use the **join leg's `name`**: `[Sales/Cust Key]`
 - Warehouse path segments are **not** used as prefixes inside a join.
 
+### When to reach for `join` instead of `Lookup()`
+
+If you're tempted to define a column on element A as `Lookup([B/Field], [A.key], [B.key])` **and then group a chart by that column**, stop — switch A's source to a `join` instead. Sigma's chart rollup engine can only aggregate against one external relation per query, and a `Lookup()` used as a *grouping dimension* counts as a second one. The failure mode is brutal:
+
+- POST + readback both say `[ok]`.
+- `verify-workbook` (compile-check) returns `[ok]`.
+- The chart renders with a **single row** whose dim value is the literal string `"Rollup cannot reference more than one external relation"`. No error anywhere in the response — Sigma silently substitutes the error message for the dim value.
+
+`Lookup()` is still fine when the looked-up column feeds a **scalar measure** (numerator / denominator inside an aggregate). The failure is specifically `Lookup` → `xAxis.columnId` / `rowsBy` / `color.column` / any grouping role.
+
+Fix: make A a `join` source with the other table as a join leg, then reference the field as `[<join-leg-name>/Field]` directly. Single relation, one query, clean rollup.
+
+Verified 2026-05-22 on the `Employee Overview` workbook (`50fcece5-...`): a Top-10 chart grouped by `Lookup([Employees/Full Name], [Employee Id], [Employees/Employee Id])` on `time_master` blanked out with the error-string dim. Switching `time_master.source` to a `join` (TIME_ENTRIES left-outer EMPLOYEES on Employee Id) and rewriting the grouping column to `[Employee/First Name] & " " & [Employee/Last Name]` produced the real top-10 names.
+
 ## Other Source Kinds
 
 These exist but are less common; model the shape off an existing workbook's spec via `GET /v2/workbooks/<id>/spec`:
