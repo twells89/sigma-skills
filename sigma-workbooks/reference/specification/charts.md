@@ -218,11 +218,14 @@ refMarks:
 
 ```yaml
 trendlines:
-  - columnId: col-sales       # which series to fit
-    model: linear             # linear | quadratic | polynomial | exponential | logarithmic | power
-    line: { color: "#336699", width: 2 }
-    label: { visibility: shown, text: "Sales trend" }
+  - columnId: col-sales       # which y-axis measure to fit
+    model: linear             # linear (verified); quadratic | polynomial | exponential | logarithmic | power per OpenAPI
+    label: { visibility: shown }    # toggles the model-name label
+    value: { visibility: shown }    # toggles the equation / R² readout
+    caption: {}                     # optional caption object
 ```
+
+**Canonical shape** (verified 2026-05-22 against a UI-built workbook readback): `label` and `value` are **separate visibility toggles**, not a single `{visibility, text}` object. `caption` is its own object. `line: { color, width }` is *not* present in the canonical readback — it may be accepted on POST but is not the default; treat as unverified until round-tripped. Only `model: linear` is end-to-end verified.
 
 Trendlines are rejected when the chart has no `xAxis`, uses stacking on bar/area/combo, or has a `color` channel — discover those constraints by submitting and reading the error.
 
