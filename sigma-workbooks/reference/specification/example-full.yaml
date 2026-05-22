@@ -111,10 +111,11 @@ pages:
               kind: number
               formatString: ',.2%'
         yAxis:
-          - id: nUll5YMT5j
-          - id: 7Xt23jjvu-
+          columnIds:
+            - nUll5YMT5j
+            - 7Xt23jjvu-
         xAxis:
-          id: uHU1J_MXtl
+          columnId: uHU1J_MXtl
         name: Sales over time
       - id: 17QGJ7ZJxQ
         kind: kpi-chart
@@ -162,9 +163,10 @@ pages:
               kind: number
               formatString: $,.0f
         yAxis:
-          - id: F2Oz_P4Kyt
+          columnIds:
+            - F2Oz_P4Kyt
         xAxis:
-          id: mVC9Hnp2zq
+          columnId: mVC9Hnp2zq
         stacking: none
         name: Sales by region
       - id: z9QWSXomyE
@@ -511,9 +513,10 @@ pages:
               kind: number
               formatString: $,.0f
         yAxis:
-          - id: xUCkExm5o7
+          columnIds:
+            - xUCkExm5o7
         xAxis:
-          id: Lg2lRXBlW4
+          columnId: Lg2lRXBlW4
         stacking: none
         name: Sales by loyalty program
       - id: 21okb8vVQR
@@ -532,9 +535,10 @@ pages:
               kind: number
               formatString: $,.0f
         yAxis:
-          - id: vPxRKXY6SW
+          columnIds:
+            - vPxRKXY6SW
         xAxis:
-          id: difSb6YU9U
+          columnId: difSb6YU9U
         stacking: none
         name: Sales by age group
       - id: D4QPEbu1Qi
@@ -553,9 +557,10 @@ pages:
               kind: number
               formatString: ',.0f'
         yAxis:
-          - id: sudjQ9sGtv
+          columnIds:
+            - sudjQ9sGtv
         xAxis:
-          id: yexydlDqUp
+          columnId: yexydlDqUp
         stacking: none
         name: Customers by region
   - id: 57aivWea2T
@@ -598,9 +603,10 @@ pages:
               kind: number
               formatString: $,.0f
         yAxis:
-          - id: bvo3DHs6PI
+          columnIds:
+            - bvo3DHs6PI
         xAxis:
-          id: aZp_IttHn8
+          columnId: aZp_IttHn8
         stacking: none
         name: Sales per store
       - id: UxHffLbrEj
@@ -619,9 +625,10 @@ pages:
               kind: number
               formatString: $,.2f
         yAxis:
-          - id: 9nsFcsTpSL
+          columnIds:
+            - 9nsFcsTpSL
         xAxis:
-          id: RB_fvo4SFj
+          columnId: RB_fvo4SFj
           sort:
             by: 9nsFcsTpSL
             direction: descending
@@ -643,9 +650,10 @@ pages:
               kind: number
               formatString: $,.0f
         yAxis:
-          - id: Ez57X-jegL
+          columnIds:
+            - Ez57X-jegL
         xAxis:
-          id: D_N24yHn5p
+          columnId: D_N24yHn5p
           sort:
             by: Ez57X-jegL
             direction: descending
@@ -751,9 +759,10 @@ pages:
               kind: number
               formatString: $,.0f
         yAxis:
-          - id: NDS13WYaA8
+          columnIds:
+            - NDS13WYaA8
         xAxis:
-          id: r78AKmsdTc
+          columnId: r78AKmsdTc
           sort:
             by: NDS13WYaA8
             direction: descending
@@ -783,9 +792,10 @@ pages:
               kind: number
               formatString: ',.2%'
         yAxis:
-          - id: gCPyCfh3sd
+          columnIds:
+            - gCPyCfh3sd
         xAxis:
-          id: 2ge_p25EIO
+          columnId: 2ge_p25EIO
           sort:
             by: gCPyCfh3sd
             direction: descending

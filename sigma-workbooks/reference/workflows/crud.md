@@ -1,6 +1,12 @@
 # Workbook Spec CRUD
 
-POST / GET / PUT against the workbook spec endpoints. Load this when creating, retrieving, or updating a workbook.
+Recipe + traps for POST / GET / PUT against `/v2/workbooks/spec`. Load this when creating, retrieving, or updating a workbook.
+
+```bash
+jq '.paths."/v2/workbooks/spec".post, .paths."/v2/workbooks/{workbookId}/spec".get, .paths."/v2/workbooks/{workbookId}/spec".put' /tmp/sigma-api.json
+```
+
+The endpoints are straightforward; the spec value is in calling out the **non-obvious behaviors**: YAML is the default content type (this skill prefers it for human readability), the ID-reassignment on POST (which breaks naive read-edit-write), and PUT being full-replacement.
 
 Every call includes `-H "Authorization: Bearer $SIGMA_API_TOKEN"`. Auth comes from the `sigma-api` skill.
 
@@ -8,27 +14,27 @@ Every call includes `-H "Authorization: Bearer $SIGMA_API_TOKEN"`. Auth comes fr
 
 ```bash
 # CREATE — POST the spec, response includes workbookId.
-# Send Accept: application/json — without it the response body is YAML
-# (`success: true\nworkbookId: ...`) and `jq -r '.workbookId'` will fail.
+# YAML by default on both directions. `--data-binary` preserves the
+# multiline body byte-for-byte (`-d` strips newlines, breaking YAML).
 curl -s -X POST -H "Authorization: Bearer $SIGMA_API_TOKEN" \
-  -H "Content-Type: application/json" \
-  -H "Accept: application/json" \
-  -d @/tmp/workbook-spec.json \
+  -H "Content-Type: application/yaml" \
+  -H "Accept: application/yaml" \
+  --data-binary @/tmp/workbook-spec.yaml \
   "$SIGMA_BASE_URL/v2/workbooks/spec"
 
-# GET — retrieve current spec (always send Accept: application/json)
+# GET — retrieve current spec (YAML by default)
 curl -s -H "Authorization: Bearer $SIGMA_API_TOKEN" \
-  -H "Accept: application/json" \
   "$SIGMA_BASE_URL/v2/workbooks/<workbook-id>/spec"
 
 # UPDATE — PUT replaces the entire spec.
-# Send Accept: application/json so the response body is JSON, not YAML.
 curl -s -X PUT -H "Authorization: Bearer $SIGMA_API_TOKEN" \
-  -H "Content-Type: application/json" \
-  -H "Accept: application/json" \
-  -d @/tmp/workbook-spec.json \
+  -H "Content-Type: application/yaml" \
+  -H "Accept: application/yaml" \
+  --data-binary @/tmp/workbook-spec.yaml \
   "$SIGMA_BASE_URL/v2/workbooks/<workbook-id>/spec"
 ```
+
+If you'd rather work in JSON, swap `application/yaml` → `application/json` and `--data-binary @file.yaml` → `-d @file.json` on each call. Sigma accepts both. YAML is the recommended default for this skill because workbook specs are human-reviewable artifacts and YAML diffs cleanly in PRs.
 
 ## Required Fields on CREATE
 
@@ -36,44 +42,43 @@ The POST body must include:
 
 - `name` (string)
 - `folderId` (string — usually the user's `homeFolderId`)
-- `schemaVersion` (number — use the value returned by `GET /v2/workbooks/<template-id>/spec`, do NOT hardcode it)
+- `schemaVersion` (number — use the value returned by `GET /v2/workbooks/<reference-workbook-id>/spec`, do NOT hardcode it)
 - `pages` (array — at least one page with at least one element)
 
 Optional: `description`, `layout` (top-level layout XML).
 
-```json
-{
-  "name": "Sales Dashboard",
-  "folderId": "<homeFolderId>",
-  "description": "Sales overview dashboard",
-  "schemaVersion": 1,
-  "pages": [...]
-}
+```yaml
+name: Sales Dashboard
+folderId: <homeFolderId>
+description: Sales overview dashboard
+schemaVersion: 1
+pages: [...]
 ```
 
-The server rejects a spec whose `schemaVersion` doesn't match what the current API expects, hence the rule against hardcoding it — always read it back from a recent template GET.
+The server rejects a spec whose `schemaVersion` doesn't match what the current API expects, hence the rule against hardcoding it — always read it back from a recent reference GET.
 
-The CREATE response shape is `{"success": true, "workbookId": "..."}`. Extract `workbookId` to construct the workbook URL or drive subsequent updates.
+The CREATE response shape (in YAML, the default):
 
-## All Spec Endpoints Return YAML by Default
+```yaml
+success: true
+workbookId: <uuid>
+```
 
-`POST`, `GET`, and `PUT` against `/v2/workbooks(/<id>)/spec` all respond with `application/yaml` unless you send `Accept: application/json`. If you pipe the response into `jq` without that header and it chokes, the response is YAML, not JSON — add the header.
-
-For CREATE, that means the body looks like `success: true\nworkbookId: <uuid>\n` instead of `{"success": true, "workbookId": "..."}` — extracting the workbook ID with `jq -r '.workbookId'` silently fails without the header.
+Extract `workbookId` with `yq -r '.workbookId' /tmp/create-response.yaml` (or `jq` if you switched to JSON content types).
 
 ## Persisting the Spec
 
 After a successful CREATE, copy the spec to a workbook-keyed path so it survives the next build, the user can diff or re-POST it, and subsequent PUTs can start from it:
 
 ```bash
-WORKBOOK_ID=$(jq -r '.workbookId' /tmp/create-response.json)
-cp /tmp/workbook-spec.json "/tmp/workbook-spec-${WORKBOOK_ID}.json"
+WORKBOOK_ID=$(yq -r '.workbookId' /tmp/create-response.yaml)
+cp /tmp/workbook-spec.yaml "/tmp/workbook-spec-${WORKBOOK_ID}.yaml"
 ```
 
 After a successful PUT, refresh the saved copy from the file you just submitted so it tracks server state:
 
 ```bash
-cp /tmp/current-spec.json "/tmp/workbook-spec-<workbook-id>.json"
+cp /tmp/current-spec.yaml "/tmp/workbook-spec-<workbook-id>.yaml"
 ```
 
 Report **both** the workbook URL **and** the saved spec path.
@@ -82,7 +87,7 @@ Report **both** the workbook URL **and** the saved spec path.
 
 The PUT endpoint replaces the entire spec — partial updates are not supported. Always:
 
-1. GET the current spec first (with `Accept: application/json`).
+1. GET the current spec first.
 2. Edit the file on disk.
 3. PUT the **full** payload back.
 
@@ -103,19 +108,26 @@ The same caveat applies to any cross-reference — control bindings, element sou
 ## Iteration Pattern
 
 ```bash
-# Get current spec (Accept: application/json — default is YAML)
+# Get current spec (YAML by default)
 curl -s -H "Authorization: Bearer $SIGMA_API_TOKEN" \
-  -H "Accept: application/json" \
   "$SIGMA_BASE_URL/v2/workbooks/<workbook-id>/spec" \
-  > /tmp/current-spec.json
+  > /tmp/current-spec.yaml
 
-# Edit /tmp/current-spec.json on disk, then:
+# If you also want the HTTP status (e.g. for trace logging), keep streams
+# separate: write the body via -o, send the status to stdout via -w.
+# NEVER combine `-w "...%{http_code}..."` with `> body.yaml` — that mixes
+# status text into the body file and corrupts the YAML.
+curl -s -o /tmp/current-spec.yaml -w "%{http_code}\n" \
+  -H "Authorization: Bearer $SIGMA_API_TOKEN" \
+  "$SIGMA_BASE_URL/v2/workbooks/<workbook-id>/spec"
+
+# Edit /tmp/current-spec.yaml on disk, then:
 curl -s -X PUT -H "Authorization: Bearer $SIGMA_API_TOKEN" \
-  -H "Content-Type: application/json" \
-  -H "Accept: application/json" \
-  -d @/tmp/current-spec.json \
-  "$SIGMA_BASE_URL/v2/workbooks/<workbook-id>/spec" | jq .
+  -H "Content-Type: application/yaml" \
+  -H "Accept: application/yaml" \
+  --data-binary @/tmp/current-spec.yaml \
+  "$SIGMA_BASE_URL/v2/workbooks/<workbook-id>/spec" | yq .
 
 # Refresh the saved copy so the next edit starts from the latest spec
-cp /tmp/current-spec.json "/tmp/workbook-spec-<workbook-id>.json"
+cp /tmp/current-spec.yaml "/tmp/workbook-spec-<workbook-id>.yaml"
 ```

@@ -1,18 +1,27 @@
 # Text Elements
 
-The `text` element renders a free-form Markdown block on a page — useful for dashboard titles, descriptions, section headers, callouts, or any prose that sits alongside charts and tables.
+Recipe for `kind: "text"` Markdown blocks. For the canonical schema:
+
+```bash
+jq '.components.schemas.Text' /tmp/sigma-api.json
+```
+
+The `text` element renders a free-form Markdown block on a page — useful for dashboard titles, descriptions, section headers, callouts, or any prose that sits alongside charts and tables. The OpenAPI describes the shape; this file documents which **subset** of Markdown actually renders, the inline-color extensions, and the `{{formula}}` embedding syntax.
 
 ## Shape
 
-```json
-{
-  "id": "text-header",
-  "kind": "text",
-  "body": "# Sales Overview\n\nA weekly view of revenue, with rankings of the regions driving the most growth.",
-  "verticalAlign": "start",
-  "overflow": "clip"
-}
+```yaml
+id: text-header
+kind: text
+body: |
+  # Sales Overview
+
+  A weekly view of revenue, with rankings of the regions driving the most growth.
+verticalAlign: start
+overflow: clip
 ```
+
+(YAML's `|` literal block scalar keeps the Markdown body multi-line and readable — preferred over an inline `\n`-escaped string.)
 
 | Field | Required | Notes |
 |---|---|---|

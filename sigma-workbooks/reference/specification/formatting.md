@@ -1,11 +1,18 @@
 # Column Formats
 
-Columns may carry a `format` object that controls display. `format` is optional — omit it for raw values.
+Recipe for column-level `format` objects + the d3-format / strftime conventions Sigma uses. For the canonical schema:
+
+```bash
+jq '.components.schemas.Format' /tmp/sigma-api.json
+```
+
+`format` is optional on every column — omit it for raw values. This file is mainly the cheat sheet of common format strings (currency, percentages, dates) since the OpenAPI doesn't enumerate them.
 
 ## Number Formats
 
-```json
-{ "kind": "number", "formatString": "$,.0f" }
+```yaml
+kind: number
+formatString: "$,.0f"
 ```
 
 Common format strings (d3-format conventions):
@@ -28,8 +35,9 @@ Format-string cheat sheet:
 
 ## Datetime Formats
 
-```json
-{ "kind": "datetime", "formatString": "%b %Y" }
+```yaml
+kind: datetime
+formatString: "%b %Y"
 ```
 
 Common format strings (strftime conventions):
@@ -53,11 +61,11 @@ Tokens:
 
 Inline on any column:
 
-```json
-{
-  "id": "col-sales",
-  "name": "Sales",
-  "formula": "Sum([Master/Sales Amount])",
-  "format": { "kind": "number", "formatString": "$,.0f" }
-}
+```yaml
+id: col-sales
+name: Sales
+formula: Sum([Master/Sales Amount])
+format:
+  kind: number
+  formatString: "$,.0f"
 ```

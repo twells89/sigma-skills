@@ -1,370 +1,262 @@
 # Charts
 
-Chart elements: `line-chart`, `bar-chart`, `area-chart`, `combo-chart`, `scatter-chart`, `pie-chart`, `donut-chart`, `region-map`, `point-map`. They share the same skeleton — a `source`, a `columns` array, and axis/value/region pointers that reference column IDs.
+Chart elements: `line-chart`, `bar-chart`, `donut-chart`. This file is a **recipe book** for chart specs and the style choices that go with each kind. For full schemas, fetch the OpenAPI:
 
-## Common Fields
-
-| Field | Required | Notes |
-|---|---|---|
-| `kind` | yes | `"line-chart"`, `"bar-chart"`, `"area-chart"`, `"combo-chart"`, `"scatter-chart"`, `"pie-chart"`, or `"donut-chart"` |
-| `id` | yes | Unique on the page |
-| `name` | yes | Display title. Accepts embedded `{{formula \| fmt}}` for dynamic titles — see "Dynamic Titles" below. |
-| `source` | yes | Usually `{ "kind": "table", "elementId": "<source-table-id>" }` — see `sources.md` |
-| `columns` | yes | Inline column definitions for the chart's own columns |
-| `legend` | no | Legend customization (`position`, `fontSize`, `visibility`, `sizeLegend`) — see "Legend" below |
-| `style` | no | Visual treatment (`padding`, `backgroundColor`) — see "Style" below |
-
-Every column in `columns` gets an `id`, a `formula`, a `name`, and optional `format` (see `formatting.md`).
-
-Remember: formulas on a chart that sources another element must use the source's prefix (`[<SourceName>/col]`). See `formulas.md`.
-
-## Dynamic Titles
-
-The `name` field on any chart element supports embedded formulas using the same `{{ast | fmt}}` syntax as `text` element bodies (`text.md`) and `image` URLs (`others.md`). The result is computed at render time and substituted into the title.
-
-```json
-"name": "Overtime by Department — total {{Sum([Master/Overtime Hours]) | ,.0f}} hrs"
+```bash
+jq '.components.schemas.LineChart, .components.schemas.BarChart, .components.schemas.DonutChart' /tmp/sigma-api.json
 ```
 
-The pipe + d3 format spec is optional. `{{[Master/Department]}}` is valid; `{{[Master/Department] | }}` (empty format) is normalized back to `{{[Master/Department]}}` on round-trip.
-
-## Legend
-
-Optional. All keys are optional inside `legend`.
-
-```json
-"legend": { "position": "top", "fontSize": 12 }
-```
-
-| Field | Values |
-|---|---|
-| `position` | `"top"`, `"right"`, `"bottom"`, `"top-left"` |
-| `fontSize` | number (e.g. `12`, `14`) |
-| `visibility` | `"hidden"` to hide the legend entirely |
-| `sizeLegend` | `"hidden"` — hides the size-channel legend on point-maps |
-
-## Style
-
-Optional. Charts support a thin `style` object for padding and background.
-
-```json
-"style": { "padding": "none", "backgroundColor": "#F8FAFC" }
-```
-
-| Field | Notes |
-|---|---|
-| `padding` | **Only `"none"` or omitted.** Other values (e.g. `"medium"`) are rejected with `must be 'none' or omitted`. |
-| `backgroundColor` | CSS color literal or `var(--colors-*)` theme variable |
-
-Border + corner-radius styling (`borderColor`, `borderRadius`, `borderWidth`) lives on `container` elements, not directly on charts — wrap a chart in a `container` if you need bordered framing. See `layout.md`.
+All three share the same skeleton: a `source`, a `columns` array, and axis/value pointers that reference column IDs. Formulas on a chart that sources another element must use the source's prefix (`[<SourceName>/col]`) — see `formulas.md`.
 
 ---
 
-## Line Chart
+## Line chart (revenue over time)
 
-```json
-{
-  "id": "sales-over-time",
-  "kind": "line-chart",
-  "name": "Sales over time",
-  "source": { "kind": "table", "elementId": "sales-table" },
-  "columns": [
-    { "id": "col-month", "formula": "DateTrunc(\"month\", [Master/Date])", "name": "Month",
-      "format": { "kind": "datetime", "formatString": "%b %Y" } },
-    { "id": "col-sales", "formula": "Sum([Master/Sales Amount])", "name": "Sales",
-      "format": { "kind": "number", "formatString": "$,.0f" } }
-  ],
-  "xAxis": { "id": "col-month" },
-  "yAxis": [{ "id": "col-sales" }]
-}
+```yaml
+id: sales-over-time
+kind: line-chart
+name: Sales over time
+source:
+  kind: table
+  elementId: sales-table
+columns:
+  - id: col-month
+    name: Month
+    formula: DateTrunc("month", [Master/Date])
+    format:
+      kind: datetime
+      formatString: "%b %Y"
+  - id: col-sales
+    name: Sales
+    formula: Sum([Master/Sales Amount])
+    format:
+      kind: number
+      formatString: "$,.0f"
+xAxis:
+  columnId: col-month
+yAxis:
+  columnIds:
+    - col-sales
 ```
 
-- `xAxis` — single `{ id, sort? }`
-- `yAxis` — array of `{ id }` (multiple series)
-- `xAxis.sort` shape: `{ "by": "<colId>", "direction": "ascending" | "descending" }`
+- `xAxis` — single `{ columnId, sort?, format? }`
+- `yAxis` — single `{ columnIds: [<colId>, ...], format? }`; for `combo-chart`, entries may be `{ columnId, type }` for per-series shape
+- `xAxis.sort` shape: `{ by: <colId>, direction: ascending | descending }`
+- Optional `format` on each axis configures title, labels, marks, and scale — fetch `CartesianAxisFormat` from the OpenAPI for the full shape
 
-### Color channel
-
-`line-chart` and `bar-chart` accept an optional `color` object that encodes a category column as series color (instead of, or in addition to, a second `yAxis` series).
-
-```json
-"color": { "by": "category", "column": "<colId>" }
-```
-
-- `by` — `"category"` for categorical encoding by a column.
-- `column` — the column ID to encode.
-
-## Bar Chart
+## Bar chart (revenue by category)
 
 Same axis shape as line-chart. Adds `stacking`.
 
-```json
-{
-  "id": "sales-by-region",
-  "kind": "bar-chart",
-  "name": "Sales by region",
-  "source": { "kind": "table", "elementId": "sales-table" },
-  "columns": [
-    { "id": "col-region", "formula": "[Master/Store Region]", "name": "Region" },
-    { "id": "col-sales",  "formula": "Sum([Master/Sales Amount])", "name": "Sales",
-      "format": { "kind": "number", "formatString": "$,.0f" } }
-  ],
-  "xAxis": { "id": "col-region" },
-  "yAxis": [{ "id": "col-sales" }],
-  "stacking": "none"
-}
+```yaml
+id: sales-by-region
+kind: bar-chart
+name: Sales by region
+source:
+  kind: table
+  elementId: sales-table
+columns:
+  - id: col-region
+    name: Region
+    formula: "[Master/Store Region]"
+  - id: col-sales
+    name: Sales
+    formula: Sum([Master/Sales Amount])
+    format:
+      kind: number
+      formatString: "$,.0f"
+xAxis:
+  columnId: col-region
+  sort:
+    by: col-sales
+    direction: descending
+yAxis:
+  columnIds:
+    - col-sales
+stacking: none
 ```
 
-`stacking`: `"none"` | `"stacked"` | `"100"`
+`stacking`: `none` | `stacked` | `"100"` (the percent-stacked variant must be quoted in YAML to keep it a string, not a number).
 
-`orientation`: `"horizontal"` flips a bar chart so categories run down the y-axis (the default is vertical columns). Verified value: `"horizontal"`.
+## Bar chart with custom category colors
 
-Add a sort to put categories in descending order of a measure:
+`bar-chart` accepts an optional `color` channel with three variants:
 
-```json
-"xAxis": {
-  "id": "col-region",
-  "sort": { "by": "col-sales", "direction": "descending" }
-}
+```yaml
+# Single fixed color
+color:
+  by: single
+  value: "#3b82f6"
+
+# One color per category (positional — see below)
+color:
+  by: category
+  column: col-region
+  scheme: ["#3b82f6", "#ef4444", "#10b981", "#f59e0b"]
+
+# Continuous scale across a measure
+color:
+  by: scale
+  column: col-sales
+  scheme: ["#fef3c7", "#fbbf24", "#dc2626"]
+  domain: [0, 5000, 10000]
 ```
 
-## Area Chart
+**Recipe — pin specific categories to specific colors:**
 
-Same axis shape as line-chart. Adds `stacking`.
+`scheme` is a **positional** array: Sigma assigns colors to categories in the order they appear on the axis, not by category name. To pin Electronics → blue, Apparel → red, Home → green, control the sort order alongside the color array:
 
-```json
-{
-  "id": "revenue-by-channel",
-  "kind": "area-chart",
-  "name": "Revenue by channel",
-  "source": { "kind": "table", "elementId": "sales-table" },
-  "columns": [
-    { "id": "col-month",   "formula": "DateTrunc(\"month\", [Master/Date])", "name": "Month" },
-    { "id": "col-channel", "formula": "[Master/Channel]", "name": "Channel" },
-    { "id": "col-sales",   "formula": "Sum([Master/Sales Amount])", "name": "Sales" }
-  ],
-  "xAxis": { "id": "col-month" },
-  "yAxis": [{ "id": "col-sales" }],
-  "stacking": "stacked"
-}
+```yaml
+kind: bar-chart
+name: Revenue by category
+columns:
+  - id: col-cat
+    name: Category
+    formula: "[Sales/Product Category]"
+  - id: col-sales
+    name: Revenue
+    formula: Sum([Sales/Revenue])
+    format:
+      kind: number
+      formatString: "$,.0f"
+xAxis:
+  columnId: col-cat
+  sort:
+    by: col-cat
+    direction: ascending
+yAxis:
+  columnIds:
+    - col-sales
+color:
+  by: category
+  column: col-cat
+  scheme: ["#3b82f6", "#ef4444", "#10b981"]
 ```
 
-`stacking`: `"none"` | `"stacked"` | `"100"`.
-
-## Combo Chart
-
-Bars + lines on the same axes. Same skeleton as the others; `yAxis` carries the multiple series and `filters` work the same way.
-
-```json
-{
-  "id": "revenue-and-units",
-  "kind": "combo-chart",
-  "source": { "kind": "table", "elementId": "sales-table" },
-  "columns": [
-    { "id": "col-month",   "formula": "DateTrunc(\"month\", [Master/Date])" },
-    { "id": "col-revenue", "formula": "Sum([Master/Sales Amount])" },
-    { "id": "col-units",   "formula": "Sum([Master/Units])" }
-  ],
-  "xAxis": { "id": "col-month" },
-  "yAxis": [{ "id": "col-revenue" }, { "id": "col-units" }]
-}
-```
+For category-by-name binding rather than position, use a derived column with an `If(...)` that emits the categories in a known order, then sort by that order.
 
 ## Donut
 
 Uses `value` and `color` instead of `xAxis` / `yAxis`.
 
-```json
-{
-  "id": "sales-by-family",
-  "kind": "donut-chart",
-  "name": "Sales by product family",
-  "source": { "kind": "table", "elementId": "sales-table" },
-  "columns": [
-    { "id": "col-family", "formula": "[Master/Product Family]", "name": "Family" },
-    { "id": "col-sales",  "formula": "Sum([Master/Sales Amount])", "name": "Sales",
-      "format": { "kind": "number", "formatString": "$,.0f" } }
-  ],
-  "value": { "id": "col-sales" },
-  "color": { "id": "col-family",
-             "sort": { "by": "col-sales", "direction": "descending" } }
-}
+```yaml
+id: sales-by-family
+kind: donut-chart
+name: Sales by product family
+source:
+  kind: table
+  elementId: sales-table
+columns:
+  - id: col-family
+    name: Family
+    formula: "[Master/Product Family]"
+  - id: col-sales
+    name: Sales
+    formula: Sum([Master/Sales Amount])
+    format:
+      kind: number
+      formatString: "$,.0f"
+value:
+  id: col-sales
+color:
+  id: col-family
+  sort:
+    by: col-sales
+    direction: descending
 ```
 
-`holeValue` is optional. The donut renders fine without it (verified May 2026). When set, it must reference a column ID — not a literal float (`"holeValue": 0.5` is rejected with `Invalid object: number`):
+`holeValue` is optional. When set, it references one of the donut's columns by ID — that column's aggregated value drives the hole label/render — not a literal number:
 
-```json
-"holeValue": { "id": "col-sales-hole" }
+```yaml
+holeValue:
+  id: col-sales
 ```
 
-> **Watch out — silent element drop.** If `holeValue.id` equals `value.id` (i.e., they reference the same column), the POST succeeds but the entire donut element is silently dropped from the saved spec. Define a **second column** with a distinct ID (same formula is fine) and point `holeValue` at it:
->
-> ```json
-> "columns": [
->   { "id": "col-family",     "formula": "[Master/Family]" },
->   { "id": "col-sales",      "formula": "Sum([Master/Sales Amount])" },
->   { "id": "col-sales-hole", "formula": "Sum([Master/Sales Amount])" }
-> ],
-> "value":     { "id": "col-sales" },
-> "color":     { "id": "col-family" },
-> "holeValue": { "id": "col-sales-hole" }
-> ```
+## Element-level filters (Top-N, etc.)
 
-## Element-Level Filters (Top-N, etc.)
-
-Charts take the same `filters` array as tables — the top-N example in `tables.md` applies to `bar-chart`, `line-chart`, `area-chart`, `combo-chart`, `donut-chart`, and `kpi-chart` without changes. Use this to cap a chart to the top N categories by some measure.
+Charts take the same `filters` array as tables — the top-N example in `tables.md` applies to `bar-chart`, `line-chart`, and `donut-chart` without changes.
 
 Top 10 regions by `Sales` on a bar chart:
 
-```json
-{
-  "id": "top-regions",
-  "kind": "bar-chart",
-  "name": "Top 10 regions",
-  "source": { "kind": "table", "elementId": "sales-table" },
-  "columns": [
-    { "id": "col-region", "formula": "[Master/Store Region]", "name": "Region" },
-    { "id": "col-sales",  "formula": "Sum([Master/Sales Amount])", "name": "Sales",
-      "format": { "kind": "number", "formatString": "$,.0f" } }
-  ],
-  "xAxis": { "id": "col-region", "sort": { "by": "col-sales", "direction": "descending" } },
-  "yAxis": [{ "id": "col-sales" }],
-  "stacking": "none",
-  "filters": [
-    {
-      "id": "top-10",
-      "columnId": "col-sales",
-      "kind": "top-n",
-      "rankingFunction": "rank",
-      "mode": "top-n",
-      "rowCount": 10,
-      "includeNulls": "when-no-value-is-selected"
-    }
-  ]
-}
+```yaml
+filters:
+  - id: top-10
+    columnId: col-sales
+    kind: top-n
+    rankingFunction: rank
+    mode: top-n
+    rowCount: 10
+    includeNulls: when-no-value-is-selected
 ```
 
 `rowCount` takes a number literal — it cannot be bound to a control (see `controls.md`, "Where Control Bindings Apply").
 
-## Scatter Chart
+## Cartesian-only optional features
 
-```json
-{
-  "id": "salary-vs-ot",
-  "kind": "scatter-chart",
-  "name": "Salary vs Overtime",
-  "source": { "kind": "table", "elementId": "master" },
-  "columns": [
-    { "id": "s-sal", "formula": "Max([Master/Annual Salary])",   "name": "Salary" },
-    { "id": "s-ot",  "formula": "Sum([Master/Overtime Hours])",  "name": "OT" },
-    { "id": "s-dep", "formula": "Max([Master/Department])",      "name": "Department" }
-  ],
-  "xAxis": { "id": "s-sal" },
-  "yAxis": [{ "id": "s-ot" }],
-  "color": { "by": "category", "column": "s-dep" }
-}
+These apply to `bar-chart`, `line-chart`, `area-chart`, `scatter-chart`, and `combo-chart`. Fetch the full schemas for the operator and styling enums:
+
+```bash
+jq '.components.schemas.ReferenceMark, .components.schemas.Trendline, .components.schemas.DataLabel' /tmp/sigma-api.json
 ```
 
-Optional `size: { "id": "<colId>" }` makes a bubble chart (size encodes a measure).
+### `refMarks` — reference lines and bands
 
-## Pie Chart
-
-Same shape as `donut-chart` (`value` + `color`), just without `holeValue`.
-
-```json
-{
-  "id": "ot-by-loc",
-  "kind": "pie-chart",
-  "name": "OT share by Location",
-  "source": { "kind": "table", "elementId": "master" },
-  "columns": [
-    { "id": "pi-loc", "formula": "[Master/Location]",              "name": "Location" },
-    { "id": "pi-ot",  "formula": "Sum([Master/Overtime Hours])",   "name": "OT Hours" }
-  ],
-  "value": { "id": "pi-ot" },
-  "color": { "id": "pi-loc", "sort": { "by": "pi-ot", "direction": "descending" } }
-}
+```yaml
+refMarks:
+  - type: line
+    axis: series              # axis | series | series2
+    value: 1000               # number, column ID, or formula string
+    line: { color: "#ef4444", width: 2 }
+    label: { text: "Threshold" }
+  - type: band
+    axis: series
+    value: 800
+    endValue: 1200            # required for bands
 ```
 
-## Known Unsupported Features
+### `trendlines` — regression overlays
 
-- No delta / comparison field on `kpi-chart` (see `kpis.md`). To show a comparison, stack two `kpi-chart` elements side-by-side via `layout.md` or use a chart.
-
-## Other Chart Kinds
-
-`pivot-table` is a separate element kind (uses `values` instead of `yAxis`) — see `tables.md`. For element-level reference of `kind: "text"` (free-form Markdown blocks), see `text.md`.
-
-## Maps
-
-Two map kinds are spec-supported. Both use the standard `source` + `columns` skeleton and reference column IDs from `columns` in their geometry/encoding fields.
-
-### `region-map` — choropleth (filled regions)
-
-```json
-{
-  "id": "employees-by-state",
-  "kind": "region-map",
-  "name": "Employees by State",
-  "source": { "kind": "table", "elementId": "master" },
-  "columns": [
-    { "id": "rm-state", "formula": "[Master/State]",              "name": "State" },
-    { "id": "rm-count", "formula": "Count([Master/Employee ID])", "name": "Employees" }
-  ],
-  "region": { "id": "rm-state", "regionType": "us-state" },
-  "label":  [{ "id": "rm-count" }]
-}
+```yaml
+trendlines:
+  - columnId: col-sales       # which series to fit
+    model: linear             # linear | quadratic | polynomial | exponential | logarithmic | power
+    line: { color: "#336699", width: 2 }
+    label: { visibility: shown, text: "Sales trend" }
 ```
 
-| Field | Required | Shape | Notes |
-|---|---|---|---|
-| `region` | yes | `{ id, regionType }` | `id` references a column in `columns`; the column's values are looked up against the named region set |
-| `label` | no | `[{ id }, …]` | Values rendered inside each region. Almost always the measure column. |
-| `tooltip` | no | `[{ id }, …]` | Extra columns shown on hover |
-| `color` | no | `{ "by": "category", "column": "<colId>" }` | Categorical fill. `column` **must differ** from `region.id` — API rejects reuse: *"Column X is referenced from both 'region' and 'color'"*. `by: "value"` is rejected; the default value-based heat shading is automatic when `color` is omitted. |
-| `size` | — | silently dropped | Choropleths don't size |
+Trendlines are rejected when the chart has no `xAxis`, uses stacking on bar/area/combo, or has a `color` channel — discover those constraints by submitting and reading the error.
 
-Valid `regionType` values (verified via POST round-trip):
+### `dataLabel` — value labels on marks
 
-- `us-state` — 50 US states + DC
-- `us-county` — US counties
-- `us-zipcode` — US ZIP codes (**not** `us-zip`)
-- `us-cbsa` — US Core-Based Statistical Areas (**not** `us-msa`)
-- `country` — country names / ISO codes
-
-Rejected: `us-zip`, `us-msa`, `us-congressional-district`, `world-country`, `state`, `province`, `continent` — all surface as `region.regionType: Invalid value: string` on POST.
-
-### `point-map` — lat/long bubbles
-
-```json
-{
-  "id": "stores",
-  "kind": "point-map",
-  "name": "Stores",
-  "source": { "kind": "table", "elementId": "master" },
-  "columns": [
-    { "id": "p-lat",  "formula": "[Master/Lat]",          "name": "Lat" },
-    { "id": "p-lng",  "formula": "[Master/Long]",         "name": "Long" },
-    { "id": "p-sz",   "formula": "Sum([Master/Revenue])", "name": "Revenue" },
-    { "id": "p-cat",  "formula": "[Master/Region]",       "name": "Region" }
-  ],
-  "latitude":  { "id": "p-lat" },
-  "longitude": { "id": "p-lng" },
-  "size":      { "id": "p-sz" },
-  "color":     { "by": "category", "column": "p-cat" },
-  "label":     [{ "id": "p-sz" }]
-}
+```yaml
+dataLabel:
+  labels: shown               # shown | hidden
+  labelDisplay: all-points    # all-points | maximum | min-max | ...
+  valueFormat: percent
+  totals: { display: shown }
 ```
 
-| Field | Required | Shape |
-|---|---|---|
-| `latitude`  | yes | `{ id }` (object, not array) |
-| `longitude` | yes | `{ id }` |
-| `size`  | no | `{ id }` — bubble size encodes a measure |
-| `color` | no | `{ "by": "category", "column": "<colId>" }` — `by: "value"` is rejected; category coloring only |
-| `label` | no | `[{ id }, …]` |
+For `combo-chart`, optional `seriesDataLabel` is a map keyed by layer shape (`bar`, `line`, `area`, `scatter`) with per-shape overrides:
 
-> **One channel per column.** A column referenced from one map channel cannot also appear in another channel. Putting the same column ID on `size` and `label` (or `region` and `color`, etc.) is rejected with *"Column X is referenced from both 'size' and 'label'; a column can only be on one channel at a time"*. Workaround: add a second column to `columns` with the same formula but a distinct `id`, and reference each ID from a different channel.
+```yaml
+seriesDataLabel:
+  bar: { labelDisplay: maximum }
+  line: { labelDisplay: all-points }
+```
 
-### Invalid map kinds
+## Other chart kinds
 
-The API rejects `bubble-map`, `geo-map`, `heat-map`, `choropleth-map`, `us-map`, and `map` with `Invalid kind`. Use `region-map` or `point-map`.
+Per the OpenAPI, these are all valid `kind` values; documented examples for the most common are above. The shape mirrors the `bar-chart`/`line-chart` pattern (`source`, `columns`, `xAxis`, `yAxis`):
+
+- `area-chart`, `combo-chart`, `scatter-chart` — same shape as `bar-chart`/`line-chart`, just a different `kind`. For specifics, inspect the OpenAPI schema directly:
+  ```bash
+  jq '.components.schemas.AreaChart, .components.schemas.ComboChart, .components.schemas.ScatterChart' /tmp/sigma-api.json
+  ```
+- `pie-chart` — same shape as `donut-chart` (`value` + `color`).
+- `pivot-table` — uses `values` instead of `yAxis`; useful for cross-tab analysis. See `tables.md`.
+
+## Known unsupported features
+
+- **No delta / comparison field on `kpi-chart`** (see `kpis.md`). To show period-over-period change, stack two `kpi-chart` elements side-by-side via `layout.md` or use a chart with explicit comparison columns.
+
+For element-level reference of `kind: "text"` (free-form Markdown blocks), see `text.md`.

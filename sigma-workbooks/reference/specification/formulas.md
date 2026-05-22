@@ -1,47 +1,67 @@
 # Sigma Formula Reference
 
+This is the highest-traffic reference file — Sigma's formula DSL is the largest source of spec errors and the OpenAPI doesn't fully describe its semantics. Treat this as the source of truth for the **formula language itself** (syntax, qualification, operator behavior). Field-level shape (where formulas appear in the spec) is in the OpenAPI per-element schemas.
+
 ## ⚠️ READ FIRST: The #1 Formula Mistake
 
 When an element sources another element (e.g., a KPI or chart sourcing a table), **every column reference inside aggregations must include the source element's name as a prefix.** Forgetting the prefix is the single most common Sigma spec error.
 
 **Wrong:**
-```json
-{ "kind": "kpi-chart", "source": { "kind": "table", "elementId": "usage-table" },
-  "columns": [{ "name": "Total", "formula": "Count([Question ID])" }] }
+```yaml
+kind: kpi-chart
+source: { kind: table, elementId: usage-table }
+columns:
+  - name: Total
+    formula: Count([Question ID])
 ```
 
 **Right:**
-```json
-{ "kind": "kpi-chart", "source": { "kind": "table", "elementId": "usage-table" },
-  "columns": [{ "name": "Total", "formula": "Count([AI Usage Data/Question ID])" }] }
+```yaml
+kind: kpi-chart
+source: { kind: table, elementId: usage-table }
+columns:
+  - name: Total
+    formula: Count([AI Usage Data/Question ID])
 ```
 
 **Why:** a bare `[column_name]` means *defined in THIS element's own `columns[]` array* — not *visible through the source*. SQL intuition leaks here: `Count([col])` feels local because the source "is" the table, but Sigma's formula language requires you to name the source explicitly.
 
 **Rule of thumb:** if your element's `source` points at another element (or a warehouse table, or a join), 90%+ of your formulas will start with `[<SourceName>/...]`. Bare refs are only for columns you literally defined a line or two above in the same `columns[]` array.
 
-Before publishing, run `./scripts/validate-spec.sh <spec.json>` — it catches exactly this mistake.
+Before publishing, run `./scripts/validate-spec.sh <spec.yaml>` — it catches exactly this mistake.
 
 ---
 
-## ⚠️ READ SECOND: Special Characters in Column Names
+## ⚠️ READ SECOND: Raw vs. Friendly Column Names
 
-Raw warehouse column names often contain characters that Sigma normalizes when producing the "friendly name" used in formulas. Writing a formula against the raw warehouse name will silently fail to resolve — a real hang-up when you can't figure out why an "Invalid column" error keeps firing on a name that obviously exists in the warehouse.
+Sigma's formula DSL references columns by their **friendly name**, not their raw warehouse name. The two diverge in two ways:
 
-**The worst offenders:**
+1. **Special characters** — `/`, `-`, `.`, `[`, `]`, and leading/trailing whitespace are stripped or replaced.
+2. **Casing and word boundaries** — `ALL_CAPS_WITH_UNDERSCORES` is title-cased and underscores become spaces; `camelCase` is split on case boundaries.
 
-- **`/`** — **cannot appear in a column reference.** The slash is the source-prefix separator in bracket syntax (`[Source/col]`), so Sigma strips it from column names. A warehouse column named `Net/Gross` becomes something like `Net Gross` in the friendly name.
-- **`-`** — typically replaced or stripped.
-- **`.`**, **`[`**, **`]`**, **leading/trailing whitespace** — stripped.
+Examples observed on real Sigma instances:
 
-**Rule:** ask the user for the exact column name Sigma uses (the friendly name shown in the workbook UI), and copy it verbatim. Do not transform the raw warehouse name yourself, and do not guess at the normalization — the exact rules vary across character classes.
+| Raw warehouse name | Friendly name used in formulas |
+|---|---|
+| `DATE` | `Date` |
+| `UNIT PRICE` | `Unit Price` |
+| `ORDER_ID` | `Order ID` |
+| `V userId` | `V User Id` |
+| `Net/Gross` | `Net Gross` |
+
+The trap: `GET /v2/connections/tables/{inodeId}/columns` returns **raw warehouse names** (`DATE`, `V userId`). Formulas written against those raw names will silently fail to resolve — Sigma is permissive at POST time and even auto-normalizes some simple cases (`[ORDERS/DATE]` → `[ORDERS/Date]`), but the auto-fix does **not** cover everything. The reliable workflow:
+
+1. POST your spec using your best guess (often the raw name works for ALL_CAPS columns).
+2. Run `./scripts/verify-workbook.sh <workbookId>` — if any element compiles to `'Unknown column "[X]"'` SQL, the friendly name doesn't match.
+3. Fix the affected formulas in your spec. To learn the canonical friendly name, GET the workbook spec back (`GET /v2/workbooks/<id>/spec`) — Sigma's readback shows the names it actually resolved against. Use those for the PUT.
+
+**Don't guess the normalization rules** — Sigma's are more aggressive than they look. When verify fails, ask the readback.
 
 Wrong: `[ORDERS/Net/Gross Revenue]` (slash inside a column name; unparseable)
 Wrong: `[ORDERS/Order-ID]` (raw warehouse name with a dash)
+Wrong: `[ORDERS/ORDER_ID]` (raw underscore form; usually needs `Order ID`)
 Right: `[ORDERS/Net Gross Revenue]` (friendly name)
 Right: `[ORDERS/Order ID]` (friendly name)
-
-If publish fails with "Invalid column" on a column you know exists in the warehouse, re-confirm the friendly name with the user and copy it character-for-character. Do not hand-edit warehouse names.
 
 ---
 
@@ -64,6 +84,10 @@ The prefix depends on the source type:
   - Join with `primarySource` implicitly tied to top-level `name: "Sales Star"` → `[Sales Star/Order Number]` for primary columns.
   - Join leg with `name: "Sales"` → `[Sales/Cust Key]` for that joined table's columns.
   - Warehouse path segments do **not** become the prefix inside a join — use the join leg's `name` instead.
+
+- **Union source**: `SourceName` = the union's `name` field. References resolve against the union's `matches[].outputColumnName` values, not the underlying tables' columns.
+  - Union with `name: "All Sales"` → `[All Sales/Order Number]`.
+  - If you omit `name`, Sigma assigns `"Union of N Sources"`; **a bare reference like `[Order Number]` to a column the consuming element also defines named `Order Number` is a circular reference and the SQL won't compile.** Set the `name` explicitly to avoid this.
 
 - Column names must match exactly what the describe endpoint returns. **Never invent column names.**
 

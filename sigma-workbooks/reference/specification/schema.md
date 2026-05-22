@@ -1,32 +1,31 @@
 # Workbook Spec — Top-Level Schema
 
-A workbook spec is a code representation (YAML or JSON) of a Sigma workbook. This file covers the overall shape of the top-level object and the `pages` array skeleton — see the per-element and per-source reference files for the pieces that go inside.
+Recipe + reference for the overall shape of the top-level workbook spec object and the `pages` array skeleton. The full schema lives in the OpenAPI:
 
-## Format: YAML or JSON
+```bash
+jq '.paths."/v2/workbooks/spec".post.requestBody.content."application/json".schema' /tmp/sigma-api.json
+```
 
-The default format for `GET /v2/workbooks/<id>/spec` and `PUT /v2/workbooks/<id>/spec` is **YAML**. To use JSON instead, send `?format=json` on the URL or `Accept: application/json` (GET) / `Content-Type: application/json` (PUT, POST).
-
-A single workbook representation can be built from **multiple YAML documents** concatenated with `---` separators — useful when authoring pages or large element trees in separate files.
+This file covers what the OpenAPI alone won't tell you: which fields are response-only (must be stripped before re-POSTing), the ID-reassignment trap on CREATE, and a minimal working example. See the per-element and per-source reference files for the pieces that go inside `pages[].elements[]`.
 
 ## Top-Level Object
 
 The object passed to `POST /v2/workbooks/spec`:
 
-```json
-{
-  "name": "My Workbook",
-  "folderId": "<folder-uuid>",
-  "description": "Optional description",
-  "schemaVersion": 1,
-  "pages": [...],
-  "layout": "<?xml ...?>..."
-}
+```yaml
+name: My Workbook
+folderId: <folder-uuid>
+description: Optional description
+schemaVersion: 1
+pages: [...]
+layout: |
+  <?xml ...?>...
 ```
 
 **Required:** `name`, `folderId`, `schemaVersion`, `pages`.
 **Optional:** `description`, `layout`.
 
-Use the `schemaVersion` returned by `GET /v2/workbooks/<template-id>/spec` in Step 2 of the workflow — don't hardcode it. The server will reject a spec whose `schemaVersion` doesn't match what the API expects.
+Use the `schemaVersion` returned by `GET /v2/workbooks/<reference-workbook-id>/spec` in Step 2 of the workflow — don't hardcode it. The server will reject a spec whose `schemaVersion` doesn't match what the API expects.
 
 ## Response-Only Fields
 
@@ -46,18 +45,13 @@ Use the `schemaVersion` returned by `GET /v2/workbooks/<template-id>/spec` in St
 
 `pages` is the core of the spec. Each page:
 
-```json
-{
-  "id": "page-1",
-  "name": "Overview",
-  "visibility": "visible",
-  "elements": [...]
-}
+```yaml
+id: page-1
+name: Overview
+elements: [...]
 ```
 
-The `elements` array holds table elements, charts, KPIs, controls, containers, text blocks, and dividers. See the per-element reference files.
-
-`visibility`: `"visible"` | `"hidden"` (page hidden from users but still part of the spec).
+The `elements` array holds table elements, charts, KPIs, controls, and containers. See the per-element reference files.
 
 ## ID Rules
 
@@ -69,39 +63,43 @@ The `elements` array holds table elements, charts, KPIs, controls, containers, t
 
 The smallest spec that creates a workable workbook:
 
-```json
-{
-  "name": "Sales Dashboard",
-  "folderId": "<folder-uuid>",
-  "schemaVersion": 1,
-  "pages": [
-    {
-      "id": "page-1",
-      "name": "Overview",
-      "elements": [
-        {
-          "id": "sales-table",
-          "kind": "table",
-          "name": "Sales Data",
-          "source": {
-            "kind": "warehouse-table",
-            "connectionId": "<conn-uuid>",
-            "path": ["SALES_DB", "PUBLIC", "ORDERS"]
-          },
-          "columns": [
-            { "id": "col-order-id", "formula": "[ORDERS/order_id]",   "name": "Order ID" },
-            { "id": "col-amount",   "formula": "[ORDERS/amount]",     "name": "Amount" },
-            { "id": "col-revenue",  "formula": "[ORDERS/revenue]",    "name": "Revenue" },
-            { "id": "col-cost",     "formula": "[ORDERS/cost]",       "name": "Cost" },
-            { "id": "col-date",     "formula": "[ORDERS/order_date]", "name": "Date" },
-            { "id": "col-total",    "formula": "Sum([Amount])",       "name": "Total Amount" },
-            { "id": "col-profit",   "formula": "[Revenue] - [Cost]",  "name": "Profit" }
-          ]
-        }
-      ]
-    }
-  ]
-}
+```yaml
+name: Sales Dashboard
+folderId: <folder-uuid>
+schemaVersion: 1
+pages:
+  - id: page-1
+    name: Overview
+    elements:
+      - id: sales-table
+        kind: table
+        name: Sales Data
+        source:
+          kind: warehouse-table
+          connectionId: <conn-uuid>
+          path: [SALES_DB, PUBLIC, ORDERS]
+        columns:
+          - id: col-order-id
+            name: Order ID
+            formula: "[ORDERS/order_id]"
+          - id: col-amount
+            name: Amount
+            formula: "[ORDERS/amount]"
+          - id: col-revenue
+            name: Revenue
+            formula: "[ORDERS/revenue]"
+          - id: col-cost
+            name: Cost
+            formula: "[ORDERS/cost]"
+          - id: col-date
+            name: Date
+            formula: "[ORDERS/order_date]"
+          - id: col-total
+            name: Total Amount
+            formula: Sum([Amount])
+          - id: col-profit
+            name: Profit
+            formula: "[Revenue] - [Cost]"
 ```
 
 Note how:

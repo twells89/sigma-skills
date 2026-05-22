@@ -1,8 +1,27 @@
 # Layout
 
-The optional top-level `layout` field is an XML string that positions elements on each page using a CSS-grid-like model. Omit `layout` to get Sigma's default auto-layout. Provide it for precise multi-element dashboard composition.
+Recipe book for the top-level `layout` XML — when to write it, the two-tag grammar, and the silent-failure traps the OpenAPI doesn't surface. **Default to writing explicit `layout` XML for multi-element workbooks.**
 
-## Shape
+For container elements (the `kind: "container"` JSON placeholders that pair with `<GridContainer>` in this XML), see `containers.md`.
+
+## When to write layout vs. let Sigma auto-arrange
+
+Write explicit `layout` when **any** of these apply:
+
+- The page has **mixed element kinds** (charts + KPIs, controls + charts, text/image/divider polish). Auto-arrange treats them as a vertical stack and gives every element the same height — KPIs end up the size of charts, dividers get huge gutters around them.
+- The user asked for specific positioning ("logo on left, title on right", "KPIs across the top", side-by-side charts).
+- There's a `kind: "container"` element on the page. Containers without a matching `<GridContainer>` are functionally no-ops.
+- The workbook has more than ~4 elements on a page. Auto-arrange becomes a long scroll.
+
+Auto-arrange (omit `layout`) is fine when:
+
+- The page has a single element.
+- The page is a uniform stack of tables — auto-arrange produces a reasonable list view.
+- The user explicitly says default layout is fine.
+
+If unsure, write the layout. Writing one is cheap (the patterns below are copy-paste); a visually broken dashboard is expensive.
+
+## Two-tag grammar
 
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
@@ -15,32 +34,27 @@ The optional top-level `layout` field is an XML string that positions elements o
 </Page>
 ```
 
-Key points:
-- Each `<Page id>` must match a `pages[].id`.
-- Each `<LayoutElement elementId>` or `<GridContainer elementId>` must match an element on that page.
-- `gridColumn` / `gridRow`: standard CSS grid line syntax (`start / end`). The default grid is 24 columns wide.
-- Multiple `<Page>` blocks at the top level, one per workbook page.
+Each `<Page id>` matches a `pages[].id`. Each `elementId` matches an element on that page. `gridColumn` / `gridRow` use standard CSS grid line syntax (`start / end`); the default grid is 24 columns wide. One `<Page>` block per workbook page.
 
-## `<GridContainer>` vs `<LayoutElement>`
+## `<GridContainer>` vs `<LayoutElement>` — silent failure trap
 
-> ⚠️ **Silent failure:** use `<GridContainer>` for any tag that has child layout elements nested inside it. `<LayoutElement type="grid">` with children **parses successfully as a leaf node and the children are silently dropped** — no error is returned, the elements just don't appear on the page. Every container that wraps other elements must be a `<GridContainer>`.
+> ⚠️ Use `<GridContainer>` for any tag that has children nested inside it. `<LayoutElement type="grid">` with children parses successfully **as a leaf** and the children are silently dropped — no error, the child elements just disappear from the page.
 
-Put another way:
 - `<LayoutElement elementId="X" .../>` — **leaf**. Positions a single element. No children.
 - `<GridContainer elementId="X" ...>...</GridContainer>` — **container**. Wraps child `<LayoutElement>`s inside its own inner grid.
 
 ## `gridTemplateRows`: keep it `"auto"`
 
-> **Silent normalization:** `gridTemplateRows` is accepted on `PUT` with any value but is normalized back to `"auto"` on `GET`. Writing `gridTemplateRows="1fr"` (or `"100px"`, `"repeat(3, 1fr)"`, etc.) on a `<Page>` or `<GridContainer>` doesn't error, but the server drops your value and treats the row track as `"auto"`. Always write `"auto"` explicitly — it's the only value that survives the round-trip.
+> Silent normalization: `gridTemplateRows` is accepted on PUT with any value but normalizes back to `"auto"` on GET. Writing `"1fr"`, `"100px"`, `"repeat(3, 1fr)"` etc. doesn't error — the server drops your value and treats the row track as `"auto"`. Always write `"auto"` explicitly so the round-trip is stable.
 
 ### Stacking children inside a container
 
 Because row tracks collapse to `"auto"`, height comes from children, not from the container's `gridTemplateRows`. Two patterns work:
 
-**Side-by-side only** — children share the container's row range, differ by `gridColumn`:
+**Side-by-side** — children share the container's row range, differ by `gridColumn`:
 
 ```xml
-<GridContainer elementId="header-row" type="grid"
+<GridContainer elementId="kpi-row" type="grid"
                gridColumn="1 / 25" gridRow="1 / 4"
                gridTemplateColumns="repeat(24, 1fr)" gridTemplateRows="auto">
   <LayoutElement elementId="kpi-1" gridColumn="1 / 9"  gridRow="1 / 4"/>
@@ -49,7 +63,7 @@ Because row tracks collapse to `"auto"`, height comes from children, not from th
 </GridContainer>
 ```
 
-**Stacked rows inside one container** — children may have disjoint `gridRow` spans. The server normalizes the container's outer `gridRow` to encompass its children's combined extent (e.g., a container declared `1 / 12` with children spanning `1 / 4` and `4 / 12` reads back as `1 / 12`; declare it generously the first time and let normalization clamp):
+**Stacked rows** — children have disjoint `gridRow` spans. The server normalizes the container's outer `gridRow` to encompass its children (e.g., a container declared `1 / 12` with children spanning `1 / 4` and `4 / 12` reads back as `1 / 12`; declare generously and let normalization clamp):
 
 ```xml
 <GridContainer elementId="header-row" type="grid"
@@ -62,73 +76,10 @@ Because row tracks collapse to `"auto"`, height comes from children, not from th
 </GridContainer>
 ```
 
-Use stacked rows when you want a section header / description / banner above a row of charts inside the same container, instead of moving those elements out to the page level.
+Use stacked rows when you want a section header above a row of charts inside the same container, instead of moving those elements out to the page level.
 
-## Container Elements
+## After CREATE: IDs reassign
 
-A `kind: "container"` element on a page declares a layout target — the matching `<GridContainer elementId="..." ...>` in the layout XML is what positions children inside it.
-
-```json
-{ "id": "header-row", "kind": "container" }
-```
-
-A container can also carry inline `style` for visual treatment (background, border):
-
-```json
-{
-  "id": "header-row",
-  "kind": "container",
-  "style": {
-    "backgroundColor": "var(--colors-borderNeutral)",
-    "borderRadius": "round",
-    "borderColor": "#E5E7EB",
-    "borderWidth": 0
-  }
-}
-```
-
-`style` accepts CSS color literals, theme variables (`var(--colors-*)`), and the same `borderRadius` / `borderColor` / `borderWidth` shape used on `table` elements (see `tables.md`).
-
-> **`backgroundImage` is not supported via the spec API (verified 2026-05).** Submitting `style.backgroundImage: "https://..."` does **not** error — the POST returns 200 — but the field is silently dropped from the readback. Containers can only carry a `backgroundColor`. Don't iterate on field names; this is a gap in the spec API, not a syntax problem.
-
-## Text and Divider Elements
-
-Two simple non-data elements that live in `pages[].elements`:
-
-### Text
-
-Free-form rich text block.
-
-```json
-{
-  "id": "section-title",
-  "kind": "text",
-  "body": "## Workforce Operations Overview\n\nKPIs for the current period.",
-  "verticalAlign": "top"
-}
-```
-
-- `body` — Markdown-flavored content.
-- `verticalAlign` — `"top"` | `"middle"` | `"bottom"`.
-
-### Divider
-
-Visual separator.
-
-```json
-{
-  "id": "div-1",
-  "kind": "divider",
-  "align": "center",
-  "style": { "color": "#E0E0E0", "thickness": 1 }
-}
-```
-
-- `align` — `"left"` | `"center"` | `"right"`.
-- `style` — line color and thickness.
-
-## After CREATE: IDs Reassign
-
-The server remaps external IDs to internal ones on `POST /v2/workbooks/spec`. **Before any follow-up `PUT` that touches `layout`**, GET the current spec and use the IDs from the readback. `elementId` references in the XML must match exactly (case-sensitive) — a mismatch silently drops the element from the page.
+The server remaps external IDs to internal ones on `POST /v2/workbooks/spec`. Before any follow-up `PUT` that touches `layout`, **GET the current spec and use the readback IDs**. Layout `elementId` references must match exactly (case-sensitive) — a mismatch silently drops the element from the page.
 
 See `example-full.yaml` for a real multi-page layout with grid containers.

@@ -2,16 +2,22 @@
 
 The `warehouse-table` source is the most common source kind — raw data from a warehouse connection. Virtually every workbook starts with at least one element sourced from a warehouse table (or from an element that is, via `kind: "table"` / `kind: "join"`).
 
-See `source-discovery.md` for how to find the `connectionId` and `path` via the REST API.
+For the canonical schema:
+
+```bash
+jq '.components.schemas.WarehouseTableSource' /tmp/sigma-api.json
+```
+
+This file covers: path formats per warehouse (which the OpenAPI describes loosely), formula-prefix conventions (which it doesn't describe at all), and the special-character / friendly-name pitfalls.
+
+See `reference/workflows/discover.md` for how to find the `connectionId` and `path` via the REST API.
 
 ## Shape
 
-```json
-{
-  "kind": "warehouse-table",
-  "connectionId": "<conn-uuid>",
-  "path": ["DATABASE", "SCHEMA", "TABLE"]
-}
+```yaml
+kind: warehouse-table
+connectionId: <conn-uuid>
+path: [DATABASE, SCHEMA, TABLE]
 ```
 
 ## Formula References

@@ -5,7 +5,10 @@
 # inside a formula when the referenced column actually lives on the source element,
 # not the current one, and therefore needs a prefix (e.g. [AI Usage Data/Question ID]).
 #
-# Usage: ./validate-spec.sh <path-to-spec.json>
+# Accepts YAML (recommended) or JSON input. YAML is detected by the
+# .yaml/.yml extension and converted to JSON internally before the jq pass.
+#
+# Usage: ./validate-spec.sh <path-to-spec.yaml|.json>
 # Exit codes:
 #   0  — no obvious issues
 #   1  — issues found
@@ -21,7 +24,7 @@ set -euo pipefail
 
 FILE="${1:-}"
 if [ -z "$FILE" ]; then
-  echo "Usage: $0 <path-to-spec.json>" >&2
+  echo "Usage: $0 <path-to-spec.yaml|.json>" >&2
   exit 2
 fi
 
@@ -35,7 +38,44 @@ if [ ! -f "$FILE" ]; then
   exit 2
 fi
 
-ISSUES=$(jq -r '
+# Convert YAML → JSON in memory if the file looks like YAML. Try yq first (works
+# for both the Python wrapper kislyuk/yq and the Go mikefarah/yq via -o=json
+# fallback), then fall back to Python+PyYAML. JSON files pass through untouched.
+to_json() {
+  case "$FILE" in
+    *.yaml|*.yml)
+      if command -v yq >/dev/null 2>&1; then
+        # Python yq (kislyuk): `yq .` already emits JSON. Go yq (mikefarah)
+        # needs `-o=json`. Try Python form first; on failure (non-zero or
+        # YAML-like output) try Go form.
+        yq . "$FILE" 2>/dev/null && return 0
+        yq -o=json . "$FILE" 2>/dev/null && return 0
+      fi
+      if command -v python3 >/dev/null 2>&1; then
+        python3 - "$FILE" <<'PY' 2>/dev/null && return 0
+import sys, json
+try:
+    import yaml
+except ImportError:
+    sys.exit(2)
+with open(sys.argv[1]) as f:
+    print(json.dumps(yaml.safe_load(f)))
+PY
+      fi
+      echo "Error: cannot convert YAML to JSON. Install one of:" >&2
+      echo "  - yq:           brew install yq, apt install yq, or pip install yq" >&2
+      echo "  - PyYAML:       pip install PyYAML  (python3 + import yaml)" >&2
+      exit 2
+      ;;
+    *)
+      cat "$FILE"
+      ;;
+  esac
+}
+
+SPEC_JSON="$(to_json)"
+
+ISSUES=$(printf '%s' "$SPEC_JSON" | jq -r '
   .pages[]? | .elements[]? |
     . as $element |
     (.columns // []) as $cols |
@@ -47,7 +87,7 @@ ISSUES=$(jq -r '
     ( $bare_refs | map(select(. as $ref | $siblings | index($ref) | not)) ) as $unresolved |
     select($unresolved | length > 0) |
     "Element: \($element.name // $element.id // "(unnamed)")\n  Column: \($col.name // $col.id // "(unnamed)")\n  Formula: \($formula)\n  Unresolved bare refs: \($unresolved | join(", "))\n"
-' "$FILE")
+')
 
 if [ -z "$ISSUES" ]; then
   echo "OK: no obvious formula qualification errors."

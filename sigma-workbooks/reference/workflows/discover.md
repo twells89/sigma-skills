@@ -1,8 +1,12 @@
 # Source Discovery
 
-How to find connections, tables, and column names for use in workbook specs via the Sigma REST API (direct HTTP).
+Recipe for finding connections, tables, and column names via the Sigma REST API. These endpoints are individually documented in the OpenAPI; this file's value is the **sequencing** — which call to make in which order, where to capture each ID, how to handle ambiguous paths — workflow knowledge the OpenAPI alone doesn't convey.
 
-Assumes `$SIGMA_BASE_URL` and `$SIGMA_API_TOKEN` are set in the shell. Use the skill's `scripts/get-token.sh` to populate `$SIGMA_API_TOKEN` — see SKILL.md for details.
+```bash
+jq '.paths."/v2/connections", .paths."/v2/connection/{connectionId}/lookup", .paths."/v2/connections/tables/{tableId}/columns"' /tmp/sigma-api.json
+```
+
+Assumes `$SIGMA_BASE_URL` and `$SIGMA_API_TOKEN` are set in the shell. Use the `sigma-api` skill's `scripts/get-token.sh` to populate `$SIGMA_API_TOKEN` — see SKILL.md for details.
 
 ## Warehouse Table Sources
 
@@ -74,11 +78,9 @@ Ask the user to supply the `dataModelId` (visible in the Sigma UI URL when viewi
 
 For elements sourced from another element in the same workbook:
 
-```json
-{
-  "kind": "table",
-  "elementId": "other-element-id"
-}
+```yaml
+kind: table
+elementId: other-element-id
 ```
 
 Use the `id` of the source element. Column references use the source element's `name` field: `[Source Element Name/column_name]`.
