@@ -291,6 +291,7 @@ Per the OpenAPI, these are all valid `kind` values; documented examples for the 
   ```bash
   jq '.components.schemas.AreaChart, .components.schemas.ComboChart, .components.schemas.ScatterChart' /tmp/sigma-api.json
   ```
+  **combo-chart dual-axis caveat (verified 2026-05-22):** Sigma's UI renders combo charts with a separate right-hand y-axis scale, but the spec API does **not** persist that secondary axis config. Spec only stores both measures on a shared `yAxis.columnIds` with one shared `format`. The right-hand scale must be configured manually in the editor post-publish — POSTing `series2`, `secondaryYAxis`, or `axis: series2` on column entries is silently dropped.
 - `pie-chart` — same shape as `donut-chart` (`value` + `color`).
 - `pivot-table` — uses `values` instead of `yAxis`; useful for cross-tab analysis. See `tables.md`.
 
