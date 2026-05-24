@@ -219,32 +219,59 @@ filters:
     columnId: col-body
 ```
 
-## Toggle / Checkbox
+## Segmented (parameter / radio buttons)
 
-Boolean switch. Both `toggle` and `checkbox` share the shape — the type just picks the widget.
+> **Verified 2026-05-24 against sigma-skill-recon test #6.** `controlType: segmented` is the correct shape for Tableau-style parameters (a small fixed set of choices rendered as radio buttons / button group).
+
+Manual values (most common — parameter):
 
 ```yaml
 kind: control
-id: ctrl-active-only
-controlId: ActiveOnly
-name: Active only
-controlType: toggle
-value: false
-filters:
-  - source:
-      kind: table
-      elementId: users-table
-    columnId: col-is-active
+id: ctrl-time-period
+controlId: TimePeriod
+name: Time period
+controlType: segmented
+source:
+  kind: manual
+  valueType: text
+  values: ["Month", "Quarter", "Year"]
+  labels: [null, null, null]
+value: Quarter
 ```
 
-## Dropdown / Radio
+Dynamic values (sourced from a column):
 
-UI variants of `list`. Use `controlType: dropdown` or `radio` instead of `list`, and constrain `selectionMode`:
+```yaml
+kind: control
+id: ctrl-ship-mode
+controlId: ShipMode
+name: Ship mode
+controlType: segmented
+source:
+  kind: source
+  source: { kind: table, elementId: sales-table }
+  columnId: col-ship-mode
+value: null
+```
 
-- `dropdown` — typically paired with `selectionMode: single`.
-- `radio` — always `selectionMode: single`.
+Segmented controls have **no `filters`** — they act as parameters referenced in element formulas via `controlId`:
 
-Everything else — `mode`, `values`, `source`, `filters` — matches the list shape.
+```
+Sum(If([TimePeriod] = "Month", [Sales], Null))
+```
+
+## Control types that do NOT exist
+
+> **Verified 2026-05-24 against sigma-skill-recon tests #3-5.** The following `controlType` values are all rejected with HTTP 400 `Invalid kind: "control"`. They are not valid spec shapes — use the correct alternative.
+>
+> | Rejected `controlType` | Use instead |
+> |---|---|
+> | `slider` | `number-range` with `mode: between` and a two-element `values` array (see Slider section above) |
+> | `range-slider` | `number-range` |
+> | `toggle` | `list` with `selectionMode: single` and a fixed two-value source (or rebuild as a parameter via `segmented`) |
+> | `checkbox` | Same — `list` or `segmented` |
+> | `dropdown` | `list` with `selectionMode: single` |
+> | `radio` | `segmented` (for parameters) or `list` with `selectionMode: single` |
 
 ---
 
