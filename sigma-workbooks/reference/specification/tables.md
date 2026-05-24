@@ -146,6 +146,8 @@ columnsBy:
 
 `values` holds the measure column IDs (the cells of the pivot). `rowsBy` and `columnsBy` hold the dimension column IDs — each as `[{ id: <col-id> }, ...]`. **Without `rowsBy`/`columnsBy`, the pivot collapses to a single grand-total cell** even though the dimension columns are present in `columns[]`. Sigma does NOT infer placement from non-`values` columns; you must declare it.
 
+> **`columnsBy[].sort` is NOT supported.** PUT returns HTTP 400 `sort shape not supported on columnsBy`. Sigma orders pivot columns by the natural order of the column values (alphabetical for strings, numeric for numbers, chronological for dates / integers used as date-of-year). To control column order, pre-compute an integer sort key column (e.g. `Month()` returns 1-12 and sorts chronologically) and use that instead of a string column. Verified 2026-05-24: `MonthName()` (string) sorted alphabetically until swapped to `Month()` (integer).
+
 ## Round-trip quirks
 
 - **Column reordering**: Sigma reorders the `columns` array on round-trip — value columns first, then dimensions — regardless of submission order. GET → edit → PUT will show a non-substantive diff in `columns`. The `values` array preserves IDs, so rendered output is unchanged.
