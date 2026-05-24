@@ -138,11 +138,15 @@ columns:
       kind: number
       formatString: ",.0f"
 values: [piv-count]
+rowsBy:
+  - id: piv-cloud
+columnsBy:
+  - id: piv-env
 ```
 
-`values` is the measure column array (the cells of the pivot). The remaining columns act as row/column dimensions.
+`values` holds the measure column IDs (the cells of the pivot). `rowsBy` and `columnsBy` hold the dimension column IDs — each as `[{ id: <col-id> }, ...]`. **Without `rowsBy`/`columnsBy`, the pivot collapses to a single grand-total cell** even though the dimension columns are present in `columns[]`. Sigma does NOT infer placement from non-`values` columns; you must declare it.
 
 ## Round-trip quirks
 
 - **Column reordering**: Sigma reorders the `columns` array on round-trip — value columns first, then dimensions — regardless of submission order. GET → edit → PUT will show a non-substantive diff in `columns`. The `values` array preserves IDs, so rendered output is unchanged.
-- **Row vs. column dimension placement**: the OpenAPI surfaces only `columns` and `values`; there is no separate `rows`/`pivotRows`/`pivotColumns` field. Sigma infers row vs. column dimensions from the non-`values` columns. To control layout further, today the UI is the path.
+- **Spec docs lied about `rowsBy`/`columnsBy`**: this file previously claimed those fields didn't exist and that UI was required for row/column placement. They do exist (verified 2026-05-24 against a UI-built pivot's `GET .../spec` round-trip) and a spec-only build works end-to-end. The OpenAPI may still be under-documented; trust the round-trip.
