@@ -235,18 +235,31 @@ jq '.components.schemas.ReferenceMark, .components.schemas.Trendline, .component
 
 ### `refMarks` — reference lines and bands
 
+> **Verified 2026-05-24 against sigma-skill-recon test #1.** `value` is a **wrapped object**, NOT a bare number. POST with `value: 1000` returns HTTP 400 `Invalid value: object`. Use `{type: constant, value: <n>}` or `{type: formula, formula: <expr>}`. `axis: "series"` is the measure (Y) axis; `axis: "series2"` is combo-chart's secondary axis; `axis: "axis"` is the X axis.
+
 ```yaml
 refMarks:
   - type: line
     axis: series              # axis | series | series2
-    value: 1000               # number, column ID, or formula string
-    line: { color: "#ef4444", width: 2 }
-    label: { text: "Threshold" }
-  - type: band
+    value:                    # wrapped object — bare number rejected
+      type: constant
+      value: 1000
+    label:
+      visibility: shown
+      text: Threshold
+  - type: line
     axis: series
-    value: 800
-    endValue: 1200            # required for bands
+    value:
+      type: formula
+      formula: Avg([Sales])
+    label: { visibility: shown }
+  - type: band                # band: shape unverified — wait for a UI-built readback
+    axis: series
+    value: { type: constant, value: 800 }
+    endValue: { type: constant, value: 1200 }
 ```
+
+`value.type: "column"` (with `columnId`) is also rejected — wrap the column ref in a formula instead. `line: { color, width }` may be accepted on POST but is not present on UI-built readbacks; treat as unverified.
 
 ### `trendlines` — regression overlays
 
