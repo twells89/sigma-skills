@@ -38,18 +38,27 @@ if [ ! -f "$FILE" ]; then
   exit 2
 fi
 
-# Convert YAML → JSON in memory if the file looks like YAML. Try yq first (works
-# for both the Python wrapper kislyuk/yq and the Go mikefarah/yq via -o=json
-# fallback), then fall back to Python+PyYAML. JSON files pass through untouched.
+# Convert YAML → JSON in memory if the file looks like YAML.
+#
+# Earlier versions trusted yq's exit code as proof of JSON output, which broke
+# against Go yq (mikefarah, Homebrew default on macOS): `yq . file.yaml` exits 0
+# but emits YAML, not JSON, so the downstream jq call failed with
+# "Invalid literal at line 1, column 5". Fix: try Go yq's explicit -o=json first,
+# fall back to Python yq's bare `.`, and validate each candidate with `jq empty`
+# before accepting it — the success criterion is now "output parses as JSON",
+# not "yq exited 0".
 to_json() {
   case "$FILE" in
     *.yaml|*.yml)
       if command -v yq >/dev/null 2>&1; then
-        # Python yq (kislyuk): `yq .` already emits JSON. Go yq (mikefarah)
-        # needs `-o=json`. Try Python form first; on failure (non-zero or
-        # YAML-like output) try Go form.
-        yq . "$FILE" 2>/dev/null && return 0
-        yq -o=json . "$FILE" 2>/dev/null && return 0
+        # Go yq (mikefarah) — explicit JSON output flag, unambiguous.
+        out=$(yq -o=json . "$FILE" 2>/dev/null) \
+          && printf '%s' "$out" | jq empty >/dev/null 2>&1 \
+          && { printf '%s' "$out"; return 0; }
+        # Python yq (kislyuk) — bare `.` already emits JSON.
+        out=$(yq . "$FILE" 2>/dev/null) \
+          && printf '%s' "$out" | jq empty >/dev/null 2>&1 \
+          && { printf '%s' "$out"; return 0; }
       fi
       if command -v python3 >/dev/null 2>&1; then
         python3 - "$FILE" <<'PY' 2>/dev/null && return 0
@@ -63,8 +72,9 @@ with open(sys.argv[1]) as f:
 PY
       fi
       echo "Error: cannot convert YAML to JSON. Install one of:" >&2
-      echo "  - yq:           brew install yq, apt install yq, or pip install yq" >&2
-      echo "  - PyYAML:       pip install PyYAML  (python3 + import yaml)" >&2
+      echo "  - Go yq:        brew install yq                (recommended on macOS)" >&2
+      echo "  - Python yq:    pip install yq" >&2
+      echo "  - PyYAML:       pip install PyYAML            (python3 + import yaml)" >&2
       exit 2
       ;;
     *)
