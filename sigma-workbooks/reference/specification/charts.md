@@ -199,12 +199,25 @@ color:
     direction: descending
 ```
 
-`holeValue` is optional. When set, it references one of the donut's columns by ID — that column's aggregated value drives the hole label/render — not a literal number:
+`holeValue` is optional. When set, it references one of the donut's columns by ID — that column's aggregated value drives the hole label/render — not a literal number.
+
+> ⚠️ **`holeValue.id` MUST be a different column from `value.id`.** If they match, the API returns 200 OK but the entire donut element is dropped from the spec on readback and the chart renders as a tiny gray ring with no slices or legend. Add a second column with its own aggregation (typically a count next to a sum) and point `holeValue.id` at that. The Sigma UI implicitly enforces this rule — it always inserts a second column when the user toggles "show value in hole."
 
 ```yaml
-holeValue:
+columns:
+  - id: col-family
+    formula: "[Master/Product Family]"
+  - id: col-sales
+    formula: Sum([Master/Sales Amount])
+  - id: col-orders                              # extra column for the hole
+    formula: CountDistinct([Master/Order Id])
+value:
   id: col-sales
+holeValue:
+  id: col-orders                                # MUST differ from value.id
 ```
+
+> **Slice colors are NOT customizable via spec on donut/pie.** The donut/pie `color` object only accepts `{id, sort}` — no `scheme`. POSTing `color.scheme: [hex, ...]` returns 200 OK but the scheme is silently stripped on GET and the chart renders with Sigma's default palette. `scheme` is **bar-chart-only**. If you need branded slice colors, set the workbook-level theme in the UI (not yet exposed in the spec API as of 2026-05-29).
 
 ## Element-level filters (Top-N, etc.)
 

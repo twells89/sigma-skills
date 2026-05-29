@@ -21,18 +21,14 @@ require 'uri'
 require 'json'
 
 BASE_URL = ENV.fetch('SIGMA_BASE_URL')
-TOKEN    = ENV.fetch('SIGMA_API_TOKEN') { abort 'SIGMA_API_TOKEN not set' }
+$LOAD_PATH.unshift File.expand_path('lib', __dir__)
+require 'sigma_rest'
 
+# Audit loops over every dedup candidate's workbook + PUTs corrections;
+# Sigma.request auto-refreshes on 401 mid-run.
 def http_req(method, path, body = nil)
-  uri = URI("#{BASE_URL}#{path}")
-  req = case method
-        when :get then Net::HTTP::Get.new(uri)
-        when :put then r = Net::HTTP::Put.new(uri); r.body = body; r
-        end
-  req['Authorization'] = "Bearer #{TOKEN}"
-  req['Accept']        = 'application/json'
-  req['Content-Type']  = 'application/json' if method == :put
-  Net::HTTP.start(uri.host, uri.port, use_ssl: true) { |h| h.request(req) }.body
+  res = Sigma.request(method, path, body: body, accept: '*/*')
+  res.is_a?(String) ? res : res.to_json
 end
 
 def audit_one(wb_id)

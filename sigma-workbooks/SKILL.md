@@ -210,8 +210,9 @@ The reference is feature-sliced — don't read every file up-front. The index ha
 | `reference/specification/kpis.md` | KPI, stat, big number, single value, metric card. |
 | `reference/specification/controls.md` | Filter, dropdown, picker, multi-select, date range, date picker, text filter, number range, slider. |
 | `reference/specification/text.md` | Text element / Markdown block — dashboard titles, descriptions, callouts, prose alongside charts. |
-| `reference/specification/containers.md` | Container element — placeholder + `backgroundImage` styling. Used together with layout XML's `<GridContainer>` to group elements. |
+| `reference/specification/containers.md` | Container element — placeholder + the 5 `style` knobs (`backgroundColor`, `borderRadius`, `borderColor`, `borderWidth`, `padding`) + `backgroundImage`. Used together with layout XML's `<GridContainer>` to group elements. |
 | `reference/specification/others.md` | Divider and image elements — small visual elements for dashboard polish. |
+| `reference/specification/styling.md` | **Load when building a dashboard from scratch.** Design recipe library — vetted color palette, hero header strip, KPI card row, section headers, divider rhythm, categorical chart colors. Turns a default-arrange workbook into a designed-looking one without UI editing. |
 
 ### Sources
 
@@ -293,7 +294,31 @@ In order:
 
 ### 401 Unauthorized
 
-Token missing or expired. Re-authenticate via `sigma-api`. If still failing, verify credentials and base URL.
+Sigma OAuth tokens expire after ~1 hour. Long workbook-building sessions (orchestrated batch conversions, multi-step iterations, anything that runs >50 minutes) will hit this mid-flight.
+
+**Ruby callers** (any of the `tableau-to-sigma/scripts/*.rb` Sigma-touching scripts): use the `Sigma` REST wrapper at `tableau-to-sigma/scripts/lib/sigma_rest.rb` — it does automatic 401-with-refresh-and-retry. Concretely:
+
+```ruby
+require_relative 'lib/sigma_rest'
+spec = Sigma.request(:get, "/v2/workbooks/#{id}/spec")   # auto-refreshes on 401
+```
+
+**Bash / curl callers**: re-run `eval "$(scripts/get-token.sh)"` to refresh manually. For long shell loops, wrap the curl in a small helper that retries once on 401:
+
+```bash
+sigma_curl() {
+  local resp code
+  resp=$(curl -sS -w '\n%{http_code}' -H "Authorization: Bearer $SIGMA_API_TOKEN" "$@")
+  code=$(echo "$resp" | tail -1)
+  if [ "$code" = "401" ]; then
+    eval "$(scripts/get-token.sh)"
+    resp=$(curl -sS -w '\n%{http_code}' -H "Authorization: Bearer $SIGMA_API_TOKEN" "$@")
+  fi
+  echo "$resp" | sed '$d'  # strip trailing status code
+}
+```
+
+If 401 persists after refresh, re-authenticate via `sigma-api` and verify `SIGMA_BASE_URL`, `SIGMA_CLIENT_ID`, `SIGMA_CLIENT_SECRET`.
 
 ### 403 Forbidden on workbook create
 

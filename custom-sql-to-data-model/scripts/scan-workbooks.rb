@@ -13,14 +13,14 @@ require 'yaml'
 require 'date'
 
 BASE_URL = ENV.fetch('SIGMA_BASE_URL') { abort 'SIGMA_BASE_URL not set — run: eval "$(bash scripts/get-token.sh)"' }
-TOKEN    = ENV.fetch('SIGMA_API_TOKEN') { abort 'SIGMA_API_TOKEN not set — run: eval "$(bash scripts/get-token.sh)"' }
+$LOAD_PATH.unshift File.expand_path('lib', __dir__)
+require 'sigma_rest'
 
+# Full-site workbook scans paginate over hundreds of items and can take >1
+# hour on large customer orgs; Sigma.request auto-refreshes on 401.
 def get(path)
-  uri = URI("#{BASE_URL}#{path}")
-  req = Net::HTTP::Get.new(uri)
-  req['Authorization'] = "Bearer #{TOKEN}"
-  res = Net::HTTP.start(uri.host, uri.port, use_ssl: true) { |h| h.request(req) }
-  res.body
+  res = Sigma.request(:get, path, accept: '*/*')
+  res.is_a?(String) ? res : res.to_json
 end
 
 # Fetch all workbooks (paginate)

@@ -39,7 +39,7 @@ commands in the same block:
 eval "$(bash scripts/get-token.sh)"
 ```
 
-> Tokens expire after ~1 hour. Re-run if you see `Token missing or malformed`.
+> Tokens expire after ~1 hour. **The Ruby scripts in this skill now auto-refresh on 401** via `scripts/lib/sigma_rest.rb` — full-site scans on large orgs (hundreds of workbooks, sometimes >1 hour total) no longer fail mid-run. If you still see `Token missing or malformed` after a refresh, re-run `eval "$(bash scripts/get-token.sh)"` manually.
 
 ---
 

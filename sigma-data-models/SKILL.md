@@ -73,7 +73,7 @@ Call out any of these before presenting the final spec:
 
 - **Building a workbook on top of this model** → load the `sigma-workbooks` skill. Its `sources.md` documents the `{ "kind": "data-model", "dataModelId": "...", "elementId": "..." }` source shape.
 - **Repointing existing workbooks to a newly-created model** → see `sigma-workbooks/reference/workflows/crud.md` and the swap-sources endpoint.
-- **Auth, base URLs, regions, token refresh** → always defer to the `sigma-api` skill rather than restating.
+- **Auth, base URLs, regions, token refresh** → always defer to the `sigma-api` skill rather than restating. For automatic 401-retry-with-refresh in Ruby long-running scripts (DM-build loops that outlive the 1-hour token TTL), see `sigma-workbooks/SKILL.md` "401 Unauthorized" — same pattern applies here.
 
 ## Out of Scope (use a different tool)
 
