@@ -112,6 +112,8 @@ stacking: none
 
 `stacking`: `none` | `stacked` | `"100"` (the percent-stacked variant must be quoted in YAML to keep it a string, not a number).
 
+`orientation`: **horizontal bars** are set with `orientation: horizontal` on the element. The field accepts **only `"horizontal"`** — a **vertical** bar chart (the default) is expressed by **omitting** the field; sending `orientation: vertical` is rejected with `invalid_request`. The `xAxis`(category)/`yAxis`(value) binding is identical in both orientations — the flag only flips rendering (in horizontal, the category renders on the vertical axis and the value bar extends horizontally). Note Sigma may *default* a single-series bar to horizontal on GET, so set it explicitly when you need a specific orientation. (Verified via `/v2/workbooks/{id}/spec` PUT round-trip 2026-06-02.)
+
 ## Bar chart with custom category colors
 
 `bar-chart` accepts an optional `color` channel with three variants:
