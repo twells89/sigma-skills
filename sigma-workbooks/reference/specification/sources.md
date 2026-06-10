@@ -92,6 +92,7 @@ These exist but are less common; model the shape off an existing workbook's spec
 - `sql` — custom SQL query
 - `union` — combines two or more sources row-wise. See below.
 - `transpose` — transposes rows/columns
+- `empty` — the source kind for an **input table** (structured data entry, writes back to a write-enabled connection). See `input-tables.md` for the full element shape, types (empty / CSV / linked), and caveats.
 
 ## union
 

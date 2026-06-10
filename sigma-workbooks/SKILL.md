@@ -212,6 +212,7 @@ The reference is feature-sliced — don't read every file up-front. The index ha
 | `reference/specification/text.md` | Text element / Markdown block — dashboard titles, descriptions, callouts, prose alongside charts. |
 | `reference/specification/containers.md` | Container element — placeholder + the 5 `style` knobs (`backgroundColor`, `borderRadius`, `borderColor`, `borderWidth`, `padding`) + `backgroundImage`. Used together with layout XML's `<GridContainer>` to group elements. |
 | `reference/specification/others.md` | Divider and image elements — small visual elements for dashboard polish. |
+| `reference/specification/input-tables.md` | Input table element — structured data entry / forecasting / what-if that writes back to the warehouse. Empty / CSV / **linked** types, the `input-table` spec shape (titles via `name`, `tableStyle`, `sort`, typed + system columns), write-connection requirement, the publish gate, reading data via warehouse views, and the linked-table authoring/round-trip caveats. |
 | `reference/specification/styling.md` | **Load when building a dashboard from scratch.** Design recipe library — vetted color palette, hero header strip, KPI card row, section headers, divider rhythm, categorical chart colors. Turns a default-arrange workbook into a designed-looking one without UI editing. |
 
 ### Sources
