@@ -42,3 +42,11 @@ For a period-over-period delta (e.g. "vs. prior quarter"), compute it as a **for
 Every KPI sources another element, so the column's formula must use the source's prefix (`[<SourceName>/col]`). A bare `[col]` is only valid for referencing another column defined in this KPI's own `columns[]` array. This is the single most common mistake — see `formulas.md`.
 
 Run `./scripts/validate-spec.sh <spec.yaml>` before publishing to catch it.
+
+## `layout`, `comparison`, and `trend` blocks
+
+The OpenAPI exposes three more kpi-chart objects; their spec-authoring support differs (live-verified 2026-06-11):
+
+- `layout` — **round-trips.** `{ anchor: start|middle|end, titleOrient: top|bottom, ... }` positions the card contents. Default values are omitted on readback.
+- `value` styling — **round-trips.** `fontSize` (number or `"auto"`), `color`; `fontWeight: bold` reads back omitted (it appears to be the default).
+- `comparison` and `trend` (sparkline) — **cannot be created via spec.** Both blocks are silently stripped on POST in every shape probed; the OpenAPI exposes only their *formatting* fields, and the column binding behind them is UI-only state. Configure the comparison/sparkline in the editor; the spec can then style what the UI bound. For a spec-only period-over-period figure, use the formula-column recipe above.

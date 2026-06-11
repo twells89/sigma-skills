@@ -33,13 +33,16 @@ table, and a data model can read it through a warehouse view.
 | **CSV** | Pre-populated from a CSV upload, then editable | created from an upload (UI); element is otherwise an empty-style input table |
 | **Linked** | Child of a parent element; key columns bind rows to the parent, entry/formula columns sit alongside | `source: { kind: linked, from: <parentElementId> }` + `{ id, key }` columns |
 
-**Linked tables are spec-authorable** — `source.kind: linked` + `from` + key
-columns POST and round-trip cleanly (re-verified 2026-06-11, including a
-cross-element formula column). Earlier API versions (pre the 2026-06-11
-release) serialized linked tables lossily — inherited columns re-POSTed as
-"multiple values" — and on orgs without the feature flag they were dropped from
-`/spec` entirely. If a linked table's inherited columns misbehave after a POST,
-suspect an older org/API before suspecting the spec.
+**Linked tables are spec-authorable as of the 2026-06-11 release** —
+`source.kind: linked` + `from` + `{ id, key }` columns POST and round-trip
+cleanly (verified 2026-06-11, including a cross-element formula column).
+One caveat until proven otherwise: that verification was **structural** (POST +
+readback). The pre-release API accepted the same shapes but broke the key
+correlation at the *data* level — inherited columns showed "multiple values" —
+so after the first real rows land, **query the table** (don't just inspect
+`/elements`) to confirm inherited columns resolve per-row. On older orgs/API
+versions linked tables were also dropped from `/spec` entirely; if inherited
+columns misbehave, suspect an older org/API first.
 
 UI-only remains UI-only: column-level **data validation** (single/multi-select
 dropdowns — "coming soon" in the spec), **column protection**, and

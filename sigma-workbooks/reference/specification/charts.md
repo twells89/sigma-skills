@@ -79,7 +79,7 @@ yAxis:
 stacking: none
 ```
 
-`stacking`: `none` | `stacked` | `"100"` (the percent-stacked variant must be quoted in YAML to keep it a string, not a number).
+`stacking`: `none` | `stacked` | `normalized` (the percent-stacked variant — `"100"` is rejected by the API; live-verified 2026-06-11).
 
 ## Bar chart with custom category colors
 
@@ -168,12 +168,14 @@ color:
     direction: descending
 ```
 
-`holeValue` is optional. When set, it references one of the donut's columns by ID — that column's aggregated value drives the hole label/render — not a literal number:
+`holeValue` is optional. When set, it references one of the donut's columns by ID — that column's aggregated value drives the hole label/render — not a literal number. **It must be a different column than `value.id`** — a column can only sit on one channel at a time, and the API rejects the collision with a 400 (`Column 'X' is referenced from both 'value' and 'holeValue'`). For a center label that shows the same metric, add a second column with the same formula:
 
 ```yaml
 holeValue:
-  id: col-sales
+  id: col-sales-hole    # distinct column, e.g. formula: Sum([Master/Sales Amount])
 ```
+
+Related donut-only fields (all round-trip): `innerRadius` (hole size as a ratio of the outer radius, default 0.6) and `hole.value` styling (`fontWeight`, `color`, `visibility`) for the center label.
 
 ## Element-level filters (Top-N, etc.)
 
@@ -245,16 +247,17 @@ seriesDataLabel:
 
 ## Combo charts (mixed series + secondary axis)
 
-A `combo-chart` mixes bar/line/area/scatter series on one plot. Set each series' shape with the `{ columnId, type }` form on `yAxis.columnIds`, and put series that need a different scale on the secondary axis `yAxis2`:
+A `combo-chart` mixes bar/line/area/scatter series on one plot. Set each series' shape with the `{ columnId, type }` form on `yAxis.columnIds`, and put series that need a different scale on the secondary axis `yAxis2`. **`yAxis2.columnIds` must be a subset of `yAxis.columnIds`** — list the column on both, with `yAxis2` marking which series render against the right axis (a `yAxis2` entry missing from `yAxis` is a 400: `'X' is not listed on yAxis.columnIds`):
 
 ```yaml
 kind: combo-chart
 xAxis:
   columnId: col-month
-yAxis:                          # primary axis — bars
+yAxis:                          # ALL series live here, each with its shape
   columnIds:
     - { columnId: col-revenue, type: bar }
-yAxis2:                         # secondary axis — line, own scale
+    - { columnId: col-margin-pct, type: line }
+yAxis2:                         # subset of yAxis.columnIds that renders on the right axis
   columnIds:
     - col-margin-pct
   format:
@@ -274,9 +277,9 @@ Chart-wide fallbacks `barStyle`, `lineAreaStyle`, `pointStyle`, and `gap` also e
 Each of these is a top-level key on cartesian charts; one-liner here, full sub-fields via the kind recipe at the top of this file.
 
 - `orientation: horizontal` on `bar-chart` — horizontal bars. Omit for the default vertical bars.
-- `trellis: { column, row, share?, tileSize? }` — small multiples (faceted grid) split by the `column` / `row` column IDs.
+- `trellis: { column, row, share?, tileSize? }` — **styles a UI-configured trellis only.** `tileSize` and the `column`/`row` guide styling (`labels`, `border`, `title`) round-trip, but the facet *column binding* cannot be set via spec — `columnId`/`id` inside `column`/`row` are silently stripped (live-verified 2026-06-11). Configure the facets in the editor; the spec can then style them.
 - `legend: { visibility, position, ... }` — legend placement and styling.
-- `tooltip: { columnNames?, multiSeries?, valueFormat? }` — hover-tooltip content and formatting.
+- `tooltip: { columnNames?, multiSeries?, valueFormat? }` — hover-tooltip content. Support is config-dependent (live-verified 2026-06-11): `columnNames` round-trips broadly; `multiSeries` round-trips on line charts but is silently stripped on bar-with-color; `valueFormat` is rejected or stripped in most configurations. Verify the readback after setting anything beyond `columnNames`.
 
 (Trendlines and `refMarks` are covered above.)
 
