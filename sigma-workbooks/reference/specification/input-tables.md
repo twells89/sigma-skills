@@ -67,54 +67,50 @@ element spec.
 `ID` (Row ID) and the row-edit-history set `CREATED_AT/CREATED_BY/UPDATED_AT/
 UPDATED_BY` — auto-populate and take no `type`.
 
-## Linked input tables
+## Linked input tables — UI-authored only (spec is LOSSY)
 
-A linked input table links to a **parent element** (any element — a table, a
-data-model-sourced element, even another input table). Linked columns inherit live
-values from the parent; you add your own entry and calc columns alongside. It
-round-trips through `/spec` (on orgs where the feature is enabled) — verified shape:
+A linked input table links to a **parent element**; linked columns inherit live
+values from the parent (keyed by a primary key), and you add editable entry/calc
+columns alongside. **Create these in the UI.** The workbook spec does NOT
+faithfully author them.
+
+> **⚠️ Do not author linked input tables via `POST /v2/workbooks/spec` — verified
+> broken 2026-06-10.** `GET /spec` *serializes* a linked table (you'll see the
+> shape below), but the serialization is **lossy**: re-POSTing that exact spec
+> produces an input table whose **inherited columns don't resolve** — every row
+> shows **"multiple values"** (the linked column pulls the whole parent column
+> instead of the key-correlated value). **Publishing does not fix it.** The
+> key-correlation the UI sets up is server-side state that isn't captured in the
+> spec. Proven by re-POSTing a known-good UI-built linked table verbatim → broken.
+>
+> What a POST *can* do: create the element with the **primary key** + **grain**
+> (PK rows populate from the parent) + **editable entry columns**. What it
+> **cannot** do: make the **inherited/linked columns** resolve. If you need the
+> linked context columns to show values, the table must be built/edited in the UI.
+
+The (read-only) serialized shape, for recognition when reading a UI-built one:
 
 ```yaml
 - id: mBdVfGs8AU
   kind: input-table
-  source:
-    kind: linked
-    from: dkOft2LaKd            # the PARENT element id this links to
+  source: { kind: linked, from: dkOft2LaKd }   # parent element id
   inputMode: explore
-  sort:                         # customizations (sort/tableStyle/name) round-trip
-    - columnId: 0D1QPVNF7P
-      direction: ascending
-      nulls: connection-default
   columns:
-    - id: 0D1QPVNF7P
-      key: sx6TLZDS4e           # PRIMARY KEY — `key` = the PARENT column id that
-                                #   provides the row identifier
-    - id: icab1X9-kO
-      formula: '[D_STORE/Store Name]'   # LINKED column — inherits live parent value
-    - id: EW_Q68X8O0
-      type: text                # OWN entry column (editable)
-    - id: UPDATED_AT            # system edit-history columns (no type)
-    - id: UPDATED_BY
+    - { id: 0D1QPVNF7P, key: sx6TLZDS4e }       # PK → parent column id (grain; populates on POST)
+    - { id: icab1X9-kO, formula: '[D_STORE/Store Name]' }  # linked col — does NOT resolve via POST
+    - { id: EW_Q68X8O0, type: text }            # entry col — works via POST
+    - { id: UPDATED_AT }                        # system cols
+    - { id: UPDATED_BY }
 ```
 
-The three column forms in a linked input table:
+To **read/audit** a UI-built linked table, use the element endpoints (the column
+labels show linked columns as `Col (ParentName)`):
+`GET /v2/workbooks/{id}/elements` and `…/elements/{id}/columns`.
 
-- **Primary key** — `{ id, key: <parentColumnId> }`. `key` references the parent
-  element's column id and provides the row identifier. **Must reference static
-  parent values** — don't use `RowNumber()`/computed keys (they break referential
-  integrity when rows shift).
-- **Linked column** — `{ id, formula: '[Parent Element/Column]' }`. Inherits live
-  parent values via the cross-element reference convention (see `sources.md` →
-  `table`); not editable.
-- **Own entry / calc column** — `{ id, type: text|number|datetime|checkbox }` for
-  data entry, or a `formula` for a calc column. Editable.
-
-> **Feature flag + cross-org caveat (verified 2026-06-10).** Linked input tables
-> are gated. On an org where the feature is **enabled**, they author and round-trip
-> through `/spec` exactly as above. On an org **without** it, a linked-table
-> workbook's input-table elements were *absent* from `GET /spec` (only the
-> surrounding container serialized) — there, fall back to the `/elements`
-> endpoints below to read them. Empty input tables round-trip regardless.
+> **Cross-org note.** On an org without the linked-table feature enabled, a
+> linked-table workbook's input-table elements may be **absent** from `GET /spec`
+> entirely (only the container serializes). Empty input tables round-trip via the
+> spec regardless (see above); only *linked* tables have the authoring gap.
 
 ## Reading an input table's data & structure
 
