@@ -30,30 +30,32 @@ Everything in this skill is commentary, style guidance, and recipes layered on t
 
 ## Consulting the OpenAPI
 
-Fetch once per session and inspect with `jq`. Always do this for features the skill doesn't cover, or whenever you suspect a field shape has changed:
+The OpenAPI is the source of truth. **The field lists and examples in this skill are illustrative, not exhaustive** — when you need the complete, current shape of anything, query the spec. Fetch once per session and inspect with `jq`:
 
 ```bash
 curl -sf https://help.sigmacomputing.com/openapi/sigma-computing-public-rest-api.json > /tmp/sigma-api.json
 
-# Workbook spec POST request body
+# The entire workbook spec request body lives under one path (it is not split into named schemas):
 jq '.paths."/v2/workbooks/spec".post.requestBody.content."application/json".schema' /tmp/sigma-api.json
+```
 
-# An element kind's full shape (replace with the schema name from the OpenAPI)
-jq '.components.schemas.BarChart' /tmp/sigma-api.json
-jq '.components.schemas.KpiChart' /tmp/sigma-api.json
-jq '.components.schemas.Container' /tmp/sigma-api.json
+Element, source, control, and format shapes are **inlined** under that path and identified by their `kind` value (e.g. `bar-chart`, `kpi-chart`, `join`, `warehouse-table`) — not by a top-level schema name. Navigate by the `kind` discriminator:
 
-# A source kind's full shape
-jq '.components.schemas.JoinSource' /tmp/sigma-api.json
-jq '.components.schemas.WarehouseTableSource' /tmp/sigma-api.json
+```bash
+# List every kind the spec accepts (elements, sources, controls, formats, …):
+jq -r '[.. | objects | select(.properties.kind.enum) | .properties.kind.enum[0]] | unique[]' /tmp/sigma-api.json
 
-# List every schema name (useful when you don't know the right name)
-jq -r '.components.schemas | keys[]' /tmp/sigma-api.json | grep -i <hint>
+# Full field list (required + optional) for one kind — swap bar-chart for any kind above:
+jq --arg k bar-chart 'first(.. | objects | select((.allOf? and any(.allOf[]?; .properties?.kind?.enum==[$k])) or .properties?.kind?.enum==[$k]))
+  | {required: ([.allOf[]?.required // .required] | add | unique), properties: ([(.allOf[]?.properties // .properties) | keys[]] | unique)}' /tmp/sigma-api.json
+
+# The full nested shape for that kind (to inspect sub-objects like source, yAxis, format, comparison):
+jq --arg k bar-chart 'first(.. | objects | select((.allOf? and any(.allOf[]?; .properties?.kind?.enum==[$k])) or .properties?.kind?.enum==[$k]))' /tmp/sigma-api.json
 ```
 
 `WebFetch` works for the JSON too. Either path is fine.
 
-**Why bother:** the API ships new fields and element variants regularly; the skill lags. If you're drafting a spec and aren't sure whether a feature you want exists, the OpenAPI tells you in seconds. If you're between this skill's last update and the API's current state, the OpenAPI is the disambiguator.
+**Why bother:** the API ships new fields and viz configurations regularly, and this skill covers the common surface, not every field. If you want a capability and don't see it documented here, **assume it may exist and check the spec before concluding it doesn't** — the `kind` query above answers in seconds.
 
 ## Auth
 
@@ -98,7 +100,7 @@ curl -s -H "Authorization: Bearer $SIGMA_API_TOKEN" \
   > /tmp/reference-spec.yaml
 ```
 
-Look at source structure, column ID patterns, formula syntax, element naming, layout XML idioms. The `pages` array shape is exactly what you'll POST when creating. Capture the `schemaVersion` here — don't hardcode it.
+Look at source structure, column ID patterns, formula syntax, element naming, layout XML idioms. The `pages` array shape is exactly what you'll POST when creating.
 
 ### Step 3 — Discover data sources
 
@@ -109,6 +111,8 @@ Load `reference/workflows/discover.md`. Quick summary:
 3. Discover columns directly via `GET /v2/connections/tables/{inodeId}/columns` (full mechanics in `reference/workflows/discover.md`). Only fall back to asking the user when the endpoint doesn't return what's needed.
 
 **Never invent column names** — only use names returned by the API or supplied by the user.
+
+**Verify literal values before writing predicates.** If your task involves filtering on a categorical column (e.g., `CountIf([Status] = "active")`, `If([Type] = "sale", ...)`), you need to know what values that column *actually* contains — the `/v2/connections/tables/{inodeId}/columns` endpoint gives you names and types but not values. Run a `SELECT DISTINCT <col>` via any tool that reaches the warehouse — an MCP server (warehouse or [Sigma](https://help.sigmacomputing.com/docs/use-sigma-mcp-server)), a SQL CLI, or just ask the user. Don't guess literals. See `reference/workflows/discover.md`.
 
 ### Step 4 — Identify features and load only what you need
 
@@ -124,7 +128,7 @@ Write the spec YAML to disk (e.g., `/tmp/workbook-spec.yaml`). YAML is preferred
 - **Write explicit `layout` XML for multi-element workbooks.** Auto-arrange (omitting `layout`) is acceptable only for single-element pages or a uniform stack of tables. See `reference/specification/layout.md` for the rubric.
 - Start with 1–2 pages. Add more later via update.
 
-For **create**, the file must include top-level `name`, `folderId`, `schemaVersion`, and `pages`. `description` is optional. `layout` is technically optional but expected for multi-element workbooks. Use the `schemaVersion` returned by the reference-workbook `GET` in Step 2 — don't hardcode it. Full CRUD mechanics are in `reference/workflows/crud.md`.
+For **create**, the file must include top-level `name`, `folderId`, `schemaVersion`, and `pages`. `description` is optional. `layout` is technically optional but expected for multi-element workbooks. `schemaVersion` is usually `1` — that's the current value; it may change in the future, so if the API rejects the spec on that field, check what your reference-workbook GET in Step 2 returned and use that instead. Full CRUD mechanics are in `reference/workflows/crud.md`.
 
 ### Step 6 — Validate the spec
 
@@ -167,7 +171,7 @@ If any element reports `[FAIL]`, fix the column formulas in the spec (most often
 
 After initial creation, use `PUT /v2/workbooks/<id>/spec` to add pages or refine the workbook.
 
-> **Critical: IDs get reassigned on CREATE.** External `id` values in the POST are mapped to internal IDs and those internal IDs are what live references (especially the `layout` XML's `elementId` attributes) must use. Before **any** follow-up PUT, always GET the current spec first and use the readback IDs. See `reference/workflows/crud.md` for full details.
+> **IDs are preserved on CREATE.** The `id` values you POST (pages, elements, columns) are kept verbatim, and `layout` `elementId` references stay valid — so you can edit your saved spec and `PUT` it back directly. `GET` the current spec first only if you don't have your latest copy. See `reference/workflows/crud.md`.
 
 ```bash
 curl -s -H "Authorization: Bearer $SIGMA_API_TOKEN" \
@@ -193,7 +197,6 @@ Surface follow-up items only when they're load-bearing, and name them concretely
 
 - **Tradeoffs you made during the build** — dropped a chart, simplified a formula, skipped a control because the shape wasn't in your reference.
 - **Obvious gaps revealed by the column list** — e.g., the user asked for "sales by region" and the table has a `region_tier` column that would make the breakdown richer. One sentence, named.
-- **Known round-trip / normalization caveats that affect what the user will see** — e.g., `number-range` `values` won't round-trip (see `reference/specification/controls.md`).
 
 If none apply, just report the URL + spec path and stop.
 
@@ -205,14 +208,13 @@ The reference is feature-sliced — don't read every file up-front. The index ha
 
 | File | When to load |
 |------|--------------|
-| `reference/specification/tables.md` | Table element, tabular data, data grid, spreadsheet-style list. Also element-level filters (top N, limit, rank), groupings (pivot, group by), the `pivot-table` element kind, and `conditionalFormats` (threshold-based cell coloring). |
-| `reference/specification/charts.md` | Chart, graph, visualization, line / bar / column / stacked / grouped / donut / pie / share-of / breakdown. Includes the `color` channel on bar-chart. |
-| `reference/specification/kpis.md` | KPI, stat, big number, single value, metric card. |
-| `reference/specification/controls.md` | Filter, dropdown, picker, multi-select, date range, date picker, text filter, number range, slider. |
-| `reference/specification/text.md` | Text element / Markdown block — dashboard titles, descriptions, callouts, prose alongside charts. |
-| `reference/specification/containers.md` | Container element — placeholder + the 5 `style` knobs (`backgroundColor`, `borderRadius`, `borderColor`, `borderWidth`, `padding`) + `backgroundImage`. Used together with layout XML's `<GridContainer>` to group elements. |
-| `reference/specification/others.md` | Divider and image elements — small visual elements for dashboard polish. |
-| `reference/specification/input-tables.md` | Input table element — structured data entry / forecasting / what-if that writes back to the warehouse. Empty / CSV / **linked** types, the `input-table` spec shape (titles via `name`, `tableStyle`, `sort`, typed + system columns), write-connection requirement, the publish gate, reading data via warehouse views, and the linked-table authoring/round-trip caveats. |
+| `reference/specification/tables.md` | Table element, tabular data, data grid, spreadsheet-style list. Also element-level filters (top N, limit, rank), groupings (pivot, group by), the `pivot-table` and editable `input-table` element kinds, and `conditionalFormats` (threshold-based cell coloring, on pivot/input tables). |
+| `reference/specification/charts.md` | Chart, graph, visualization, line / bar / column / stacked / grouped / combo / donut / pie / scatter / share-of / breakdown. Cartesian axes, color channel, trellis, trendlines, reference marks. |
+| `reference/specification/maps.md` | Map visualizations — `geography-map` (GeoJSON shapes), `point-map` (lat/long bubbles), `region-map` (states / counties / countries). |
+| `reference/specification/kpis.md` | KPI, stat, big number, single value, metric card — including period-over-period comparison and trend sparkline. |
+| `reference/specification/controls.md` | Filter, dropdown, picker, multi-select, date range, date picker, text filter, number range, slider, segmented, hierarchy. |
+| `reference/specification/content-elements.md` | The non-data elements — `text` (Markdown + inline styling), `image`, `divider`, `embed` (external URLs). Titles, callouts, logos, rules, embedded content. |
+| `reference/specification/input-tables.md` | Operational supplement for `input-table` (spec shape lives in `tables.md`): write-connection requirement, the publish gate, reading data back via warehouse views, element endpoints for auditing, and migration patterns (Excel/planning models). |
 | `reference/specification/styling.md` | **Load when building a dashboard from scratch.** Design recipe library — vetted color palette, hero header strip, KPI card row, section headers, divider rhythm, categorical chart colors. Turns a default-arrange workbook into a designed-looking one without UI editing. |
 
 ### Sources
@@ -229,7 +231,7 @@ The reference is feature-sliced — don't read every file up-front. The index ha
 | `reference/specification/schema.md` | Always — load before drafting any spec. Top-level shape, required fields, response-only fields to strip. |
 | `reference/specification/formulas.md` | Always — load before drafting any spec. Formula syntax, qualification, special characters, the #1 mistake. |
 | `reference/specification/formatting.md` | Format, currency, percentage, date format, decimals — column formatting. |
-| `reference/specification/layout.md` | **Always load for multi-element workbooks.** Layout XML, GridContainer/LayoutElement, auto-arrange fallback rules, when to write explicit layout vs. omit. |
+| `reference/specification/layout.md` | **Always load for multi-element workbooks.** Layout XML, GridContainer/LayoutElement, container elements, page visibility / background, auto-arrange fallback rules, when to write explicit layout vs. omit. |
 | `reference/specification/example-full.yaml` | A real multi-page reference spec (KPIs, charts, joins, controls, layout) — copy shapes from when in doubt. |
 
 ### Workflows
@@ -237,6 +239,7 @@ The reference is feature-sliced — don't read every file up-front. The index ha
 | File | When to load |
 |------|--------------|
 | `reference/workflows/discover.md` | Finding connections, tables, and column names. Load before composing a new spec. |
+| `reference/workflows/composition.md` | Open-ended design decisions — calibrating workbook complexity to the request, when to ask the user, what to ask, surfacing structural choices in the final summary, and a few safe defaults (hidden source pages, ranked-table sort direction). Load before drafting anything when the prompt leaves significant design choices unmade. |
 | `reference/workflows/crud.md` | POST / GET / PUT against the workbook spec endpoints. Load when creating, retrieving, or updating a workbook. |
 | `reference/workflows/validate.md` | Pre-submit + post-create validation. Load before any POST or PUT. |
 | `reference/workflows/from-image.md` | The user supplied a target image (screenshot, mockup, BI-tool export) to reproduce. Load *before* discovery — it adds explicit observation and validation steps. |
@@ -254,21 +257,6 @@ The single most common spec error is bare `[column_name]` references to warehous
 - References a column defined in this element by its `name` field.
 - A column cannot reference itself (circular reference error).
 
-## Example walkthrough
-
-User: *"Build me a sales dashboard from the ORDERS table in our Snowflake connection."*
-
-1. Authenticate via `sigma-api` (export env, `eval "$(.../get-token.sh)"`).
-2. `GET /v2/whoami` → userId. `GET /v2/members/<userId>` → homeFolderId.
-3. `GET /v2/workbooks?limit=50` — find a workbook whose name suggests similar content.
-4. `GET /v2/workbooks/<reference-workbook-id>/spec` → YAML by default; study structure, capture `schemaVersion`.
-5. Discover: `GET /v2/connections` → Snowflake; `POST /v2/connection/<id>/lookup` for the path; `GET /v2/connections/tables/<inodeId>/columns` for column names.
-6. Write `/tmp/workbook-spec.yaml` with `name`, `folderId`, `schemaVersion`, `pages`, and (for multi-element) `layout` XML — table sourced from ORDERS, columns for the discovered fields, a date control, layout XML positioning KPIs over a chart.
-7. `./scripts/validate-spec.sh /tmp/workbook-spec.yaml`.
-8. `POST /v2/workbooks/spec` with `Content-Type: application/yaml` → returns `workbookId`. Copy spec to `/tmp/workbook-spec-<workbookId>.yaml`.
-9. `./scripts/verify-workbook.sh <workbookId>` — confirm every element compiles cleanly.
-10. Share **both** the workbook URL **and** the saved spec path.
-
 ## Troubleshooting
 
 ### "I don't see this field in the skill"
@@ -277,21 +265,7 @@ Fetch the OpenAPI. The skill documents stable, common surface area; the API has 
 
 ### API schema mismatch (skill is stale)
 
-If a request fails with **"invalid argument"**, **"unknown field"**, **"unexpected property"**, **"missing required field"**, **"unrecognized parameter"**, or a 400 about request *shape* rather than data — the API has evolved since this skill was written.
-
-In order:
-
-1. **Tell the user.** Print:
-
-   > ⚠️ This error looks like a schema mismatch between this skill and the current Sigma API. The skill may be out of date — consider updating it via whichever channel you installed it through. I'll consult the live OpenAPI in the meantime.
-
-2. **Fetch the current OpenAPI** (see **Consulting the OpenAPI** above).
-
-3. **Diff** the live schema vs. what the skill assumed — renamed fields, new required fields, removed fields, type changes.
-
-4. **One automated retry** with the corrected shape. If it succeeds, tell the user exactly what changed and still recommend they run the plugin update.
-
-5. **Do not loop.** One retry, then stop.
+A 400 about request *shape* — `invalid argument`, `unknown field`, `unexpected property`, `missing required field` — usually means the API moved past the skill. Fetch the OpenAPI (see **Consulting the OpenAPI**), diff the live shape for that `kind`, and retry **once** with the correction. Tell the user it looks like the skill is out of date and worth updating through whatever channel they installed it from; don't loop on retries.
 
 ### 401 Unauthorized
 
@@ -338,7 +312,7 @@ The column name in the formula doesn't match what the warehouse actually has. Re
 `jq` is used for OpenAPI inspection (the OpenAPI is JSON). `yq` is used for workbook-spec inspection (specs are YAML).
 
 - `jq`: `brew install jq` (macOS) or `apt install jq` (Debian/Ubuntu).
-- `yq`: `brew install yq` (macOS), `apt install yq` (Debian/Ubuntu), or `pip install yq` (Python wrapper around jq with identical syntax — use this if you already know jq).
+- `yq`: **two different tools share this name** — the Go **mikefarah/yq** (`brew install yq`) and the Python **`pip install yq`** wrapper around jq. *Reading* works the same in both (`yq -r '.workbookId' f.yaml`), but *in-place editing differs*: mikefarah uses `yq -i '…' f.yaml`, while the Python wrapper needs `yq -y -i '…' f.yaml`. Run `yq --help` to see which you have and adapt.
 
 ### Cryptic validation errors / silent bad data
 

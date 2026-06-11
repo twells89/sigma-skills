@@ -5,7 +5,7 @@ The `warehouse-table` source is the most common source kind — raw data from a 
 For the canonical schema:
 
 ```bash
-jq '.components.schemas.WarehouseTableSource' /tmp/sigma-api.json
+jq --arg k warehouse-table 'first(.. | objects | select((.allOf? and any(.allOf[]?; .properties?.kind?.enum==[$k])) or .properties?.kind?.enum==[$k]))' /tmp/sigma-api.json
 ```
 
 This file covers: path formats per warehouse (which the OpenAPI describes loosely), formula-prefix conventions (which it doesn't describe at all), and the special-character / friendly-name pitfalls.

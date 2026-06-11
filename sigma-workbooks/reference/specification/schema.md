@@ -6,7 +6,7 @@ Recipe + reference for the overall shape of the top-level workbook spec object a
 jq '.paths."/v2/workbooks/spec".post.requestBody.content."application/json".schema' /tmp/sigma-api.json
 ```
 
-This file covers what the OpenAPI alone won't tell you: which fields are response-only (must be stripped before re-POSTing), the ID-reassignment trap on CREATE, and a minimal working example. See the per-element and per-source reference files for the pieces that go inside `pages[].elements[]`.
+This file covers what the OpenAPI alone won't tell you: which fields are response-only (ignored on write), the page and ID rules, and a minimal working example. See the per-element and per-source reference files for the pieces that go inside `pages[].elements[]`.
 
 ## Top-Level Object
 
@@ -29,7 +29,7 @@ Use the `schemaVersion` returned by `GET /v2/workbooks/<reference-workbook-id>/s
 
 ## Response-Only Fields
 
-`GET /v2/workbooks/<id>/spec` also returns these — they **must be stripped** before using the spec as a create/update body. Sending unknown top-level fields will be rejected:
+`GET /v2/workbooks/<id>/spec` also returns these server-managed fields. They're **ignored** on write (POST/PUT), so you don't have to strip them before re-submitting a GET response — though it's cleaner to:
 
 - `workbookId`
 - `url`
@@ -49,15 +49,18 @@ Use the `schemaVersion` returned by `GET /v2/workbooks/<reference-workbook-id>/s
 id: page-1
 name: Overview
 elements: [...]
+visibility: shown   # optional: "shown" (default) | "hidden"
 ```
 
 The `elements` array holds table elements, charts, KPIs, controls, and containers. See the per-element reference files.
+
+`visibility: hidden` keeps the page in the workbook (so other elements can `source` from its tables via `elementId`) but excludes it from the viewer. See `reference/workflows/composition.md` for when to reach for this.
 
 ## ID Rules
 
 - Element IDs and column IDs must be unique within their scope.
 - Use descriptive kebab-case or short random-looking IDs — both are fine. IDs are internal identifiers, not displayed to users.
-- **Critical:** on `POST`, the server reassigns external IDs to internal ones. For any follow-up `PUT` (especially layout XML updates), GET the current spec first and use the IDs from the readback. Layout `elementId` references must match the current internal IDs exactly (case-sensitive).
+- IDs you submit are **preserved verbatim** on `POST` — pages, elements, and columns keep the `id` values you sent, and layout `elementId` references stay valid. You can edit your saved spec and `PUT` it back directly. Layout `elementId` references must match an element `id` on that page exactly (case-sensitive).
 
 ## Minimal Working Example
 
@@ -107,4 +110,4 @@ Note how:
 - `Sum([Amount])` references the "Amount" column defined in the same element (no prefix).
 - `[Revenue] - [Cost]` references two other columns in the same element by their `name` field.
 
-For a realistic multi-page, multi-element spec with KPIs, charts, joins, controls, and layout, see `example-full.yaml`.
+For a realistic multi-page, multi-element spec, fetch an existing workbook's spec (`GET /v2/workbooks/{id}/spec`, see SKILL.md Steps 1–2) — a live spec is current and reflects real usage. For how much to build for a given request, see `reference/workflows/composition.md`.

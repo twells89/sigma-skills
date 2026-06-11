@@ -1,10 +1,13 @@
 # Charts
 
-Chart elements: `line-chart`, `bar-chart`, `donut-chart`. This file is a **recipe book** for chart specs and the style choices that go with each kind. For full schemas, fetch the OpenAPI:
+Chart elements: `line-chart`, `bar-chart`, `donut-chart`. This file is a **recipe book** for chart specs and the style choices that go with each kind. The OpenAPI is the source of truth for every field — chart schemas are inlined behind their `kind` discriminator, so fetch one by its kind:
 
 ```bash
-jq '.components.schemas.LineChart, .components.schemas.BarChart, .components.schemas.DonutChart' /tmp/sigma-api.json
+# Swap `bar-chart` for any kind: line-chart, area-chart, combo-chart, scatter-chart, donut-chart, pie-chart
+jq --arg k bar-chart 'first(.. | objects | select((.allOf? and any(.allOf[]?; .properties?.kind?.enum==[$k])) or .properties?.kind?.enum==[$k]))' /tmp/sigma-api.json
 ```
+
+The field lists below are curated, not exhaustive — use the recipe above to discover the full shape of any field.
 
 All three share the same skeleton: a `source`, a `columns` array, and axis/value pointers that reference column IDs. Formulas on a chart that sources another element must use the source's prefix (`[<SourceName>/col]`) — see `formulas.md`.
 
@@ -40,43 +43,9 @@ yAxis:
 ```
 
 - `xAxis` — single `{ columnId, sort?, format? }`
-- `yAxis` — single `{ columnIds: [<colId>, ...], format? }`; for `combo-chart`, entries may be `{ columnId, type }` for per-series shape
+- `yAxis` — single `{ columnIds: [<colId>, ...], format? }`. On any cartesian chart, a `columnIds` entry may be an object `{ columnId, type }` (`type`: `bar` | `line` | `area` | `scatter`) to set that series' shape — most useful on `combo-chart`
 - `xAxis.sort` shape: `{ by: <colId>, direction: ascending | descending }`
-- Optional `format` on each axis configures title, labels, marks, and scale — fetch `CartesianAxisFormat` from the OpenAPI for the full shape
-
-**Verified axis `format` shapes** (UI-built workbook readback 2026-05-22):
-
-```yaml
-xAxis:
-  columnId: <id>
-  format:
-    marks: tick                   # toggle tick marks
-    scale:
-      type: time                  # time (datetime axis) | linear | log
-      zero: false
-
-yAxis:
-  columnIds: [<id>]
-  format:
-    scale:
-      type: log                   # linear (default) | log
-      domain: { min: 500000, max: 1000000 }   # explicit bounds
-      zero: true                  # include zero baseline
-```
-
-**Per-column number format lives on the column entry, NOT on the axis.** Verified shape:
-
-```yaml
-columns:
-  - id: <id>
-    formula: '[Metrics/Total Revenue]'
-    format:
-      kind: number                # number | datetime | percent
-      formatString: "$,.2f"       # d3-format syntax
-      currencySymbol: "$"
-```
-
-So configuring "Total Revenue should display as `$1,234,567.00`" is done on the column, not via `yAxis.format`. The axis `format` only controls scale type, domain, ticks, and zero.
+- Optional `format` on each axis configures title, labels, marks, and scale — it's inlined on `xAxis.format` / `yAxis.format`; inspect it via the kind recipe above rather than transcribing the whole object
 
 ## Bar chart (revenue by category)
 
@@ -110,9 +79,7 @@ yAxis:
 stacking: none
 ```
 
-`stacking`: `none` | `stacked` | `normalized` (the percent-stacked / scaled-to-100% variant). The OpenAPI `BarChart.stacking` enum is exactly `none|stacked|normalized`; `"100"` is **rejected** ("Invalid value: string").
-
-`orientation`: **horizontal bars** are set with `orientation: horizontal` on the element. The field accepts **only `"horizontal"`** — a **vertical** bar chart (the default) is expressed by **omitting** the field; sending `orientation: vertical` is rejected with `invalid_request`. The `xAxis`(category)/`yAxis`(value) binding is identical in both orientations — the flag only flips rendering (in horizontal, the category renders on the vertical axis and the value bar extends horizontally). Note Sigma may *default* a single-series bar to horizontal on GET, so set it explicitly when you need a specific orientation. (Verified via `/v2/workbooks/{id}/spec` PUT round-trip 2026-06-02.)
+`stacking`: `none` | `stacked` | `"100"` (the percent-stacked variant must be quoted in YAML to keep it a string, not a number).
 
 ## Bar chart with custom category colors
 
@@ -135,7 +102,7 @@ color:
   by: scale
   column: col-sales
   scheme: ["#fef3c7", "#fbbf24", "#dc2626"]
-  domain: [0, 5000, 10000]
+  domain: { min: 0, max: 10000, mid: 5000 }   # `mid` is optional; its presence makes the gradient diverging, otherwise sequential
 ```
 
 **Recipe — pin specific categories to specific colors:**
@@ -201,25 +168,12 @@ color:
     direction: descending
 ```
 
-`holeValue` is optional. When set, it references one of the donut's columns by ID — that column's aggregated value drives the hole label/render — not a literal number.
-
-> ⚠️ **`holeValue.id` MUST be a different column from `value.id`.** If they match, the API returns 200 OK but the entire donut element is dropped from the spec on readback and the chart renders as a tiny gray ring with no slices or legend. Add a second column with its own aggregation (typically a count next to a sum) and point `holeValue.id` at that. The Sigma UI implicitly enforces this rule — it always inserts a second column when the user toggles "show value in hole."
+`holeValue` is optional. When set, it references one of the donut's columns by ID — that column's aggregated value drives the hole label/render — not a literal number:
 
 ```yaml
-columns:
-  - id: col-family
-    formula: "[Master/Product Family]"
-  - id: col-sales
-    formula: Sum([Master/Sales Amount])
-  - id: col-orders                              # extra column for the hole
-    formula: CountDistinct([Master/Order Id])
-value:
-  id: col-sales
 holeValue:
-  id: col-orders                                # MUST differ from value.id
+  id: col-sales
 ```
-
-> **Slice colors are NOT customizable via spec on donut/pie.** The donut/pie `color` object only accepts `{id, sort}` — no `scheme`. POSTing `color.scheme: [hex, ...]` returns 200 OK but the scheme is silently stripped on GET and the chart renders with Sigma's default palette. `scheme` is **bar-chart-only**. If you need branded slice colors, set the workbook-level theme in the UI (not yet exposed in the spec API as of 2026-05-29).
 
 ## Element-level filters (Top-N, etc.)
 
@@ -242,52 +196,32 @@ filters:
 
 ## Cartesian-only optional features
 
-These apply to `bar-chart`, `line-chart`, `area-chart`, `scatter-chart`, and `combo-chart`. Fetch the full schemas for the operator and styling enums:
-
-```bash
-jq '.components.schemas.ReferenceMark, .components.schemas.Trendline, .components.schemas.DataLabel' /tmp/sigma-api.json
-```
+These apply to `bar-chart`, `line-chart`, `area-chart`, `scatter-chart`, and `combo-chart`. Use the kind recipe at the top of this file to read the full operator and styling enums for any of them.
 
 ### `refMarks` — reference lines and bands
-
-> **Verified 2026-05-24 against sigma-skill-recon test #1.** `value` is a **wrapped object**, NOT a bare number. POST with `value: 1000` returns HTTP 400 `Invalid value: object`. Use `{type: constant, value: <n>}` or `{type: formula, formula: <expr>}`. `axis: "series"` is the measure (Y) axis; `axis: "series2"` is combo-chart's secondary axis; `axis: "axis"` is the X axis.
 
 ```yaml
 refMarks:
   - type: line
     axis: series              # axis | series | series2
-    value:                    # wrapped object — bare number rejected
-      type: constant
-      value: 1000
-    label:
-      visibility: shown
-      text: Threshold
-  - type: line
+    value: 1000               # number, column ID, or formula string
+    line: { color: "#ef4444", width: 2 }
+    label: { text: "Threshold" }
+  - type: band
     axis: series
-    value:
-      type: formula
-      formula: Avg([Sales])
-    label: { visibility: shown }
-  - type: band                # band: shape unverified — wait for a UI-built readback
-    axis: series
-    value: { type: constant, value: 800 }
-    endValue: { type: constant, value: 1200 }
+    value: 800
+    endValue: 1200            # required for bands
 ```
-
-`value.type: "column"` (with `columnId`) is also rejected — wrap the column ref in a formula instead. `line: { color, width }` may be accepted on POST but is not present on UI-built readbacks; treat as unverified.
 
 ### `trendlines` — regression overlays
 
 ```yaml
 trendlines:
-  - columnId: col-sales       # which y-axis measure to fit
-    model: linear             # linear (verified); quadratic | polynomial | exponential | logarithmic | power per OpenAPI
-    label: { visibility: shown }    # toggles the model-name label
-    value: { visibility: shown }    # toggles the equation / R² readout
-    caption: {}                     # optional caption object
+  - columnId: col-sales       # which series to fit
+    model: linear             # linear | quadratic | polynomial | exponential | logarithmic | power
+    line: { color: "#336699", width: 2 }
+    label: { visibility: shown, text: "Sales trend" }
 ```
-
-**Canonical shape** (verified 2026-05-22 against a UI-built workbook readback): `label` and `value` are **separate visibility toggles**, not a single `{visibility, text}` object. `caption` is its own object. `line: { color, width }` is *not* present in the canonical readback — it may be accepted on POST but is not the default; treat as unverified until round-tripped. Only `model: linear` is end-to-end verified.
 
 Trendlines are rejected when the chart has no `xAxis`, uses stacking on bar/area/combo, or has a `color` channel — discover those constraints by submitting and reading the error.
 
@@ -295,36 +229,63 @@ Trendlines are rejected when the chart has no `xAxis`, uses stacking on bar/area
 
 ```yaml
 dataLabel:
-  labels: shown               # shown | hidden — the only required field
-  labelDisplay: all-points    # optional: all-points | maximum | min-max | ...
-  valueFormat: percent        # optional
-  totals: { display: shown }  # optional
+  labels: shown               # shown | hidden
+  labelDisplay: all            # auto | minimum | maximum | min-max | all
+  valueFormat: percent
+  totals: { display: shown }
 ```
-
-**Canonical default** (verified 2026-05-22 against a UI-built workbook readback): when the user just enables "show data labels" with no further customization, Sigma writes only `{ labels: shown }` — every other field is optional and absent. Add the optional fields only when the user actually customized them, otherwise omit them to match the canonical default.
 
 For `combo-chart`, optional `seriesDataLabel` is a map keyed by layer shape (`bar`, `line`, `area`, `scatter`) with per-shape overrides:
 
 ```yaml
 seriesDataLabel:
   bar: { labelDisplay: maximum }
-  line: { labelDisplay: all-points }
+  line: { labelDisplay: all }
 ```
+
+## Combo charts (mixed series + secondary axis)
+
+A `combo-chart` mixes bar/line/area/scatter series on one plot. Set each series' shape with the `{ columnId, type }` form on `yAxis.columnIds`, and put series that need a different scale on the secondary axis `yAxis2`:
+
+```yaml
+kind: combo-chart
+xAxis:
+  columnId: col-month
+yAxis:                          # primary axis — bars
+  columnIds:
+    - { columnId: col-revenue, type: bar }
+yAxis2:                         # secondary axis — line, own scale
+  columnIds:
+    - col-margin-pct
+  format:
+    visibility: shown           # set to `hidden` to hide the axis (no other fields on that branch)
+```
+
+Per-series styling is keyed by layer shape (`bar` / `line` / `area` / `scatter`):
+
+- `seriesLineAreaStyle` — stroke/fill, curve, and area opacity for line/area layers
+- `seriesPointStyle` — marker shape/size for points
+- `seriesDataLabel` — per-shape data-label overrides (above)
+
+Chart-wide fallbacks `barStyle`, `lineAreaStyle`, `pointStyle`, and `gap` also exist. Inspect the kind recipe for the full sub-field set of any of these.
+
+### More cartesian options
+
+Each of these is a top-level key on cartesian charts; one-liner here, full sub-fields via the kind recipe at the top of this file.
+
+- `orientation: horizontal` on `bar-chart` — horizontal bars. Omit for the default vertical bars.
+- `trellis: { column, row, share?, tileSize? }` — small multiples (faceted grid) split by the `column` / `row` column IDs.
+- `legend: { visibility, position, ... }` — legend placement and styling.
+- `tooltip: { columnNames?, multiSeries?, valueFormat? }` — hover-tooltip content and formatting.
+
+(Trendlines and `refMarks` are covered above.)
 
 ## Other chart kinds
 
-Per the OpenAPI, these are all valid `kind` values; documented examples for the most common are above. The shape mirrors the `bar-chart`/`line-chart` pattern (`source`, `columns`, `xAxis`, `yAxis`):
+Per the OpenAPI, these are all valid `kind` values; documented examples for the most common are above. The shape mirrors the `bar-chart`/`line-chart` pattern (`source`, `columns`, `xAxis`, `yAxis`). Inspect any of them with the kind recipe at the top of this file:
 
-- `area-chart`, `combo-chart`, `scatter-chart` — same shape as `bar-chart`/`line-chart`, just a different `kind`. For specifics, inspect the OpenAPI schema directly:
-  ```bash
-  jq '.components.schemas.AreaChart, .components.schemas.ComboChart, .components.schemas.ScatterChart' /tmp/sigma-api.json
-  ```
-  **combo-chart dual-axis (verified 2026-05-22):** Dual-axis combo charts persist via the bare-string-vs-object form of `yAxis.columnIds`. Bare-string entries go to the **primary (left)** axis; `{columnId, type}` object-form entries go to the **secondary (right)** axis with the given mark type. The right axis auto-scales by default. `yAxis.format` governs the left axis only — how to customize the right-axis scale (log/min/max/zero) is unverified.
-- `pie-chart` — same shape as `donut-chart` (`value` + `color`).
+- `area-chart`, `combo-chart`, `scatter-chart` — same shape as `bar-chart`/`line-chart`, just a different `kind` (and `combo-chart` adds the series configs above).
+- `pie-chart` — like `donut-chart` (`value` + `color`), but without the donut-only `hole` / `holeValue` / `innerRadius` / `trellis` keys.
 - `pivot-table` — uses `values` instead of `yAxis`; useful for cross-tab analysis. See `tables.md`.
 
-## Known unsupported features
-
-- **No delta / comparison field on `kpi-chart`** (see `kpis.md`). To show period-over-period change, stack two `kpi-chart` elements side-by-side via `layout.md` or use a chart with explicit comparison columns.
-
-For element-level reference of `kind: "text"` (free-form Markdown blocks), see `text.md`.
+For element-level reference of `kind: "text"` (free-form Markdown blocks), see `content-elements.md`.

@@ -6,7 +6,7 @@ Recipe + traps for POST / GET / PUT against `/v2/workbooks/spec`. Load this when
 jq '.paths."/v2/workbooks/spec".post, .paths."/v2/workbooks/{workbookId}/spec".get, .paths."/v2/workbooks/{workbookId}/spec".put' /tmp/sigma-api.json
 ```
 
-The endpoints are straightforward; the spec value is in calling out the **non-obvious behaviors**: YAML is the default content type (this skill prefers it for human readability), the ID-reassignment on POST (which breaks naive read-edit-write), and PUT being full-replacement.
+The endpoints are straightforward; the spec value is in calling out the **non-obvious behaviors**: YAML is the default content type (this skill prefers it for human readability), PUT being full-replacement (anything you omit is dropped), and server-managed fields being ignored rather than rejected on write.
 
 Every call includes `-H "Authorization: Bearer $SIGMA_API_TOKEN"`. Auth comes from the `sigma-api` skill.
 
@@ -93,17 +93,13 @@ The PUT endpoint replaces the entire spec — partial updates are not supported.
 
 If you skip the GET and submit a partial spec, anything you didn't include is gone.
 
-## ID Remapping on CREATE
+## IDs Are Preserved on CREATE
 
-> **Critical:** the `id` values you sent in `POST /v2/workbooks/spec` — for pages, elements, columns — are **not** preserved verbatim. The server maps them to internal IDs and **those internal IDs** are what live references (especially the `layout` XML's `elementId` attributes) must use.
-
-Before **any** follow-up `PUT`, always `GET` the current spec first and use the IDs from the readback. If you PUT a layout XML that references your original external IDs, elements will silently not appear.
-
-The same caveat applies to any cross-reference — control bindings, element source references that name another element by ID, etc. After the initial CREATE, the source of truth for IDs is whatever the server returned, not what you submitted.
+The `id` values you send in `POST /v2/workbooks/spec` — for pages, elements, and columns — are **preserved verbatim**. Layout `elementId` attributes, control bindings, and cross-element `source` references that name your IDs all stay valid after create. You can edit your saved spec and `PUT` it back directly; `GET` the current spec first only when you don't have your latest copy on hand.
 
 ## Response-Only Fields to Strip
 
-`GET /v2/workbooks/<id>/spec` returns extra server-managed fields. When you take a GET response and PUT it back (the standard update flow), the server will silently ignore most of them, but it's cleaner to strip them. See `reference/specification/schema.md` for the canonical list.
+`GET /v2/workbooks/<id>/spec` returns extra server-managed fields. When you take a GET response and PUT it back (the standard update flow), the server **ignores** them — you don't have to strip them, though it's cleaner to. See `reference/specification/schema.md` for the canonical list.
 
 ## Iteration Pattern
 

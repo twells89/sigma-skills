@@ -70,7 +70,7 @@ pages:
               kind: number
               formatString: $,.0f
         value:
-          id: gBXB7mNDp6
+          columnId: gBXB7mNDp6
         name: Total sales
       - id: YBiGG5m5kY
         kind: kpi-chart
@@ -84,7 +84,7 @@ pages:
               kind: number
               formatString: $,.0f
         value:
-          id: dJaWh_79UB
+          columnId: dJaWh_79UB
         name: Total profit
       - id: XSzhu5CtLf
         kind: line-chart
@@ -129,7 +129,7 @@ pages:
               kind: number
               formatString: ',.0f'
         value:
-          id: wB0OB8xetX
+          columnId: wB0OB8xetX
         name: Total orders
       - id: wQ5ezUY81K
         kind: kpi-chart
@@ -143,7 +143,7 @@ pages:
               kind: number
               formatString: $,.2f
         value:
-          id: VKZCXc5o6g
+          columnId: VKZCXc5o6g
         name: Avg order value
       - id: HWYC72b6av
         kind: container
@@ -190,7 +190,7 @@ pages:
             by: rMc1XEsnWx
             direction: descending
         value:
-          id: rMc1XEsnWx
+          columnId: rMc1XEsnWx
         name: Sales by product family
   - id: 3Ht0vQc7hD
     name: Data
@@ -465,7 +465,7 @@ pages:
               kind: number
               formatString: ',.0f'
         value:
-          id: 6bTPYGXwIm
+          columnId: 6bTPYGXwIm
         name: Total customers
       - id: rhbytbOPeu
         kind: kpi-chart
@@ -480,7 +480,7 @@ pages:
               kind: number
               formatString: $,.2f
         value:
-          id: TofUW7R0OU
+          columnId: TofUW7R0OU
         name: Avg spend per customer
       - id: MvuERTuXJl
         kind: kpi-chart
@@ -495,7 +495,7 @@ pages:
               kind: number
               formatString: ',.2f'
         value:
-          id: 3B8rMjpiTi
+          columnId: 3B8rMjpiTi
         name: Orders per customer
       - id: Nf1e5obnQB
         kind: bar-chart

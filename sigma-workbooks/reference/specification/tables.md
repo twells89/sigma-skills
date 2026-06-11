@@ -1,10 +1,12 @@
 # Tables
 
-Recipe book for `table` and `pivot-table` elements + style and trap guidance. The full schemas live in the OpenAPI:
+Recipe book for `table`, `pivot-table`, and `input-table` elements + style and trap guidance. The full schemas live in the OpenAPI — fetch any element kind by its `kind` value:
 
 ```bash
-jq '.components.schemas.Table, .components.schemas.PivotTable' /tmp/sigma-api.json
+jq --arg k pivot-table 'first(.. | objects | select((.allOf? and any(.allOf[]?; .properties?.kind?.enum==[$k])) or .properties?.kind?.enum==[$k]))' /tmp/sigma-api.json
 ```
+
+Swap `pivot-table` for `table` or `input-table` to inspect the others.
 
 The `table` element is the most common element kind and the primary way data enters a workbook — charts, KPIs, and other elements usually point their `source` at a table.
 
@@ -30,19 +32,7 @@ order: [col-1, col-2]
 
 See `sources.md` for all source kinds and `formulas.md` for the column-reference rules. Every column needs `id`, `name`, `formula`; optional `format` (see `formatting.md`).
 
-`name` accepts either a plain string (shown above) or a title-section object for styled headers — also supports an optional `description` and `noDataText`:
-
-```yaml
-name:
-  text: Sales Data
-  fontSize: 18
-  fontWeight: bold
-description:
-  text: Latest quarter
-noDataText: No rows in range
-```
-
-The shape mirrors chart titles; fetch `TitleSection` from the OpenAPI for the full styling enum.
+For the `table` kind, `name` is a plain string. The styled title-section object (with `text`, styling, and `noDataText`) applies to `pivot-table` and `input-table` — see those sections below.
 
 ## Common optional fields
 
@@ -76,38 +66,7 @@ filters:
 
 > **`rowCount` takes a number literal only** — it cannot be parametrized by a control. `rowCount: "[TopN]"` is rejected. Control bindings apply to filter **values**, not to structural fields like `rowCount`, `rankingFunction`, `mode`, or `kind`. To vary the cap interactively, duplicate the element per cap.
 
-### `conditionalFormats` — threshold coloring on cells
-
-Apply background/text styling per row based on column values. Four variants — `single`, `backgroundScale`, `fontScale`, `dataBars` — covering threshold rules, gradient scales, font-color scales, and inline data bars. Inspect the OpenAPI for the full operator + style enums:
-
-```bash
-jq '.components.schemas.ConditionalFormatSingle, .components.schemas.ConditionalFormatBackgroundScale' /tmp/sigma-api.json
-```
-
-**Recipe — red/green threshold coloring on a revenue column:**
-
-```yaml
-id: sales-table
-kind: table
-# ...other table fields...
-conditionalFormats:
-  - type: single
-    columnIds: [col-revenue]
-    condition: ">"
-    value: 1000
-    style:
-      backgroundColor: "#22c55e"
-  - type: single
-    columnIds: [col-revenue]
-    condition: "<"
-    value: 100
-    style:
-      backgroundColor: "#ef4444"
-```
-
-Condition operators include `=`, `!=`, `>`, `>=`, `<`, `<=`, `IsNull`, `IsNotNull`, `Contains`, `NotContains`, `StartsWith`, `EndsWith`, `Between`, `NotBetween`, and `formula` (arbitrary boolean). Style block supports `backgroundColor`, `color`, `bold`, `italic`, `underline`, and column-level `format` override.
-
-The full array round-trips through GET unchanged, so PUT-based edits are stable.
+> `conditionalFormats` is **not** a `table` field — it lives on `pivot-table` and `input-table` only (see below). Adding it to a `kind: table` element is rejected.
 
 ---
 
@@ -142,13 +101,78 @@ rowsBy:
   - id: piv-cloud
 columnsBy:
   - id: piv-env
+    sort:
+      direction: descending
 ```
 
-`values` holds the measure column IDs (the cells of the pivot). `rowsBy` and `columnsBy` hold the dimension column IDs — each as `[{ id: <col-id> }, ...]`. **Without `rowsBy`/`columnsBy`, the pivot collapses to a single grand-total cell** even though the dimension columns are present in `columns[]`. Sigma does NOT infer placement from non-`values` columns; you must declare it.
+`values` (required) is the measure column array — the cells of the pivot. `rowsBy` and `columnsBy` place dimension columns explicitly on the row and column shelves; each item is `{ id, sort? }`, where `sort` is `{ direction: ascending | descending, by?, aggregation? }` (`by` can be a column ID or `"row-count"`). Columns not listed on either shelf still render as available dimensions.
 
-> **`columnsBy[].sort` is NOT supported.** PUT returns HTTP 400 `sort shape not supported on columnsBy`. Sigma orders pivot columns by the natural order of the column values (alphabetical for strings, numeric for numbers, chronological for dates / integers used as date-of-year). To control column order, pre-compute an integer sort key column (e.g. `Month()` returns 1-12 and sorts chronologically) and use that instead of a string column. Verified 2026-05-24: `MonthName()` (string) sorted alphabetically until swapped to `Month()` (integer).
+## `conditionalFormats` — threshold coloring on cells
 
-## Round-trip quirks
+Available on `pivot-table` and `input-table`. Apply background/text styling per cell based on column values. Variants include `single`, `backgroundScale`, `fontScale`, and `dataBars` — covering threshold rules, gradient scales, font-color scales, and inline data bars. Inspect the OpenAPI for the full operator + style enums (use the `conditionalFormats` property on either kind's schema).
 
-- **Column reordering**: Sigma reorders the `columns` array on round-trip — value columns first, then dimensions — regardless of submission order. GET → edit → PUT will show a non-substantive diff in `columns`. The `values` array preserves IDs, so rendered output is unchanged.
-- **Spec docs lied about `rowsBy`/`columnsBy`**: this file previously claimed those fields didn't exist and that UI was required for row/column placement. They do exist (verified 2026-05-24 against a UI-built pivot's `GET .../spec` round-trip) and a spec-only build works end-to-end. The OpenAPI may still be under-documented; trust the round-trip.
+**Recipe — red/green threshold coloring on a revenue column:**
+
+```yaml
+conditionalFormats:
+  - type: single
+    columnIds: [col-revenue]
+    condition: ">"
+    value: 1000
+    style:
+      backgroundColor: "#22c55e"
+  - type: single
+    columnIds: [col-revenue]
+    condition: "<"
+    value: 100
+    style:
+      backgroundColor: "#ef4444"
+```
+
+Condition operators include `=`, `!=`, `>`, `>=`, `<`, `<=`, `IsNull`, `IsNotNull`, `Contains`, `NotContains`, `StartsWith`, `EndsWith`, `Between`, `NotBetween`, and `formula` (arbitrary boolean). Style block supports `backgroundColor`, `color`, `bold`, `italic`, `underline`, and column-level `format` override.
+
+---
+
+# Input tables
+
+The `input-table` element is an editable table — users type values directly into cells, backed by a provisioned warehouse table. Required fields: `id`, `kind`, `source`, `inputMode`.
+
+`inputMode` controls who can edit and where:
+
+- `edit` — workbook editors only, in draft mode
+- `explore` — users with explore permission or greater, in published view
+- `view` — all users, in published view
+
+`source` is one of:
+
+- `{ kind: empty, connectionId: <YOUR_CONNECTION_ID> }` — provisions a fresh, blank warehouse table.
+- `{ kind: linked, from: <elementId> }` — rows are linked to another element; the connection is inherited, and editable rows are matched to source rows by the `key` columns.
+
+`columns[]` items come in four shapes (each also accepts optional `name`, `description`, `hidden`, `format`):
+
+- **System column** — `{ id }` where `id` ∈ `ID`, `CREATED_AT`, `CREATED_BY`, `UPDATED_AT`, `UPDATED_BY`. Protocol-managed; type is fixed.
+- **Key column** — `{ id, key }` binding to a source column on `source.from` (linked tables; `key` is immutable once created).
+- **Editable data column** — `{ id, type }` where `type` ∈ `text`, `number`, `datetime`, `checkbox`.
+- **Formula column** — `{ id, formula }` for a computed column.
+
+```yaml
+id: feedback-input
+kind: input-table
+name: Manual feedback
+inputMode: edit
+source:
+  kind: empty
+  connectionId: <YOUR_CONNECTION_ID>
+columns:
+  - id: ID
+  - id: customer
+    type: text
+  - id: score
+    type: number
+  - id: flagged
+    type: checkbox
+  - id: score-bucket
+    formula: If([score] >= 8, "Promoter", "Other")
+```
+
+`input-table` also supports `filters`, `conditionalFormats` (see above), `sort`, `summary`, and the styled title-section `name`/`noDataText`. Fetch the full schema with the `kind`-form recipe at the top of this doc.

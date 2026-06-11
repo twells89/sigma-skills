@@ -1,8 +1,8 @@
 # Layout
 
-Recipe book for the top-level `layout` XML — when to write it, the two-tag grammar, and the silent-failure traps the OpenAPI doesn't surface. **Default to writing explicit `layout` XML for multi-element workbooks.**
+Recipe book for the top-level `layout` XML — when to write it, the two-tag grammar, and the silent-failure traps to watch for. `layout` is a page-level property; its value is the XML string described below. **Default to writing explicit `layout` XML for multi-element workbooks.**
 
-For container elements (the `kind: "container"` JSON placeholders that pair with `<GridContainer>` in this XML), see `containers.md`.
+Container *elements* (the `kind: "container"` JSON placeholders that pair with `<GridContainer>` in this XML) are covered in **Container elements** below.
 
 ## When to write layout vs. let Sigma auto-arrange
 
@@ -36,16 +36,33 @@ If unsure, write the layout. Writing one is cheap (the patterns below are copy-p
 
 Each `<Page id>` matches a `pages[].id`. Each `elementId` matches an element on that page. `gridColumn` / `gridRow` use standard CSS grid line syntax (`start / end`); the default grid is 24 columns wide. One `<Page>` block per workbook page.
 
-## `<GridContainer>` vs `<LayoutElement>` — silent failure trap
+## `<GridContainer>` vs `<LayoutElement>`
 
-> ⚠️ Use `<GridContainer>` for any tag that has children nested inside it. `<LayoutElement type="grid">` with children parses successfully **as a leaf** and the children are silently dropped — no error, the child elements just disappear from the page.
+- `<LayoutElement elementId="X" .../>` — **leaf**. Positions a single element; no children.
+- `<GridContainer elementId="X" ...>...</GridContainer>` — **container**. Wraps child `<LayoutElement>`s in its own inner grid.
 
-- `<LayoutElement elementId="X" .../>` — **leaf**. Positions a single element. No children.
-- `<GridContainer elementId="X" ...>...</GridContainer>` — **container**. Wraps child `<LayoutElement>`s inside its own inner grid.
+Use `<GridContainer>` for any tag with nested children — a `<LayoutElement>` only renders as a leaf.
 
-## `gridTemplateRows`: keep it `"auto"`
+## Container elements
 
-> Silent normalization: `gridTemplateRows` is accepted on PUT with any value but normalizes back to `"auto"` on GET. Writing `"1fr"`, `"100px"`, `"repeat(3, 1fr)"` etc. doesn't error — the server drops your value and treats the row track as `"auto"`. Always write `"auto"` explicitly so the round-trip is stable.
+A `kind: "container"` element in `pages[].elements[]` is a grouping placeholder — a labeled section, a branded header strip, a KPI row treated as a unit. It renders **only** when a matching `<GridContainer elementId="…">` positions it; declared without one, it's a no-op. Containers carry optional `style` (background color, border, corner radius, padding) and `backgroundImage` — pull the current shape from the spec rather than hardcoding it (the set of container/layout options is growing):
+
+```bash
+jq --arg k container 'first(.. | objects | select((.allOf? and any(.allOf[]?; .properties?.kind?.enum==[$k])) or .properties?.kind?.enum==[$k]))' /tmp/sigma-api.json
+```
+
+```yaml
+- id: header
+  kind: container
+  style: { backgroundColor: "#0B3D91" }
+```
+
+- **Element on a background image:** to place an element *on top of* a container's `backgroundImage`, make it a **child** of that container in the layout XML — the background spans the container and the child sits on top.
+- **When to skip:** with no shared background or logical grouping, position elements directly with `<LayoutElement>`. A container around a single element is usually overkill.
+
+## `gridTemplateRows`: always `"auto"`
+
+Row tracks are always `"auto"` — write `gridTemplateRows="auto"`. Height comes from the children, not from the row track.
 
 ### Stacking children inside a container
 
@@ -63,7 +80,7 @@ Because row tracks collapse to `"auto"`, height comes from children, not from th
 </GridContainer>
 ```
 
-**Stacked rows** — children have disjoint `gridRow` spans. The server normalizes the container's outer `gridRow` to encompass its children (e.g., a container declared `1 / 12` with children spanning `1 / 4` and `4 / 12` reads back as `1 / 12`; declare generously and let normalization clamp):
+**Stacked rows** — children have disjoint `gridRow` spans within the container's row range:
 
 ```xml
 <GridContainer elementId="header-row" type="grid"
@@ -78,8 +95,28 @@ Because row tracks collapse to `"auto"`, height comes from children, not from th
 
 Use stacked rows when you want a section header above a row of charts inside the same container, instead of moving those elements out to the page level.
 
-## After CREATE: IDs reassign
+## Page-level fields: `visibility` and `backgroundImage`
 
-The server remaps external IDs to internal ones on `POST /v2/workbooks/spec`. Before any follow-up `PUT` that touches `layout`, **GET the current spec and use the readback IDs**. Layout `elementId` references must match exactly (case-sensitive) — a mismatch silently drops the element from the page.
+Besides `id`, `name`, `elements`, and `layout`, a page supports two optional fields:
 
-See `example-full.yaml` for a real multi-page layout with grid containers.
+- **`visibility`** — set to `hidden` to hide the page from end users. Omit for a visible page.
+- **`backgroundImage`** — a page-wide background image, same shape as a container's `backgroundImage`: a required `url` plus an optional `style` block (`fit`, `horizontalAlign`, `verticalAlign`, `tiling`). `url` supports `{{formula}}` references.
+
+```yaml
+pages:
+  - id: overview
+    name: Overview
+    visibility: hidden
+    backgroundImage:
+      url: https://cdn.example.com/bg.jpg
+      style:
+        fit: cover
+        tiling: none
+    elements: [ ... ]
+```
+
+## Layout `elementId` references
+
+Each layout `elementId` must match an element `id` on that page exactly (case-sensitive). IDs are preserved verbatim on create, so the IDs in your saved spec stay valid for follow-up `PUT`s.
+
+To study real grid-container idioms, fetch an existing multi-page workbook's spec (`GET /v2/workbooks/{id}/spec`, see SKILL.md Steps 1–2). The OpenAPI doesn't model the `layout` XML string, so a live spec is the way to see production layout.

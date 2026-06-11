@@ -59,7 +59,7 @@ SELECT COUNT(DISTINCT <candidate_column>) FROM <table>;
 SELECT DISTINCT <candidate_column> FROM <table> LIMIT 10;
 ```
 
-If the candidate fails either check, document the gap in your final summary and either (a) substitute a different column that fits better, (b) derive a coarser bucketing via a formula like `Case(WHEN [order_count] >= 10 THEN 'Frequent' WHEN [order_count] >= 3 THEN 'Regular' ELSE 'Occasional' END)`, or (c) drop that element from your reproduction if no good substitute exists.
+If the candidate fails either check, document the gap in your final summary and either (a) substitute a different column that fits better, (b) derive a coarser bucketing via a formula like `If([order_count] >= 10, "Frequent", [order_count] >= 3, "Regular", "Occasional")`, or (c) drop that element from your reproduction if no good substitute exists.
 
 ### Step 0d.2 — Verify each metric is the *right calculation*
 

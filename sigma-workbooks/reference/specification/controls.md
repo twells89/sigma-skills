@@ -1,29 +1,39 @@
 # Controls
 
-Recipe book for the control element family and the patterns that wire them up. For the canonical schemas of each variant:
+Recipe book for the control element family and the patterns that wire them up. The OpenAPI is the source of truth for every field; this file adds the wiring patterns it doesn't teach.
+
+Controls are interactive filter elements — lists, date pickers, text inputs, sliders, etc. They live in the page's `elements` array alongside tables and charts, **not** nested inside them. The wiring (which column a control filters, which downstream elements respond) is the part the OpenAPI doesn't teach — that's what this file is for.
+
+**Every `controlType` wires up the same way** (`controlId` + `filters`, below); they differ only in the widget and its value object. So treat the per-type sections below as illustrations of the *wiring*, **not a catalog of what's supported** — a `controlType` you don't see here works the same way. The set also grows over time, so get the current list from the spec rather than hardcoding it:
 
 ```bash
-jq -r '.components.schemas | keys[] | select(test("Control"))' /tmp/sigma-api.json
-jq '.components.schemas.ListControl, .components.schemas.DateRangeControl, .components.schemas.TextControl' /tmp/sigma-api.json
+jq -r '[.. | objects | select(.properties?.controlType?.enum) | .properties.controlType.enum[0]] | unique[]' /tmp/sigma-api.json
 ```
 
-Controls are interactive filter elements — dropdowns, date pickers, text inputs, sliders, etc. They live in the page's `elements` array alongside tables and charts, **not** nested inside them. The wiring (which column a control filters, which downstream elements respond) is the part of the design that the OpenAPI doesn't really teach — that's what this file is for.
+## Control Element Fields
 
-## Common Fields
+A `control` element has exactly these fields:
 
 | Field | Required | Notes |
 |---|---|---|
 | `kind` | yes | Always `control` |
 | `id` | yes | Element ID — must be unique on the page |
-| `controlId` | yes | Formula reference name (e.g., `RegionFilter`) — keep distinct from `id`. This is the human-meaningful handle. |
-| `controlType` | yes | Determines the widget and filter behavior (see variants below) |
-| `name` | yes | Display label |
-| `source` | usually | Points at the column whose values populate the control. Shape: `{ kind: source, source: { kind: table, elementId: ... }, columnId: ... }` |
-| `filters` | yes | Array of `{ source: { kind: table, elementId: ... }, columnId: ... }` — connects the control to the column(s) it filters |
+| `controlId` | yes | Formula reference name (e.g., `RegionFilter`) — keep distinct from `id`. This is the human-meaningful handle used when referring to the control's value from formulas. |
+| `controlType` | yes | Any value the recipe above returns. Determines the widget and filter behavior. |
+| `filters` | — | Array of `{ source, columnId }` — connects the control to the column(s) it filters. `source` is `{ kind: table, elementId: ... }`. |
+| `parameters` | — | Array, for binding the control to a data-model control (parameter). |
+| `name` | — | Display label. |
+| `style` | — | Presentation options for the widget. |
+
+There are **no** value/widget fields at the control top level. Things like the selected mode, current value, or range bounds live inside the value object that the control carries, not as flat sibling fields of `controlType`. The recipes below show the value-object shape per type; treat those nested shapes as the value detail, not as additional control-element properties.
+
+`filters[]` items are `{ source: { kind: table, elementId: ... }, columnId: ... }`. The `columnId` is the column on the target element to filter.
 
 ---
 
-## List (dropdown / multi-select)
+## List
+
+A single- or multi-select list control over a column's values.
 
 ```yaml
 kind: control
@@ -31,15 +41,6 @@ id: ctrl-region
 controlId: RegionFilter
 name: Store region
 controlType: list
-mode: include
-selectionMode: multiple
-values: []
-source:
-  kind: source
-  source:
-    kind: table
-    elementId: sales-table
-  columnId: col-region
 filters:
   - source:
       kind: table
@@ -47,15 +48,11 @@ filters:
     columnId: col-region
 ```
 
-- `mode`: `include` | `exclude`
-- `selectionMode`: `single` | `multiple`
-- `values`: initial selected values. `[]` = none pre-selected.
+The value object carries the selection (`mode`: `include` | `exclude`; selection cardinality; selected values). `segmented` and `hierarchy` are the other list-style widget types — same wiring, different presentation. Inspect the spec's control value schema for the exact value-object field names rather than guessing.
 
 ## Date Range
 
-A date-range control filters one or more date columns. The widget shape is determined by `mode`, and each mode takes different additional fields. Eight modes are supported. No `source` is needed — the column is defined by the `filters` binding.
-
-Common shape:
+A date-range control filters one or more date columns. The widget shape is determined by `mode`, and each mode takes different additional fields **inside the value object**. No `source` is needed — the column is defined by the `filters` binding.
 
 ```yaml
 kind: control
@@ -63,8 +60,6 @@ id: ctrl-date
 controlId: DateFilter
 name: Date range
 controlType: date-range
-mode: <see below>
-includeNulls: when-no-value-is-selected
 filters:
   - source:
       kind: table
@@ -72,7 +67,7 @@ filters:
     columnId: col-date
 ```
 
-`includeNulls`: `always` | `never` | `when-no-value-is-selected`.
+The value object selects a mode and its parameters. `includeNulls`: `always` | `never` | `when-no-value-is-selected`.
 
 ### Modes
 
@@ -99,7 +94,9 @@ value: 30
 
 `op`: `now-minus` or `now-plus`.
 
-### Common Examples
+### Value-object Examples
+
+These show the date-range **value shape**, not flat control fields.
 
 **Last 70 days:**
 
@@ -141,7 +138,7 @@ endDate:
 
 ## Text
 
-Single-line text filter.
+Single-line text filter. (`text-area` is the multi-line variant — same wiring, different widget.)
 
 ```yaml
 kind: control
@@ -149,10 +146,6 @@ id: ctrl-search
 controlId: SearchText
 name: Search
 controlType: text
-mode: contains
-value: ""
-case: insensitive
-includeNulls: when-no-value-is-selected
 filters:
   - source:
       kind: table
@@ -160,7 +153,7 @@ filters:
     columnId: col-product-name
 ```
 
-`mode` values: `equals`, `does-not-equal`, `contains`, `does-not-contain`, `starts-with`, `ends-with`, `like`, `matches-regexp`, and their negations.
+The text value object carries the match `mode` and the search string. `mode` values include `equals`, `does-not-equal`, `contains`, `does-not-contain`, `starts-with`, `ends-with`, `like`, `matches-regexp`, and their negations.
 
 ## Number Range
 
@@ -170,8 +163,6 @@ id: ctrl-amount
 controlId: AmountFilter
 name: Amount
 controlType: number-range
-mode: between
-values: [0, 1000]
 filters:
   - source:
       kind: table
@@ -179,99 +170,32 @@ filters:
     columnId: col-amount
 ```
 
-## Slider
+The number-range value object expresses the bounds with `low`, `high`, and an optional `step` — **not** a positional `values: [min, max]` array.
 
-A slider is a **`number-range` control**, not a distinct `slider` kind. There is no separate `controlType: slider` shape (don't use `value`/`min`/`max` at the top level — those get rejected with a misleading `Invalid kind: pages[0].elements[N], got "control"` error; the actual problem is the control's inner shape, not the element kind).
+## Sliders
 
-Single-handle slider — use `number-range` with `mode: between` and a two-element `values` array for the current range:
+`slider` and `range-slider` are both first-class `controlType` values — distinct from `number` and `number-range`. A `slider` is a single-handle widget; `range-slider` has two handles for a low/high band. Pick the `controlType` for the widget you want and supply the bounds in the value object (`low`/`high`/`step`).
 
-```yaml
-kind: control
-id: ctrl-top-n
-controlId: TopN
-name: Top N
-controlType: number-range
-mode: between
-values: [1, 10]
-filters: []
-```
+## Single-value types
 
-> **Round-trip gap:** as of 2026-04, `values` on a `number-range` control does not reliably round-trip. A `PUT` with `values: [1, 10]` reads back as `values: null` on the next `GET`. The UI still respects the initial value when the workbook renders, but the source-of-truth view via the API shows `null`. Don't rely on a subsequent `GET` to confirm the value stuck — open the workbook or trust the last-known `PUT`.
-
-## Text Area
-
-Multi-line text input. Same shape as `text`, different widget:
+`number`, `date`, `checkbox`, and `switch` are single-value controls. `checkbox` and `switch` are the boolean widgets — same value (a boolean), different presentation:
 
 ```yaml
 kind: control
-id: ctrl-notes
-controlId: NotesFilter
-name: Notes contains
-controlType: text-area
-mode: contains
-value: ""
-case: insensitive
-includeNulls: when-no-value-is-selected
+id: ctrl-active-only
+controlId: ActiveOnly
+name: Active only
+controlType: switch
 filters:
   - source:
       kind: table
-      elementId: tickets-table
-    columnId: col-body
+      elementId: users-table
+    columnId: col-is-active
 ```
 
-## Segmented (parameter / radio buttons)
+## Top-N
 
-> **Verified 2026-05-24 against sigma-skill-recon test #6.** `controlType: segmented` is the correct shape for Tableau-style parameters (a small fixed set of choices rendered as radio buttons / button group).
-
-Manual values (most common — parameter):
-
-```yaml
-kind: control
-id: ctrl-time-period
-controlId: TimePeriod
-name: Time period
-controlType: segmented
-source:
-  kind: manual
-  valueType: text
-  values: ["Month", "Quarter", "Year"]
-  labels: [null, null, null]
-value: Quarter
-```
-
-Dynamic values (sourced from a column):
-
-```yaml
-kind: control
-id: ctrl-ship-mode
-controlId: ShipMode
-name: Ship mode
-controlType: segmented
-source:
-  kind: source
-  source: { kind: table, elementId: sales-table }
-  columnId: col-ship-mode
-value: null
-```
-
-Segmented controls have **no `filters`** — they act as parameters referenced in element formulas via `controlId`:
-
-```
-Sum(If([TimePeriod] = "Month", [Sales], Null))
-```
-
-## Control types that do NOT exist
-
-> **Verified 2026-05-24 against sigma-skill-recon tests #3-5.** The following `controlType` values are all rejected with HTTP 400 `Invalid kind: "control"`. They are not valid spec shapes — use the correct alternative.
->
-> | Rejected `controlType` | Use instead |
-> |---|---|
-> | `slider` | `number-range` with `mode: between` and a two-element `values` array (see Slider section above) |
-> | `range-slider` | `number-range` |
-> | `toggle` | `list` with `selectionMode: single` and a fixed two-value source (or rebuild as a parameter via `segmented`) |
-> | `checkbox` | Same — `list` or `segmented` |
-> | `dropdown` | `list` with `selectionMode: single` |
-> | `radio` | `segmented` (for parameters) or `list` with `selectionMode: single` |
+`top-n` is a dedicated control type for "show the top N" interactions. Wire it like any other control via `filters`; the cap lives in its value object.
 
 ---
 
@@ -285,15 +209,6 @@ id: ctrl-region
 controlId: RegionFilter
 name: Store region
 controlType: list
-mode: include
-selectionMode: multiple
-values: []
-source:
-  kind: source
-  source:
-    kind: table
-    elementId: sales-table
-  columnId: col-region
 filters:
   - source: { kind: table, elementId: sales-table }
     columnId: col-region
@@ -317,13 +232,6 @@ The dual pattern, and a common Sigma layout: a parent table that several control
   id: ctrl-region
   controlId: RegionFilter
   controlType: list
-  mode: include
-  selectionMode: multiple
-  values: []
-  source:
-    kind: source
-    source: { kind: table, elementId: sales-table }
-    columnId: col-region
   filters:
     - source: { kind: table, elementId: sales-table }
       columnId: col-region
@@ -332,7 +240,6 @@ The dual pattern, and a common Sigma layout: a parent table that several control
   id: ctrl-date
   controlId: DateFilter
   controlType: date-range
-  mode: between
   filters:
     - source: { kind: table, elementId: sales-table }
       columnId: col-date
@@ -341,8 +248,6 @@ The dual pattern, and a common Sigma layout: a parent table that several control
   id: ctrl-amount
   controlId: AmountFilter
   controlType: number-range
-  mode: between
-  values: [0, 10000]
   filters:
     - source: { kind: table, elementId: sales-table }
       columnId: col-amount
@@ -350,12 +255,10 @@ The dual pattern, and a common Sigma layout: a parent table that several control
 
 Multiple controls on the same target compose with **AND** — selecting region "West" + date "Q1" narrows to the intersection. Prefer this over binding each control to every downstream element; it's less repetitive and keeps the filter chain in one place.
 
-## Where Control Bindings Apply
-
-Controls parametrize **filter values** on their target elements — nothing else. They cannot bind to structural fields like `rowCount`, `rankingFunction`, aggregation choice, or chart mappings. A spec like `rowCount: "[TopN]"` will be rejected; the field takes a number literal only. To vary a top-N cap interactively you currently need to duplicate the element per cap or wait for a future field that accepts a control reference.
-
 ## Tip: `controlId` vs `id`
 
 They are not the same and both are required:
 - `id` is the element ID used internally and in `layout.md`.
 - `controlId` is a human-facing handle used when referring to this control's value from formulas or downstream logic. Pick it to be meaningful (e.g., `RegionFilter`, `DateRange`).
+</content>
+</invoke>

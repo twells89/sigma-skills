@@ -1,9 +1,10 @@
 # Column Formats
 
-Recipe for column-level `format` objects + the d3-format / strftime conventions Sigma uses. For the canonical schema:
+Recipe for column-level `format` objects + the d3-format / strftime conventions Sigma uses. A `format` object is either `kind: number` or `kind: datetime`. For the canonical schema of each:
 
 ```bash
-jq '.components.schemas.Format' /tmp/sigma-api.json
+jq --arg k number   'first(.. | objects | select((.allOf? and any(.allOf[]?; .properties?.kind?.enum==[$k])) or .properties?.kind?.enum==[$k]))' /tmp/sigma-api.json
+jq --arg k datetime 'first(.. | objects | select((.allOf? and any(.allOf[]?; .properties?.kind?.enum==[$k])) or .properties?.kind?.enum==[$k]))' /tmp/sigma-api.json
 ```
 
 `format` is optional on every column — omit it for raw values. This file is mainly the cheat sheet of common format strings (currency, percentages, dates) since the OpenAPI doesn't enumerate them.
@@ -32,6 +33,8 @@ Format-string cheat sheet:
 - `.<n>f` — fixed decimal places
 - `.<n>%` — percent with decimals (value × 100)
 - `.<n>~e` — scientific with trimmed trailing zeros
+
+Alternatively, build a number format from **structured fields** instead of (or alongside) a raw `formatString` — e.g. `prefix`, `suffix`, `displayNullAs`, `currencySymbol`, `decimalSymbol`, `digitGroupingSymbol`. See the `kind: number` recipe above for the full set.
 
 ## Datetime Formats
 

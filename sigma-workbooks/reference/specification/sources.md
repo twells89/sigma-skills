@@ -1,10 +1,9 @@
 # Sources (non-warehouse)
 
-Recipe book for source kinds other than `warehouse-table`. For canonical schemas:
+Recipe book for source kinds other than `warehouse-table`. For the canonical schema of any source kind, pull it by its `kind` value (`warehouse-table`, `sql`, `table`, `data-model`, `join`, `union`, `transpose`):
 
 ```bash
-jq -r '.components.schemas | keys[] | select(test("Source"))' /tmp/sigma-api.json
-jq '.components.schemas.JoinSource, .components.schemas.SqlSource, .components.schemas.DataModelSource' /tmp/sigma-api.json
+jq --arg k join 'first(.. | objects | select((.allOf? and any(.allOf[]?; .properties?.kind?.enum==[$k])) or .properties?.kind?.enum==[$k]))' /tmp/sigma-api.json
 ```
 
 Every element with columns has a `source` that defines where its data comes from. This file focuses on the **patterns** and **formula-prefix conventions** for each non-warehouse source kind — the parts the OpenAPI alone won't teach.
@@ -37,9 +36,13 @@ dataModelId: <data-model-uuid>
 elementId: <element-uuid within that model>
 ```
 
+Optionally add `groupingId` to apply one of the model element's groupings.
+
 ## join
 
-Joins multiple warehouse tables into one logical source. Specify a `primarySource` and an array of `joins`. Each join has `left`, `right`, `columns` (the join keys), `name` (used as the prefix in column formulas — `[<name>/column]`), and `joinType`.
+Joins multiple sources into one logical source via an array of `joins`. Each leg (`primarySource`, `left`, `right`) can be any source kind, so warehouse tables, other elements, and data-model elements can be joined interchangeably.
+
+Only `joins` (with each entry's `left`, `right`, `columns`) is required. `primarySource` is optional — if omitted, Sigma infers it as the source that appears on the left of some join but never on the right. Each join's `name` (used as the formula prefix — `[<name>/column]`; defaults to the right source's name) and `joinType` (defaults to inner) are also optional.
 
 ```yaml
 kind: join
@@ -64,39 +67,28 @@ joins:
         right: "[Order Number]"
 ```
 
-`joinType` values: `inner`, `left-outer`, `right-outer`, `full-outer`, `cross`.
+Each entry in a join's top-level `columns[]` is a join-key pair (`left`/`right`, with an optional `op` for non-equi joins) — a different shape from an element's `columns[]` (see below). Pull `joinType` values and the column-pair shape from the spec via the recipe at the top.
 
 **Column formula prefixes with joins** — see `formulas.md` for the full rules:
 - Primary-source columns use the **join's top-level `name`**: `[Sales Star/Order Number]`
 - Joined-table columns use the **join leg's `name`**: `[Sales/Cust Key]`
 - Warehouse path segments are **not** used as prefixes inside a join.
 
-### When to reach for `join` instead of `Lookup()`
+## sql
 
-If you're tempted to define a column on element A as `Lookup([B/Field], [A.key], [B.key])` **and then group a chart by that column**, stop — switch A's source to a `join` instead. Sigma's chart rollup engine can only aggregate against one external relation per query, and a `Lookup()` used as a *grouping dimension* counts as a second one. The failure mode is brutal:
+A custom SQL query against a connection — `kind: sql` with `connectionId` + `statement`. Pull the shape from the spec via the recipe.
 
-- POST + readback both say `[ok]`.
-- `verify-workbook` (compile-check) returns `[ok]`.
-- The chart renders with a **single row** whose dim value is the literal string `"Rollup cannot reference more than one external relation"`. No error anywhere in the response — Sigma silently substitutes the error message for the dim value.
+## transpose
 
-`Lookup()` is still fine when the looked-up column feeds a **scalar measure** (numerator / denominator inside an aggregate). The failure is specifically `Lookup` → `xAxis.columnId` / `rowsBy` / `color.column` / any grouping role.
+Pivots a source's rows and columns. Needs a `source` (any source kind) plus a direction config — `row-to-column` (pivot wider) or `column-to-row` (unpivot longer), each with its own fields. Pull the per-direction shape from the spec via the recipe.
 
-Fix: make A a `join` source with the other table as a join leg, then reference the field as `[<join-leg-name>/Field]` directly. Single relation, one query, clean rollup.
+## Element `columns[]` vs. join `columns[]`
 
-Verified 2026-05-22 on the `Employee Overview` workbook (`50fcece5-...`): a Top-10 chart grouped by `Lookup([Employees/Full Name], [Employee Id], [Employees/Employee Id])` on `time_master` blanked out with the error-string dim. Switching `time_master.source` to a `join` (TIME_ENTRIES left-outer EMPLOYEES on Employee Id) and rewriting the grouping column to `[Employee/First Name] & " " & [Employee/Last Name]` produced the real top-10 names.
-
-## Other Source Kinds
-
-These exist but are less common; model the shape off an existing workbook's spec via `GET /v2/workbooks/<id>/spec`:
-
-- `sql` — custom SQL query
-- `union` — combines two or more sources row-wise. See below.
-- `transpose` — transposes rows/columns
-- `empty` — the source kind for an **input table** (structured data entry, writes back to a write-enabled connection). See `input-tables.md` for the full element shape, types (empty / CSV / linked), and caveats.
+Two unrelated things share the name. An element's `columns[]` is its **output columns** (each a `formula`); a join source's top-level `columns[]` is its **join keys** (`left`/`right` pairs). Don't conflate them.
 
 ## union
 
-Combines two or more warehouse-table or element sources into a single source whose columns are explicitly mapped via `matches[]`.
+Combines two or more sources (`warehouse-table`, `table`, or `data-model`) into a single source whose columns are explicitly mapped via `matches[]`.
 
 ```yaml
 kind: union
