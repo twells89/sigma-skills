@@ -171,6 +171,8 @@ If any element reports `[FAIL]`, fix the column formulas in the spec (most often
 
 After initial creation, use `PUT /v2/workbooks/<id>/spec` to add pages or refine the workbook.
 
+**For anything beyond ~1 page / ~10 elements, switch to the element rep** (`reference/workflows/element-rep.md`): `scripts/wb-rep.rb pull <id> <dir>` explodes the spec into one file per element so each edit touches a ~½KB file instead of the whole spec, `push` handles drift-check + validation + PUT, and `render` exports page PNGs you can actually look at. The raw GET/PUT flow below remains fine for small workbooks and one-off tweaks.
+
 > **IDs are preserved on CREATE.** The `id` values you POST (pages, elements, columns) are kept verbatim, and `layout` `elementId` references stay valid — so you can edit your saved spec and `PUT` it back directly. `GET` the current spec first only if you don't have your latest copy. See `reference/workflows/crud.md`.
 
 ```bash
@@ -243,6 +245,7 @@ The reference is feature-sliced — don't read every file up-front. The index ha
 | `reference/workflows/crud.md` | POST / GET / PUT against the workbook spec endpoints. Load when creating, retrieving, or updating a workbook. |
 | `reference/workflows/validate.md` | Pre-submit + post-create validation. Load before any POST or PUT. |
 | `reference/workflows/from-image.md` | The user supplied a target image (screenshot, mockup, BI-tool export) to reproduce. Load *before* discovery — it adds explicit observation and validation steps. |
+| `reference/workflows/element-rep.md` | **Large or multi-page workbooks, parallel element work, or iterative refinement.** `scripts/wb-rep.rb` explodes the spec into one small file per element (pull/status/push/render) so edits never drag the whole spec through context — element-level semantics over the whole-spec API, plus PNG renders to inspect what you built. |
 
 ## Quick Formula Rules
 
