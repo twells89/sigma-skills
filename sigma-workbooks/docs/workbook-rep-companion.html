@@ -2,157 +2,187 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>How an Agent Builds &amp; Edits a Workbook through the Filesystem</title>
+<title>The Workbook Rep — how an agent builds &amp; edits a workbook as files</title>
 <style>
   :root {
-    --ink: #0f172a; --muted: #64748b; --soft: #94a3b8;
-    --blue: #2563eb; --panel: #0b1220; --panel-ink: #c9d6f2;
-    --border: #e2e8f0; --bg: #ffffff; --accent2: #0891b2; --good: #059669; --bad: #dc2626;
+    --ink: #1e1b3a; --muted: #5d5a78; --soft: #8d88ad;
+    --violet: #7c3aed; --violet-deep: #4c1d95; --indigo: #1e1b4b;
+    --amber: #f59e0b; --cyan: #0891b2; --green: #059669; --red: #dc2626;
+    --page: #f2f1f6; --card: #ffffff; --card-border: #e4e2ee;
+    --code-bg: #f4f2fa; --code-ink: #3b3663; --code-dim: #8d88ad;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font: 15px/1.55 -apple-system, "Segoe UI", Inter, Roboto, sans-serif; color: var(--ink); background: var(--bg); padding: 36px 44px; max-width: 960px; margin: 0 auto; }
-  h1 { font-size: 27px; line-height: 1.2; letter-spacing: -0.02em; }
-  h1 .hl { color: var(--blue); }
-  .lead { color: var(--muted); margin: 10px 0 6px; font-size: 15.5px; max-width: 70ch; }
-  .tag { display: inline-block; background: var(--panel); color: #fff; font-size: 11px; font-weight: 700; letter-spacing: .08em; padding: 4px 10px; border-radius: 999px; margin-top: 10px; }
-  hr.rule { border: 0; border-top: 2px solid var(--ink); margin: 16px 0 20px; }
-  section { margin-bottom: 22px; page-break-inside: avoid; }
-  h2 { font-size: 16px; letter-spacing: .01em; margin-bottom: 10px; }
-  h2 .dot { color: var(--blue); }
-  .cols { display: grid; grid-template-columns: 1.05fr 1fr; gap: 26px; align-items: start; }
-  p { margin-bottom: 10px; max-width: 72ch; }
-  .panel { background: var(--panel); color: var(--panel-ink); border-radius: 10px; padding: 14px 16px; font: 11px/1.55 "SF Mono", ui-monospace, Menlo, monospace; white-space: pre; overflow-x: auto; }
-  .panel .c { color: #5b708f; }
-  .panel .k { color: #7cc4ff; }
-  .panel .g { color: #6ee7a8; }
-  .panel .y { color: #ffd479; }
-  .pipeline { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-weight: 600; font-size: 13.5px; margin: 8px 0 14px; }
-  .pipeline .step { background: #eff6ff; color: var(--blue); border: 1px solid #bfdbfe; padding: 5px 12px; border-radius: 999px; }
-  .pipeline .arr { color: var(--soft); }
-  .pipeline .render { background: #ecfeff; color: var(--accent2); border-color: #a5f3fc; }
-  ol.gates { margin: 6px 0 0 18px; }
-  ol.gates li { margin-bottom: 7px; max-width: 70ch; }
-  ol.gates b { color: var(--ink); }
-  ul.catch { margin: 6px 0 0 18px; }
-  ul.catch li { margin-bottom: 7px; max-width: 70ch; }
-  .kv { width: 100%; border-collapse: collapse; font-size: 13.5px; }
-  .kv td { border-top: 1px solid var(--border); padding: 8px 10px 8px 0; vertical-align: top; }
-  .kv td:first-child { font-family: "SF Mono", ui-monospace, Menlo, monospace; font-size: 11.5px; color: var(--blue); font-weight: 600; padding-right: 14px; width: 47%; }
-  .note { background: #f8fafc; border-left: 3px solid var(--blue); padding: 10px 14px; border-radius: 0 8px 8px 0; color: var(--muted); font-size: 13.5px; max-width: none; }
-  .foot { color: var(--soft); font-size: 12.5px; border-top: 1px solid var(--border); padding-top: 12px; margin-top: 8px; }
-  .verdict { font-weight: 600; }
-  .ok { color: var(--good); font-weight: 700; }
-  .no { color: var(--bad); font-weight: 700; }
-  @media print { body { padding: 24px 28px; } .panel { -webkit-print-color-adjust: exact; print-color-adjust: exact; } .tag, .pipeline .step, .pipeline .render, .note { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+  html { background: var(--page); }
+  body { font: 14.5px/1.55 Georgia, "Iowan Old Style", "Times New Roman", serif; color: var(--ink); max-width: 920px; margin: 0 auto; padding: 26px 30px 34px; }
+  .sans { font-family: -apple-system, "Segoe UI", Inter, Roboto, sans-serif; }
+
+  /* hero band — the same idiom the tool builds */
+  .hero { background: #1e1b4b; background: linear-gradient(105deg, #17143b 0%, #2a1a66 55%, #5b21b6 100%); color: #fff; border-radius: 14px; padding: 26px 30px 22px; }
+  .hero h1 { font-family: -apple-system, "Segoe UI", Inter, Roboto, sans-serif; font-weight: 800; font-size: 26px; line-height: 1.18; letter-spacing: -0.015em; max-width: 34ch; }
+  .hero .sub { color: #b9b3e8; font-size: 14px; margin-top: 8px; max-width: 80ch; font-style: italic; }
+  .facts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; margin-top: 20px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,.14); }
+  .facts .f .lbl { font-family: -apple-system, Inter, sans-serif; font-size: 9.5px; font-weight: 800; letter-spacing: .12em; }
+  .facts .f .val { font-family: -apple-system, Inter, sans-serif; font-size: 17px; font-weight: 800; color: #fff; margin-top: 3px; }
+  .a1 { color: #c4b5fd; } .a2 { color: #fcd34d; } .a3 { color: #67e8f9; } .a4 { color: #6ee7b7; }
+
+  /* dashboard-card sections */
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px; }
+  .card { background: var(--card); border: 1px solid var(--card-border); border-radius: 14px; padding: 18px 20px; page-break-inside: avoid; }
+  .card.wide { grid-column: 1 / 3; }
+  .eyebrow { font-family: -apple-system, Inter, sans-serif; font-size: 10px; font-weight: 800; letter-spacing: .14em; margin-bottom: 6px; }
+  .e1 { color: var(--violet); } .e2 { color: var(--amber); } .e3 { color: var(--cyan); } .e4 { color: var(--green); }
+  .card h2 { font-family: -apple-system, Inter, sans-serif; font-size: 16.5px; font-weight: 800; letter-spacing: -0.01em; margin-bottom: 8px; }
+  .card p { margin-bottom: 8px; }
+  .card p:last-child { margin-bottom: 0; }
+
+  /* light code panels — spec slices, not terminals */
+  .code { background: var(--code-bg); border: 1px solid #e2ddf2; border-radius: 10px; padding: 12px 14px; font: 11px/1.6 "SF Mono", ui-monospace, Menlo, monospace; color: var(--code-ink); white-space: pre; margin: 10px 0 8px; }
+  .code .dim { color: var(--code-dim); }
+  .code .v { color: var(--violet); font-weight: 600; }
+  .code .am { color: #b45309; }
+  .code .gr { color: var(--green); }
+
+  /* the loop as a segmented control */
+  .seg { display: flex; border: 1.5px solid var(--violet-deep); border-radius: 999px; overflow: hidden; font-family: -apple-system, Inter, sans-serif; font-size: 12px; font-weight: 700; margin: 10px 0 14px; }
+  .seg .s { flex: 1; text-align: center; padding: 7px 4px; color: var(--violet-deep); border-right: 1.5px solid var(--violet-deep); }
+  .seg .s:last-child { border-right: 0; }
+  .seg .on { background: var(--violet-deep); color: #fff; }
+
+  ol.gates, ul.catch { margin: 4px 0 0 17px; }
+  ol.gates li, ul.catch li { margin-bottom: 6px; }
+  ol.gates b, ul.catch b { font-family: -apple-system, Inter, sans-serif; font-size: 13px; }
+
+  .zoom { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 4px; }
+  .zoom td { border-top: 1px dotted var(--card-border); padding: 6px 8px 6px 0; vertical-align: top; }
+  .zoom tr:first-child td { border-top: 0; }
+  .zoom td:first-child { font: 600 11px/1.5 "SF Mono", ui-monospace, Menlo, monospace; color: var(--violet); width: 44%; padding-right: 12px; }
+
+  .buys { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  .buys .b .t { font-family: -apple-system, Inter, sans-serif; font-weight: 800; font-size: 13px; margin-bottom: 4px; }
+  .buys .b p { font-size: 13px; color: var(--muted); }
+
+  .ok { color: var(--green); font-weight: 700; } .no { color: var(--red); font-weight: 700; }
+  .foot { font-family: -apple-system, Inter, sans-serif; color: var(--soft); font-size: 11.5px; margin-top: 14px; padding: 0 6px; }
+  .foot code { font-size: 11px; }
+  @media print {
+    html, body { background: var(--page) !important; }
+    .hero, .seg .on, .code, .card { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    body { padding: 16px 18px 20px; }
+  }
 </style>
 </head>
 <body>
 
-<h1>How an agent <span class="hl">builds &amp; edits</span> a workbook<br>through the filesystem</h1>
-<p class="lead">The <b>workbook rep</b>: element-level editing over Sigma's whole-spec API — no middleware, no new interface. The spec becomes a directory of small files; the agent uses the file tools it is already best at; and a render loop means it <b>sees</b> what it built before calling it done.</p>
-<span class="tag">THE WORKBOOK REP</span>
-<hr class="rule">
+<div class="hero">
+  <h1>The workbook rep — an agent edits a Sigma workbook as files</h1>
+  <p class="sub">No middleware and no new interface: the spec becomes a directory of small files, the agent works with the file tools it is already best at, and a render loop means it sees what it built before calling it done.</p>
+  <div class="facts">
+    <div class="f"><div class="lbl a1">UNIT OF WORK</div><div class="val">1 file = 1 element</div></div>
+    <div class="f"><div class="lbl a2">INTERFACE</div><div class="val">Read · Edit · Glob</div></div>
+    <div class="f"><div class="lbl a3">WRITE PATH</div><div class="val">4-gate push</div></div>
+    <div class="f"><div class="lbl a4">ACCEPTANCE</div><div class="val">Pixels, not 200s</div></div>
+  </div>
+</div>
 
-<section>
-  <div class="cols">
-    <div>
-      <h2><span class="dot">1 ·</span> The element is the unit of work</h2>
-      <p>Sigma's spec API moves whole workbooks — every small edit drags the full document through an agent's context, and parallel work is a merge hazard. The rep <b>explodes the spec into one file per element</b> and reassembles it on push.</p>
-      <p>Nothing is a new format: every file is a verbatim slice of the spec, so existing spec documentation applies unchanged to a single element file. A 20-element workbook becomes twenty ~600-byte files; an edit touches exactly one. Add an element = add a file. Delete = delete it. Reorder = rename the numeric prefix.</p>
-      <div class="note">The element-level abstraction lives in the <b>file layout</b>, not in a process — the agent's native <code>Read / Edit / Glob / grep</code> are the API.</div>
-    </div>
-    <div class="panel">&lt;rep&gt;/
-  workbook.yaml            <span class="c">name, folderId, …</span>
+<div class="grid">
+
+  <div class="card">
+    <div class="eyebrow e1">STRUCTURE</div>
+    <h2>The element is the unit of work</h2>
+    <p>Sigma's spec API moves whole workbooks — every small edit drags the full document through an agent's context, and parallel work is a merge hazard. The rep <b>explodes the spec into one file per element</b> and reassembles it on push.</p>
+    <p>Nothing is a new format: every file is a verbatim slice of the spec, so existing spec documentation applies unchanged. A 20-element workbook becomes twenty ~600-byte files; an edit touches exactly one. Add an element = add a file. Delete = delete it. Reorder = rename the prefix.</p>
+  </div>
+
+  <div class="card">
+    <div class="eyebrow e1">LAYOUT</div>
+    <h2>A workbook, as a directory</h2>
+    <div class="code">&lt;rep&gt;/
+  workbook.yaml            <span class="dim">name, folderId, …</span>
   pages/
-    010-overview/          <span class="c">prefix = order</span>
-      _page.yaml           <span class="c">page identity</span>
-      _layout.xml          <span class="c">layout XML block</span>
-      <span class="k">010-revenue-kpi.yaml</span>   <span class="c">one element each</span>
-      <span class="k">020-sales-by-region.yaml</span>
-  renders/                 <span class="c">agent-readable PNGs</span>
-  .sigma/                  <span class="c">snapshot + manifest</span></div>
+    010-overview/          <span class="dim">prefix = order</span>
+      _page.yaml           <span class="dim">page identity</span>
+      _layout.xml          <span class="dim">layout XML block</span>
+      <span class="v">010-revenue-kpi.yaml</span>   <span class="dim">one element each</span>
+      <span class="v">020-sales-by-region.yaml</span>
+  renders/                 <span class="dim">agent-readable PNGs</span>
+  .sigma/                  <span class="dim">snapshot + manifest</span></div>
+    <p style="font-size:13px; color:var(--muted)">The element-level abstraction lives in the file layout, not in a process — the agent's native <code>Read / Edit / Glob / grep</code> are the API.</p>
   </div>
-</section>
 
-<section>
-  <h2><span class="dot">2 ·</span> The loop</h2>
-  <div class="pipeline">
-    <span class="step">pull</span><span class="arr">→</span>
-    <span class="step">edit files</span><span class="arr">→</span>
-    <span class="step">status</span><span class="arr">→</span>
-    <span class="step">push</span><span class="arr">→</span>
-    <span class="step">verify</span><span class="arr">→</span>
-    <span class="render step">render &amp; look</span><span class="arr">→</span>
-    <span class="arr">repeat…</span>
-  </div>
-  <div class="cols">
-    <div>
-      <p><b>push</b> reassembles the files and writes through four gates:</p>
-      <ol class="gates">
-        <li><b>Drift check</b> — if the server spec changed since pull (a UI edit), push aborts and shows exactly what would be overwritten. No silent clobbering, ever.</li>
-        <li><b>Diff preview</b> — the element-level change set it is about to apply.</li>
-        <li><b>Validation</b> — static formula/shape checks before any network write.</li>
-        <li><b>Readback</b> — re-GET after the PUT, refresh the snapshot, report anything the server normalized.</li>
-      </ol>
-      <p style="margin-top:10px">The API still receives a standard full-spec PUT — element semantics arrive <b>on top of the existing endpoint, today</b>, with no server changes. Reassembly is byte-exact: an untouched rep pushes back as a no-op.</p>
+  <div class="card wide">
+    <div class="eyebrow e2">THE LOOP</div>
+    <div class="seg">
+      <div class="s">pull</div><div class="s">edit files</div><div class="s">status</div><div class="s">push</div><div class="s">verify</div><div class="s on">render &amp; look</div>
     </div>
-    <div class="panel"><span class="c">$ wb-rep status my-dashboard/</span>
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 22px; align-items: start;">
+      <div>
+        <p><b class="sans" style="font-size:13.5px">push</b> reassembles the files and writes through four gates:</p>
+        <ol class="gates">
+          <li><b>Drift check</b> — if the server spec changed since pull (a UI edit), push aborts and shows exactly what would be overwritten. No silent clobbering, ever.</li>
+          <li><b>Diff preview</b> — the element-level change set about to apply.</li>
+          <li><b>Validation</b> — static formula/shape checks before any network write.</li>
+          <li><b>Readback</b> — re-GET after the PUT, refresh the snapshot, report anything the server normalized.</li>
+        </ol>
+      </div>
+      <div>
+        <div class="code"><span class="dim">$ wb-rep status my-dashboard/</span>
   page "Pulse":
-  <span class="y">~ element "Clones per day"
+  <span class="am">~ element "Clones per day"
       [columns, yAxis, color]</span>
-  <span class="g">+ element "Star events per month"</span>
+  <span class="gr">+ element "Star events per month"</span>
 
-<span class="c">$ wb-rep push my-dashboard/</span>
-<span class="c">  # drift-check · diff · validate · readback</span>
-<span class="c">$ wb-rep render my-dashboard/ --page Pulse</span>
+<span class="dim">$ wb-rep push my-dashboard/
+  # drift-check · diff · validate · readback</span>
 rendered "Pulse" -&gt; renders/pulse.png</div>
-  </div>
-</section>
-
-<section>
-  <h2><span class="dot">3 ·</span> The render loop — the agent looks at its work</h2>
-  <div class="cols">
-    <div>
-      <p>A spec that POSTs cleanly and compiles cleanly can still be wrong. <b>render</b> exports any page or element as a PNG; the agent reads the image and critiques it against the plan. The acceptance criterion is <span class="verdict">"the pixels look right"</span> — not "the API returned 200."</p>
-      <p>Failure classes only this gate has caught in practice:</p>
-      <ul class="catch">
-        <li>a style the API <b>accepted and silently dropped</b> — element rendered with no background</li>
-        <li>a formula error inside <code>{{…}}</code> text templating — invisible to both POST and SQL compile, rendered as an error string in the banner</li>
-        <li>a chart that was numerically correct and visually useless</li>
-        <li>KPI panels clipping against a gradient band at real viewport widths</li>
-      </ul>
-    </div>
-    <div>
-      <p><b>Zoom reads</b> keep context spend near zero — the whole spec never enters context:</p>
-      <table class="kv">
-        <tr><td>summarize &lt;id|dir&gt;</td><td>pages, element kinds, sources — one screen</td></tr>
-        <tr><td>ls pages/&lt;page&gt;/</td><td>one page, as a file listing</td></tr>
-        <tr><td>Read &lt;element&gt;.yaml</td><td>one element, full detail (~600 bytes)</td></tr>
-        <tr><td>capabilities --kind K [--field F]</td><td>what's authorable — distilled live from the public OpenAPI</td></tr>
-      </table>
+        <p style="font-size:13px; color:var(--muted)">The API still receives a standard full-spec PUT — element semantics arrive on top of the existing endpoint, today. Reassembly is byte-exact: an untouched rep pushes back as a no-op.</p>
+      </div>
     </div>
   </div>
-</section>
 
-<section>
-  <h2><span class="dot">4 ·</span> Beyond the schema — the verified-behavior catalog</h2>
-  <p>The OpenAPI says what shapes <i>parse</i>; it can't say what the platform <i>does</i>. The rep's companion reference keeps a catalog where every entry is <b>live-verified against the API</b> and marked <span class="ok">✓</span>/<span class="no">✗</span> with the exact error and workaround — which idioms are UI-only, which fields render although undocumented, which writes are accepted-then-dropped. When a render exposes a new behavior, it lands in the catalog the same day, and every future build inherits it.</p>
-</section>
+  <div class="card">
+    <div class="eyebrow e3">FEEDBACK</div>
+    <h2>The render loop — the agent looks at its work</h2>
+    <p>A spec that POSTs cleanly and compiles cleanly can still be wrong. <b>render</b> exports any page or element as a PNG; the agent reads the image and critiques it against the plan. Acceptance is <i>"the pixels look right"</i> — not <i>"the API returned 200."</i></p>
+    <p class="sans" style="font-size:13px"><b>Failure classes only this gate has caught:</b></p>
+    <ul class="catch" style="font-size:13.5px">
+      <li>a style the API <b>accepted and silently dropped</b> — element rendered with no background</li>
+      <li>a formula error inside <code>{{…}}</code> text templating — invisible to both POST and SQL compile</li>
+      <li>a chart numerically correct and visually useless</li>
+      <li>KPI panels clipping at real viewport widths</li>
+    </ul>
+  </div>
 
-<section>
-  <h2><span class="dot">5 ·</span> What the structure buys</h2>
-  <div class="cols">
-    <div>
-      <p><b>Parallel builds.</b> Element files are independent — a plan fans out one sub-agent per element with zero merge conflicts. The orchestrator owns the plan, the id namespace, and the layout; one push lands everything atomically.</p>
-      <p><b>Create mode.</b> A rep authored from scratch (or exploded from any existing spec) POSTs a new workbook through the same gates. Plan-as-file-tree: the directory <i>is</i> the design doc.</p>
-    </div>
-    <div>
-      <p><b>Git-native.</b> A rep commits cleanly: PRs show <code>changed: revenue-kpi.yaml</code>, not a 2,000-line spec diff. The snapshot is the merge base — workbooks-as-code falls out for free.</p>
-      <p><b>No installation, no server.</b> One dependency-free script (Ruby stdlib) plus the agent's own file tools.</p>
+  <div class="card">
+    <div class="eyebrow e3">READS</div>
+    <h2>Zoom reads — context only on demand</h2>
+    <p style="font-size:13.5px">The whole spec never enters context. Orientation and authoring are a zoom:</p>
+    <table class="zoom">
+      <tr><td>summarize &lt;id|dir&gt;</td><td>pages, element kinds, sources — one screen</td></tr>
+      <tr><td>ls pages/&lt;page&gt;/</td><td>one page, as a file listing</td></tr>
+      <tr><td>Read &lt;element&gt;.yaml</td><td>one element, full detail (~600 bytes)</td></tr>
+      <tr><td>capabilities --kind K [--field F]</td><td>what's authorable — distilled live from the public OpenAPI</td></tr>
+    </table>
+  </div>
+
+  <div class="card wide">
+    <div class="eyebrow e4">BEYOND THE SCHEMA</div>
+    <h2>The verified-behavior catalog</h2>
+    <p>The OpenAPI says what shapes <i>parse</i>; it can't say what the platform <i>does</i>. The rep's companion reference keeps a catalog where every entry is <b>live-verified against the API</b> and marked <span class="ok">✓</span>/<span class="no">✗</span> with the exact error and the workaround — which idioms are UI-only, which fields render although undocumented, which writes are accepted-then-dropped. When a render exposes a new behavior, it lands in the catalog the same day, and every future build inherits it.</p>
+  </div>
+
+  <div class="card wide">
+    <div class="eyebrow e1">WHAT THE STRUCTURE BUYS</div>
+    <div class="buys">
+      <div class="b"><div class="t">Parallel builds</div><p>Element files are independent — one sub-agent per element, zero merge conflicts, one atomic push.</p></div>
+      <div class="b"><div class="t">Create mode</div><p>A rep authored from scratch POSTs a new workbook through the same gates. The directory <i>is</i> the design doc.</p></div>
+      <div class="b"><div class="t">Git-native</div><p>PRs show <code>changed: revenue-kpi.yaml</code>, not a 2,000-line spec diff. Workbooks-as-code for free.</p></div>
+      <div class="b"><div class="t">Zero install</div><p>One dependency-free script (Ruby stdlib) plus the agent's own file tools. No server, no daemon.</p></div>
     </div>
   </div>
-  <p class="foot" style="margin-top:18px">Lives in <b>twells89/sigma-skills → sigma-workbooks/</b> — <code>scripts/wb-rep.rb</code> · <code>reference/workflows/element-rep.md</code> · verified-behavior catalog in <code>reference/specification/styling.md</code>. Proven on live workbooks: byte-exact round-trips, from-scratch multi-page creates, and design iterations driven entirely by the render loop.</p>
-</section>
+
+</div>
+
+<p class="foot">Lives in <b>twells89/sigma-skills → sigma-workbooks/</b> — <code>scripts/wb-rep.rb</code> · <code>reference/workflows/element-rep.md</code> · verified-behavior catalog in <code>reference/specification/styling.md</code>. Proven on live workbooks: byte-exact round-trips, from-scratch multi-page creates, and design iterations driven entirely by the render loop.</p>
 
 </body>
 </html>
