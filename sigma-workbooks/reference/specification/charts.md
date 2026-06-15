@@ -205,15 +205,17 @@ These apply to `bar-chart`, `line-chart`, `area-chart`, `scatter-chart`, and `co
 ```yaml
 refMarks:
   - type: line
-    axis: series              # axis | series | series2
-    value: 1000               # number, column ID, or formula string
+    axis: series              # axis = x-axis, series = primary y, series2 = secondary y
+    value: { type: formula, formula: "Avg([Master/Sales])" }   # see value shape below
     line: { color: "#ef4444", width: 2 }
-    label: { text: "Threshold" }
+    label: { visibility: shown, text: "Threshold" }            # visibility REQUIRED
   - type: band
     axis: series
-    value: 800
-    endValue: 1200            # required for bands
+    value: { type: formula, formula: "800" }
+    endValue: { type: formula, formula: "1200" }               # required for bands
 ```
+
+> **`value` must be the wrapped object `{ type: formula, formula: "<expr>" }`** — verified live 2026-06-15. A bare number/string (`value: 1000`) and `{ type: static, value: 1000 }` are both rejected with the opaque `refMarks[0]: Invalid value: object`. A **constant** is expressed as a formula string, e.g. a 45% target line: `value: { type: formula, formula: "0.45" }`. `label.visibility` must be `shown` (omitting it, or `hidden`, also trips `Invalid value: object`).
 
 ### `trendlines` — regression overlays
 
@@ -283,11 +285,50 @@ Each of these is a top-level key on cartesian charts; one-liner here, full sub-f
 
 (Trendlines and `refMarks` are covered above.)
 
+## Scatter
+
+A `scatter-chart` is **measure-vs-measure**, one point per dimension value — fundamentally different from `bar-chart`. The trap (verified the hard way): if you put an aggregate measure (`Sum(...)`) directly on `xAxis`/`yAxis` of a scatter sourced from a flat table, Sigma's scatter axis is a *grouping* axis, so the aggregate evaluates **per row** and every point collapses to one x. A spec like this **POSTs cleanly but renders wrong** — POST success does NOT prove a correct scatter.
+
+The correct shape binds the scatter to a **grouping**: source a table element that groups by the point dimension and pre-computes the x/y/(size) aggregates, then point the scatter at that grouping with `source.groupingId` and reference the grouped columns with raw refs. (Verified against a UI-built scatter, 2026-06-15.)
+
+```yaml
+# 1) a (hidden) grouped source table: one row per point dimension
+- id: scatter-src
+  kind: table
+  name: Rep Performance            # unique name — raw refs resolve as [Rep Performance/Col]
+  source: { kind: table, elementId: master }
+  columns:
+    - { id: g-rep, name: Sales Rep, formula: "[Data/Sales Rep Name]" }
+    - { id: g-mpct, name: Margin %, formula: "(Sum([Data/Revenue])-Sum([Data/Cost]))/Sum([Data/Revenue])" }
+    - { id: g-rev,  name: Revenue,  formula: "Sum([Data/Revenue])" }
+    - { id: g-qty,  name: Quantity, formula: "Sum([Data/Quantity])" }
+  groupings:
+    - { id: grp-rep, groupBy: [g-rep], calculations: [g-mpct, g-rev, g-qty] }
+  visibleAsSource: false
+# 2) the scatter binds to that grouping; columns are RAW refs to the grouped values
+- id: scatter
+  kind: scatter-chart
+  name: Sales vs Margin by Sales Rep
+  source: { kind: table, elementId: scatter-src, groupingId: grp-rep }
+  columns:
+    - { id: s-rep,  formula: "[Rep Performance/Sales Rep]" }
+    - { id: s-mpct, formula: "[Rep Performance/Margin %]" }
+    - { id: s-rev,  formula: "[Rep Performance/Revenue]" }
+    - { id: s-qty,  formula: "[Rep Performance/Quantity]" }
+  xAxis: { columnId: s-mpct }       # x = a measure (Margin %)
+  yAxis: { columnIds: [s-rev] }     # y = a measure (Revenue)
+  color: { by: category, column: s-rep }   # point identity — one mark per rep
+  size:  { id: s-qty }              # optional bubble size; note `size.id`, NOT size.columnId
+```
+
+`color` always takes the `{ by: single|category|scale, column, ... }` form (see "Bar chart with custom category colors") — a bare `{ id }` / `{ columnId }` is rejected. **Validate a scatter by querying it for >1 distinct x**, not by POST status alone.
+
 ## Other chart kinds
 
 Per the OpenAPI, these are all valid `kind` values; documented examples for the most common are above. The shape mirrors the `bar-chart`/`line-chart` pattern (`source`, `columns`, `xAxis`, `yAxis`). Inspect any of them with the kind recipe at the top of this file:
 
-- `area-chart`, `combo-chart`, `scatter-chart` — same shape as `bar-chart`/`line-chart`, just a different `kind` (and `combo-chart` adds the series configs above).
+- `area-chart`, `combo-chart` — same shape as `bar-chart`/`line-chart`, just a different `kind` (and `combo-chart` adds the series configs above).
+- `scatter-chart` — **NOT the same as bar-chart.** It is measure-vs-measure with the dimension as the point identity, and it must bind to a **grouping** or every point collapses to one x. See the Scatter section below.
 - `pie-chart` — like `donut-chart` (`value` + `color`), but without the donut-only `hole` / `holeValue` / `innerRadius` / `trellis` keys.
 - `pivot-table` — uses `values` instead of `yAxis`; useful for cross-tab analysis. See `tables.md`.
 
