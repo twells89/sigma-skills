@@ -33,7 +33,7 @@ Also check for these rarer issues:
 
 - A column's `formula` references a name matching its own `name` field → circular reference.
 - A formula references a column name that doesn't exist on the source (re-confirm column names with the user).
-- Donut charts have a `holeValue` field (required).
+- Donut charts require `value.id` (the measure) and `color.id` (the slice dimension) — **not** `value.columnId`. `holeValue` is **optional**; if set it must reference a *different* column than `value.id` (see `reference/specification/charts.md`).
 - Layout XML: no `<LayoutElement type="grid">` with children — use `<GridContainer>` for nesting.
 
 ## 4. Post-create verification (do not skip)

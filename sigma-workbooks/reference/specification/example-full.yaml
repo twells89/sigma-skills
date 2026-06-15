@@ -190,7 +190,7 @@ pages:
             by: rMc1XEsnWx
             direction: descending
         value:
-          columnId: rMc1XEsnWx
+          id: rMc1XEsnWx
         name: Sales by product family
   - id: 3Ht0vQc7hD
     name: Data
