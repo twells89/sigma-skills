@@ -21,11 +21,15 @@ A `control` element has exactly these fields:
 | `controlId` | yes | Formula reference name (e.g., `RegionFilter`) — keep distinct from `id`. This is the human-meaningful handle used when referring to the control's value from formulas. |
 | `controlType` | yes | Any value the recipe above returns. Determines the widget and filter behavior. |
 | `filters` | — | Array of `{ source, columnId }` — connects the control to the column(s) it filters. `source` is `{ kind: table, elementId: ... }`. |
+| `source` | list/segmented | Where the widget's VALUE LIST comes from. Double-nested: `{ kind: source, source: { kind: table, elementId: ... }, columnId: ... }`. |
+| `mode` | list | `include` \| `exclude`. **Flat top-level field.** |
+| `selectionMode` | list | `single` \| `multiple`. **Flat top-level field.** |
+| `values` | list | Default selection (`[]` = all). **Flat top-level field.** |
 | `parameters` | — | Array, for binding the control to a data-model control (parameter). |
 | `name` | — | Display label. |
 | `style` | — | Presentation options for the widget. |
 
-There are **no** value/widget fields at the control top level. Things like the selected mode, current value, or range bounds live inside the value object that the control carries, not as flat sibling fields of `controlType`. The recipes below show the value-object shape per type; treat those nested shapes as the value detail, not as additional control-element properties.
+The value/widget fields (`mode`, `selectionMode`, `values`, range bounds, etc.) are **flat top-level siblings of `controlType`**, NOT nested in a separate "value object" — verified against a live workbook 2026-06-15. Different `controlType`s carry different value fields (the per-type recipes below show which), but they are always flat. Omitting them — or nesting them — yields the opaque `Invalid kind: control` rejection.
 
 `filters[]` items are `{ source: { kind: table, elementId: ... }, columnId: ... }`. The `columnId` is the column on the target element to filter.
 
@@ -37,18 +41,27 @@ A single- or multi-select list control over a column's values.
 
 ```yaml
 kind: control
-id: ctrl-region
-controlId: RegionFilter
+id: ctrl-region          # element id — distinct from controlId
+controlId: region        # formula handle
 name: Store region
 controlType: list
-filters:
+mode: include            # include | exclude   (TOP-LEVEL, not nested)
+selectionMode: multiple  # single | multiple   (TOP-LEVEL)
+values: []               # default selection, [] = all   (TOP-LEVEL)
+source:                  # where the control's VALUE LIST comes from (note the double nesting)
+  kind: source
+  source:
+    kind: table
+    elementId: sales-master
+  columnId: col-region
+filters:                 # the TARGETS it filters — one entry per element+column it controls
   - source:
       kind: table
-      elementId: sales-table
-    columnId: col-region
+      elementId: sales-by-region
+    columnId: scoped-col-region
 ```
 
-The value object carries the selection (`mode`: `include` | `exclude`; selection cardinality; selected values). `segmented` and `hierarchy` are the other list-style widget types — same wiring, different presentation. Inspect the spec's control value schema for the exact value-object field names rather than guessing.
+> **Verified working shape** (pulled from a live, successfully-POSTed workbook 2026-06-15). A list control carries `source` / `mode` / `selectionMode` / `values` as **flat top-level siblings** — NOT inside a nested "value object." The single most common mistake is omitting `source`/`mode`/`selectionMode`/`values` (or nesting them); Sigma then rejects the element with the opaque catch-all `Invalid kind: control`, which means **the inner fields are wrong, NOT that controls are unsupported** (see `reference/workflows/validate.md`). `segmented` and `hierarchy` are the other list-style widgets — same wiring (value-list `source` + `filters` targets).
 
 ## Date Range
 

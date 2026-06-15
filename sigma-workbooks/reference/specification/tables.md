@@ -48,8 +48,17 @@ Pivot / aggregation views without changing element kind:
 groupings:
   - id: by-region
     groupBy: [col-region]
-    calculations: [col-total, col-profit]
+    calculations: [col-total, col-profit]   # MUST be aggregate columns (Sum/Count/…)
+    sort: [{ columnId: col-total, direction: descending }]   # optional
 ```
+
+> **A `table` with no `groupings` shows raw DETAIL rows.** This is the #1 migration bug for aggregated source vizzes: a Tableau worksheet with a dimension on Rows + `SUM(...)` is an *aggregated* query, so its Sigma `table` MUST carry a `groupings` entry. Without it the table renders every warehouse row (e.g. "9,676,896 rows"), the dimension repeats, and `Sum(If(...))` columns read `$0` per row. If a "summary" table renders the base row count, it's missing `groupings`. (Charts don't need this — they aggregate by their axis/`value` binding; only `table` does.)
+>
+> **`calculations` columns must be AGGREGATE expressions** (`Sum([Amt])`, `CountDistinct([Id])`, …). A conditional aggregate is a **row-level** column `If(cond, [val], 0)` wrapped in `Sum(...)` at the grouping — i.e. `Sum([Cur Amt])` where `Cur Amt = If(flag = "Cur", [Tcv], 0)`. Do **not** put a *passthrough of an already-aggregated* column in `calculations`; it re-aggregates to **"multiple values"** in every group cell. (Verified 2026-06-15.)
+>
+> **Multiple `groupings` on one element NEST hierarchically** (array order = levels: `[by-region, by-flag]` ⇒ region→flag, not two independent rollups). For two *independent* group-bys (e.g. one table by Region and another by Flag) give each its **own source element**, or let a chart aggregate the second one by axis. (Verified 2026-06-15.)
+>
+> **Exclude a NULL/unwanted bucket** with an element list filter on the dimension — this is how a Tableau view filter maps: `filters: [{ id: f, columnId: col-flag, kind: list, mode: include, values: ["Cur FYTD", "Prior FYTD"] }]`. (A grouped bar that includes the NULL bucket is the classic "giant first bar" artifact.)
 
 ### `filters` (top-N, element-level row filters)
 
