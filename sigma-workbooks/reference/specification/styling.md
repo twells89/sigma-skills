@@ -6,7 +6,7 @@
 
 Recipe library for moving a workbook from "default auto-arrange" to "looks designed." Every pattern below is built from fields that already exist in the workbook spec — no external CSS, no theme JSON, no UI editing required.
 
-The recipes were extracted from a 2026-05-29 design experiment that built 6 versions of the same dashboard (default → polished) and compared screenshots via the `/v2/workbooks/{id}/export` PNG endpoint. The findings caught two silent-failure bugs (see `charts.md` donut section) and 4 undocumented container `style` knobs (see `containers.md`).
+The recipes were extracted from a 2026-05-29 design experiment that built 6 versions of the same dashboard (default → polished) and compared screenshots via the `/v2/workbooks/{id}/export` PNG endpoint. The findings caught two silent-failure bugs (see `charts.md` donut section) and 4 undocumented container `style` knobs (see `layout.md`).
 
 ---
 
@@ -159,7 +159,7 @@ Between the high-level charts and the "drill down to raw rows" table, a horizont
 <LayoutElement elementId="divider-1" gridColumn="1 / 25" gridRow="26 / 27"/>
 ```
 
-A 1-row span. The `divider` element is a first-class kind, not a hack — see `others.md`.
+A 1-row span. The `divider` element is a first-class kind, not a hack — see `content-elements.md`.
 
 ---
 

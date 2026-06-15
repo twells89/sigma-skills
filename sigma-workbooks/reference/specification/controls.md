@@ -4,7 +4,7 @@ Recipe book for the control element family and the patterns that wire them up. T
 
 Controls are interactive filter elements — lists, date pickers, text inputs, sliders, etc. They live in the page's `elements` array alongside tables and charts, **not** nested inside them. The wiring (which column a control filters, which downstream elements respond) is the part the OpenAPI doesn't teach — that's what this file is for.
 
-**Every `controlType` wires up the same way** (`controlId` + `filters`, below); they differ only in the widget and its value object. So treat the per-type sections below as illustrations of the *wiring*, **not a catalog of what's supported** — a `controlType` you don't see here works the same way. The set also grows over time, so get the current list from the spec rather than hardcoding it:
+**Every `controlType` wires up the same way** (`controlId` + `filters`, below); they differ only in the widget and its (flat top-level) value fields. So treat the per-type sections below as illustrations of the *wiring*, **not a catalog of what's supported** — a `controlType` you don't see here works the same way. The set also grows over time, so get the current list from the spec rather than hardcoding it:
 
 ```bash
 jq -r '[.. | objects | select(.properties?.controlType?.enum) | .properties.controlType.enum[0]] | unique[]' /tmp/sigma-api.json
@@ -65,7 +65,7 @@ filters:                 # the TARGETS it filters — one entry per element+colu
 
 ## Date Range
 
-A date-range control filters one or more date columns. The widget shape is determined by `mode`, and each mode takes different additional fields **inside the value object**. No `source` is needed — the column is defined by the `filters` binding.
+A date-range control filters one or more date columns. The widget shape is determined by `mode`, and each mode takes different additional fields — all of them **flat top-level siblings of `controlType`** (verified against a live workbook 2026-06-15; a nested `value:{mode,unit}` object is rejected with `Invalid kind: control`). No `source` is needed — the column is defined by the `filters` binding.
 
 ```yaml
 kind: control
@@ -80,7 +80,7 @@ filters:
     columnId: col-date
 ```
 
-The value object selects a mode and its parameters. `includeNulls`: `always` | `never` | `when-no-value-is-selected`.
+`mode` and its parameters are flat top-level fields. `includeNulls`: `always` | `never` | `when-no-value-is-selected`.
 
 ### Modes
 
@@ -107,9 +107,9 @@ value: 30
 
 `op`: `now-minus` or `now-plus`.
 
-### Value-object Examples
+### Mode Examples
 
-These show the date-range **value shape**, not flat control fields.
+These show the flat fields each `mode` carries — all top-level siblings of `controlType` (shown without the wrapping control element for brevity).
 
 **Last 70 days:**
 
@@ -166,7 +166,7 @@ filters:
     columnId: col-product-name
 ```
 
-The text value object carries the match `mode` and the search string. `mode` values include `equals`, `does-not-equal`, `contains`, `does-not-contain`, `starts-with`, `ends-with`, `like`, `matches-regexp`, and their negations.
+The text control carries the match `mode` and the search string as flat top-level fields. `mode` values include `equals`, `does-not-equal`, `contains`, `does-not-contain`, `starts-with`, `ends-with`, `like`, `matches-regexp`, and their negations.
 
 ## Number Range
 
@@ -183,11 +183,46 @@ filters:
     columnId: col-amount
 ```
 
-The number-range value object expresses the bounds with `low`, `high`, and an optional `step` — **not** a positional `values: [min, max]` array.
+The number-range control expresses the bounds with flat top-level `low`, `high`, and an optional `step` — **not** a positional `values: [min, max]` array and **not** a nested value object.
 
 ## Sliders
 
-`slider` and `range-slider` are both first-class `controlType` values — distinct from `number` and `number-range`. A `slider` is a single-handle widget; `range-slider` has two handles for a low/high band. Pick the `controlType` for the widget you want and supply the bounds in the value object (`low`/`high`/`step`).
+`slider` and `range-slider` are both first-class `controlType` values — distinct from `number` and `number-range`. A `slider` is a single-handle widget; `range-slider` has two handles for a low/high band. The bounds and value are **flat top-level fields** (verified against a live, UI-built workbook and a successful POST, 2026-06-15) — there is no value object.
+
+A **single-handle `slider`** carries the track bounds (`low`/`high`), a `mode` comparator describing which rows the handle keeps, and a **scalar** `value` for the handle position:
+
+```yaml
+kind: control
+id: ctrl-deal-size
+controlId: DealSize
+name: Deal size
+controlType: slider
+low: 0
+high: 100000
+mode: "<="          # comparator: <= | >= | = | < | > — rows kept relative to the handle
+value: 33755        # scalar handle position (FLAT — not a value object)
+includeNulls: when-no-value-is-selected
+filters:
+  - source:
+      kind: table
+      elementId: sales-table
+    columnId: col-amount
+```
+
+A **`range-slider`** drops the scalar `value`/`mode` and uses the two-handle `low`/`high` band:
+
+```yaml
+controlType: range-slider
+low: 0
+high: 100000        # flat low/high band; no scalar value
+filters:
+  - source:
+      kind: table
+      elementId: sales-table
+    columnId: col-amount
+```
+
+> A nested `value:{low,high}` object is rejected with `Invalid kind: control`. The most common slider mistake is omitting `mode` — without the comparator the element is rejected even though `low`/`high`/`value` are present.
 
 ## Single-value types
 
@@ -208,7 +243,7 @@ filters:
 
 ## Top-N
 
-`top-n` is a dedicated control type for "show the top N" interactions. Wire it like any other control via `filters`; the cap lives in its value object.
+`top-n` is a dedicated control type for "show the top N" interactions. Wire it like any other control via `filters`; the cap is a flat top-level field.
 
 ---
 
