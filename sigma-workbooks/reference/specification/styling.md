@@ -10,6 +10,30 @@ The recipes were extracted from a 2026-05-29 design experiment that built 6 vers
 
 ---
 
+## Workbook theme (2026-06-18 release)
+
+A workbook now carries a **top-level theme**, alongside `pages` and `layout`:
+
+```yaml
+name: My Workbook
+schemaVersion: 1
+pages: [ ... ]
+layout: ...
+themeName: Dark          # built-in: Light | Dark | Surface  — OR an org theme UUID
+themeOverrides:          # optional — colors / fonts / layout style / table defaults
+  colors:
+    text: "#FFFFFF"
+    highlight: "#1E88E5"
+    surface: "#101826"
+```
+
+- `themeName` accepts a **built-in** name (`Light` / `Dark` / `Surface`) or an **org theme id** (a UUID). All four round-trip. A bogus value is a clean 400.
+- **There is no API to discover theme names.** Built-ins are the three above; an org theme id can only be learned by reading a workbook spec that already uses it (admin Branding Settings shows names, not ids). So the **caller must supply** the theme name/id — an agent cannot enumerate them. Ask the user which theme to apply.
+- `themeOverrides` round-trips (colors confirmed). Use it for one-off tweaks on top of a base theme.
+- Theme vs. the recipes below: a theme is the global skin (selected, org-managed). The recipes here style individual elements from spec fields and **stack on top of** whatever theme is set. For a migration, prefer the source dashboard's look; reach for a theme only when the user asks to apply one.
+
+---
+
 ## What "designed" looks like via spec
 
 You can ship a dashboard that looks legitimately professional from the spec by stacking five patterns:

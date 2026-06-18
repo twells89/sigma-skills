@@ -44,10 +44,24 @@ so after the first real rows land, **query the table** (don't just inspect
 versions linked tables were also dropped from `/spec` entirely; if inherited
 columns misbehave, suspect an older org/API first.
 
-UI-only remains UI-only: column-level **data validation** (single/multi-select
-dropdowns — "coming soon" in the spec), **column protection**, and
-**data-entry permissions** are configured in the UI and are not in the element
-spec.
+**Column validation is now spec-authorable (2026-06-18 release)** — see the
+"Editable data column" shapes in `tables.md`. Confirmed round-tripping live:
+- **Single-select** dropdown — a scalar column (`type: text|number|datetime`) plus
+  a fixed **`values: [ ... ]`** option list. (There is no `single-select` type
+  token — `type: single-select` 400s; the `values` list is what makes it a
+  dropdown.)
+- **Multi-select** — `type: multi-select` + `values: [ ... ]`. Variant-backed:
+  requires a connection whose warehouse supports variant columns (e.g. Snowflake).
+- **Range bounds** — `range: { min, max }` on a `number` or `datetime` column.
+- **File-upload columns** — `type: file` + optional `maxFileNum`, `maxFileSizeMb`,
+  `acceptedFileTypes: [ ... ]`. Variant-backed.
+
+Still UI-only (no round-tripping spec shape found as of 2026-06-18 — see
+`twells89/sigma-workbook-spec-findings` #28): **options sourced from a sibling
+element's column (`valuesFrom`)**, **pills display** (single-color / color-by-
+option), **column protection**, and **data-entry permissions**. Configure these
+in the UI; to author them from a spec, harvest the shape from a UI-built example
+once Sigma documents it.
 
 ## Reading an input table's data & structure
 
