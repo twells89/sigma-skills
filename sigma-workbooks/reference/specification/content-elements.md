@@ -72,3 +72,26 @@ id: embed-report
 kind: embed
 url: https://example.com/report
 ```
+
+## plugin (2026-06-18 release)
+
+Embeds a **custom Sigma plugin** as a page element. Required `id`, `kind`, `pluginId`; optional `displayName`, `style`, and a plugin-defined `config`.
+
+```yaml
+id: my-histogram
+kind: plugin
+pluginId: 6cdf51c1-dda0-4f99-aa08-5c72804020bb   # the plugin's registered UUID
+displayName: Histogram                            # optional label
+style: { backgroundColor: "#101826" }             # optional element background (see notes)
+config:                                            # plugin-defined bindings + settings
+  source: { kind: element, elementId: master }     # bind an element as the data source
+  valueColumn: { kind: column, columnId: m-netprof, source: source }
+  chartType: Frequency
+  binMethod: "Auto (Sturges)"
+  binCount: "10"
+```
+
+- **Data bindings** inside `config`: `{ kind: element, elementId }` selects a source element; `{ kind: column, columnId, source }` selects one of its columns (`{ kind: column, columnIds: [...], source }` for several); `source: source` points at the `config.source` element. A plugin can also read a control's value — bind the control the same way the plugin's input expects.
+- **`config` is an opaque passthrough bag** — Sigma does not validate its keys; whatever you POST is handed to the plugin at render time. So a key round-tripping does **not** mean Sigma supports it — only the plugin's code interprets it. The exact `config` keys are per-plugin; harvest them from a working spec.
+- **Element background:** use element-level `style.backgroundColor` (same shape as a container `style`) — a plugin renders on its own white canvas otherwise, which looks wrong inside a dark theme. A bare top-level `background` key is stripped.
+- **There is no API to discover plugins.** A `pluginId` is a registered UUID; a **bogus one is not validated at POST** (it returns 200 and renders as a broken "missing plugin"). The only way to learn a real `pluginId` is to read a workbook spec that already uses the plugin — so the **caller must supply it**. See `twells89/sigma-workbook-spec-findings` for the harvested Plugin-ID catalog and finding #27.

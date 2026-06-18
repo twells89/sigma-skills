@@ -161,8 +161,16 @@ The `input-table` element is an editable table — users type values directly in
 
 - **System column** — `{ id }` where `id` ∈ `ID`, `CREATED_AT`, `CREATED_BY`, `UPDATED_AT`, `UPDATED_BY`. Protocol-managed; type is fixed.
 - **Key column** — `{ id, key }` binding to a source column on `source.from` (linked tables; `key` is immutable once created).
-- **Editable data column** — `{ id, type }` where `type` ∈ `text`, `number`, `datetime`, `checkbox`.
+- **Editable data column** — `{ id, type }` where `type` ∈ `text`, `number`, `datetime`, `checkbox`, `multi-select`, `file`.
 - **Formula column** — `{ id, formula }` for a computed column.
+
+**Column validation (2026-06-18 release; all verified round-tripping):**
+
+- **Single-select dropdown** — a scalar column + a fixed option list: `{ id, type: text, values: ["A", "B", "C"] }` (also `number`/`datetime`). There is **no** `single-select` type token — the `values` list is what makes it a dropdown.
+- **Multi-select** — `{ id, type: multi-select, values: [...] }`. **Variant-backed** — needs a variant-capable warehouse (e.g. Snowflake).
+- **Range bounds** — `{ id, type: number, range: { min, max } }` (also `datetime`, which normalizes to `…T00:00:00Z`).
+- **File upload** — `{ id, type: file, maxFileNum: 3, maxFileSizeMb: 10, acceptedFileTypes: ["image/png", "application/pdf"] }`. **Variant-backed.**
+- **Still UI-only:** options from a sibling element's column (`valuesFrom`) and pills display — no round-tripping spec shape yet.
 
 ```yaml
 id: feedback-input
