@@ -169,8 +169,10 @@ The `input-table` element is an editable table — users type values directly in
 - **Single-select dropdown** — a scalar column + a fixed option list: `{ id, type: text, values: ["A", "B", "C"] }` (also `number`/`datetime`). There is **no** `single-select` type token — the `values` list is what makes it a dropdown.
 - **Multi-select** — `{ id, type: multi-select, values: [...] }`. **Variant-backed** — needs a variant-capable warehouse (e.g. Snowflake).
 - **Range bounds** — `{ id, type: number, range: { min, max } }` (also `datetime`, which normalizes to `…T00:00:00Z`).
+- **Options from a sibling element** — `{ id, type: text, valuesFrom: { element: <elementId>, column: <columnId> } }` (single- or multi-select). Keys are `element`/`column`, **not** `elementId`/`columnId`.
+- **Pills** — render a select column as pills: `{ ..., pills: single-color }` or `{ ..., pills: color-by-option }` (enum string).
 - **File upload** — `{ id, type: file, maxFileNum: 3, maxFileSizeMb: 10, acceptedFileTypes: ["image/png", "application/pdf"] }`. **Variant-backed.**
-- **Still UI-only:** options from a sibling element's column (`valuesFrom`) and pills display — no round-tripping spec shape yet.
+- **One validation slot:** `values` / `valuesFrom` / `range` are mutually exclusive on a column — combining them is a 400.
 
 ```yaml
 id: feedback-input
