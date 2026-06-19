@@ -123,7 +123,7 @@ elements:
       <span style="color: #3B82F6">**NET REVENUE**</span>
   - id: kpi-net
     kind: kpi-chart
-    # omit `name:` — the colored label above stands in for the title
+    name: ' '   # single space — suppresses the KPI's own title (see note below)
     source:
       elementId: master
       kind: table
@@ -148,7 +148,7 @@ elements:
 
 Repeat the container + label + KPI triple for each metric, switching the label color (green for growth, purple for averages, amber for trailing-indicator metrics). Three across at columns `1/9`, `9/17`, `17/25` is the standard layout.
 
-> **Omit `name:` on each KPI** if you're using a colored Markdown label above it. The element's `name` always renders as its own title; with the label, you get a duplicate. There's no `showTitle: false` field.
+> **Set `name: ' '` (a single space) on each KPI** when a colored Markdown label sits above it — otherwise you get a **duplicate title**: the card label (`NET REVENUE`) *and* the KPI's own title (`Net Revenue`) stacked in the same card. There's no `showTitle: false` field, and **omitting `name:` does NOT work** — an empty/absent `name` is stripped and the KPI **re-derives** its title from the value column. Only a single space persists as a blank title and suppresses it. (Verified live + rendered; this is the #1 KPI-card mistake.)
 
 ---
 

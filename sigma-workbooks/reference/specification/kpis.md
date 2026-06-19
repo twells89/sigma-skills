@@ -30,6 +30,7 @@ value:
 - `columns` — define exactly one column (the value you want displayed). More columns are allowed but only the bound `value.columnId` is rendered.
 - `value.columnId` — REQUIRED. The column ID to show in the card.
 - `format` on the column controls the displayed format. See `formatting.md`.
+- **Hiding the title:** set `name: ' '` (a single space) to render the card with **no title** — e.g. when a Markdown label above the KPI already names it (see `styling.md` KPI-card recipe). Omitting `name` or setting `name: ''` does **not** work: an empty/absent name is stripped and the KPI re-derives its title from the value column, producing a duplicate. Only a single space persists.
 
 For a period-over-period delta (e.g. "vs. prior quarter"), compute it as a **formula column** — `[This Quarter] / [Last Quarter] - 1` against the source — and show it in its own column or a second KPI.
 
