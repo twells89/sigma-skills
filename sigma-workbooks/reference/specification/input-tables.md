@@ -53,15 +53,17 @@ columns misbehave, suspect an older org/API first.
 - **Multi-select** — `type: multi-select` + `values: [ ... ]`. Variant-backed:
   requires a connection whose warehouse supports variant columns (e.g. Snowflake).
 - **Range bounds** — `range: { min, max }` on a `number` or `datetime` column.
+- **Options from a sibling element** — `valuesFrom: { element: <elementId>, column: <columnId> }`
+  (single- or multi-select). Note the keys are `element` / `column`, not
+  `elementId` / `columnId`.
+- **Pills** — render a select column as pills: `pills: single-color` or
+  `pills: color-by-option` (an enum *string*; omit for plain text).
 - **File-upload columns** — `type: file` + optional `maxFileNum`, `maxFileSizeMb`,
   `acceptedFileTypes: [ ... ]`. Variant-backed.
 
-Still UI-only (no round-tripping spec shape found as of 2026-06-18 — see
-`twells89/sigma-workbook-spec-findings` #28): **options sourced from a sibling
-element's column (`valuesFrom`)**, **pills display** (single-color / color-by-
-option), **column protection**, and **data-entry permissions**. Configure these
-in the UI; to author them from a spec, harvest the shape from a UI-built example
-once Sigma documents it.
+`values`, `valuesFrom`, and `range` share **one** validation slot — they're
+mutually exclusive on a column (combining them 400s). Still UI-only: **column
+protection** and **data-entry permissions**.
 
 ## Reading an input table's data & structure
 

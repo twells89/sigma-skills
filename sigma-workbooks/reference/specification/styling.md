@@ -27,7 +27,7 @@ themeOverrides:          # optional — colors / fonts / layout style / table de
     surface: "#101826"
 ```
 
-- `themeName` accepts a **built-in** name (`Light` / `Dark` / `Surface`) or an **org theme id** (a UUID). All four round-trip. A bogus value is a clean 400.
+- `themeName` accepts a **built-in** name (`Light` / `Dark` / `Surface`) or an **org theme id** (a UUID). All four round-trip. Only the **format** is checked, not existence: a malformed value 400s, but a well-formed but nonexistent UUID is accepted as-is and renders broken (like a bad `pluginId`) — so a clean POST is not proof the theme exists.
 - **There is no API to discover theme names.** Built-ins are the three above; an org theme id can only be learned by reading a workbook spec that already uses it (admin Branding Settings shows names, not ids). So the **caller must supply** the theme name/id — an agent cannot enumerate them. Ask the user which theme to apply.
 - `themeOverrides` round-trips (colors confirmed). Use it for one-off tweaks on top of a base theme.
 - Theme vs. the recipes below: a theme is the global skin (selected, org-managed). The recipes here style individual elements from spec fields and **stack on top of** whatever theme is set. For a migration, prefer the source dashboard's look; reach for a theme only when the user asks to apply one.
