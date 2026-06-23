@@ -10,6 +10,47 @@ The recipes were extracted from a 2026-05-29 design experiment that built 6 vers
 
 ---
 
+## Anti-patterns — the generic-AI tells (and the recipe that fixes each)
+
+The recipes below are the *positive* moves. This is the *negative* checklist: the visual tropes that
+mark a dashboard as generic AI output. They're easiest to catch on a render — after you POST, export
+each page to PNG (`/v2/workbooks/{id}/export`) and read it against this list. Each tell links to the
+fix already in this file. **Same caveat as the recipes: these are defaults for a from-scratch build,
+never an override of a user's stated branding or a migration's source fidelity.**
+
+- [ ] **No focal point** — every tile the same size and weight; the page reads as a uniform grid with
+      no "most important thing." Fix: give the signature element a **wider `gridColumn` span** (e.g.
+      a hero trend at `1 / 17` with a supporting chart at `17 / 25`), not an automatic 50/50. Proportion
+      should follow priority — see *Putting it together* and *Balance density top vs bottom*.
+- [ ] **Automatic equal-width rows** — two elements split a row 50/50 regardless of priority. Equal
+      spans are right for a **KPI strip** (true peers) and genuine comparisons; for a primary-vs-supporting
+      pair, weight the primary. See Recipe 2 (equal KPI cards = correct) vs the hero proportion above.
+- [ ] **Every page opens the same way** — each page of a multi-page workbook leads with an identical
+      KPI band. Lead each page with the thing it's *for*; vary the opening. (Launcher/landing pattern and
+      `visibility: hidden` data pages help — see *Interaction patterns*.)
+- [ ] **No grid breaks** — the same 2–3-column chart row repeats down the whole page ("spreadsheet of
+      cards"). Change the layout when the section's purpose changes: hero row → section header → paired
+      charts → full-width detail. See Recipe 3 (section headers) and the composition pattern.
+- [ ] **Decorative accent overuse** — the accent color is sprayed onto every card, tint, and surface, so
+      nothing stands out. Reserve it: tint the hero band and the primary KPI label, default the rest to the
+      neutral card surface (`#FBFBFB`/`#FAFBFC`, not pure white). **Carry *one* accent system through the
+      page** — repeat the KPI label colors in the charts below, in order. See *Composition principles*.
+- [ ] **Oversaturated status colors** — raw default red/green badges. Use the vetted palette
+      (`#10B981` growth, `#F59E0B`/`#EF4444` warning/negative only) and reserve red/amber for genuinely
+      negative values. See *Vetted color palette* and Recipe 5.
+- [ ] **Flat typography** — every heading, KPI, and label at the same size/weight; "feels like a form."
+      Build a scale: hero `#`/`##` title → quiet uppercase `p-small` section labels → KPI `value.fontSize`
+      (28–32) → table cells. See *Typography* and *Quiet section labels*.
+- [ ] **Centered text everywhere** — every block centered, so every section reads like a landing page.
+      Default to left for text and titles (note: left-aligned `h-*` heading classes are rejected — use
+      markdown `#` + a `<span>`); reserve centering for a single hero moment. See *Typography*.
+- [ ] **Nested cards** — a card inside a card inside a card (e.g. a chart wrapped in its own styled
+      container that already sits in a band container). Flattens hierarchy and adds noise. Use containers
+      for **bands and KPI cards**, not to re-wrap every element; separate with spacing, type, and
+      dividers (Recipe 4) before adding another container.
+
+---
+
 ## Workbook theme (2026-06-18 release)
 
 A workbook now carries a **top-level theme**, alongside `pages` and `layout`:
@@ -148,7 +189,7 @@ elements:
 
 Repeat the container + label + KPI triple for each metric, switching the label color (green for growth, purple for averages, amber for trailing-indicator metrics). Three across at columns `1/9`, `9/17`, `17/25` is the standard layout.
 
-> **Set `name: ' '` (a single space) on each KPI** when a colored Markdown label sits above it — otherwise you get a **duplicate title**: the card label (`NET REVENUE`) *and* the KPI's own title (`Net Revenue`) stacked in the same card. There's no `showTitle: false` field, and **omitting `name:` does NOT work** — an empty/absent `name` is stripped and the KPI **re-derives** its title from the value column. Only a single space persists as a blank title and suppresses it. (Verified live + rendered; this is the #1 KPI-card mistake.)
+> **Set the value column's `name: ' '` (a single space)** when a colored Markdown label sits above the KPI — otherwise you get a **duplicate title**: the card label (`NET REVENUE`) *and* the KPI's own title (`Net Revenue`) stacked in the same card. The title comes from the element `name` **and, when that's absent, the bound value column's `name`** — so with no element name (the usual case here) the *column* name is what leaks through. There's no `showTitle: false` field, and **omitting the name does NOT work** — an empty/absent name is stripped and the title re-derives. Only a single space persists. (Verified live + rendered; this is the #1 KPI-card mistake.)
 
 ---
 
