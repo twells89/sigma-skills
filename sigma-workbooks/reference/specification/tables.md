@@ -75,7 +75,38 @@ filters:
 
 > **`rowCount` takes a number literal only** — it cannot be parametrized by a control. `rowCount: "[TopN]"` is rejected. Control bindings apply to filter **values**, not to structural fields like `rowCount`, `rankingFunction`, `mode`, or `kind`. To vary the cap interactively, duplicate the element per cap.
 
-> `conditionalFormats` is **not** a `table` field — it lives on `pivot-table` and `input-table` only (see below). Adding it to a `kind: table` element is rejected.
+### `conditionalFormats` — cell coloring, gradients, and **data bars**
+
+`conditionalFormats` works on `kind: table` (verified live 2026-06-24 — POST accepted, round-trips, and renders), not just `pivot-table` / `input-table`. The most-requested variant is **`dataBars`** — in-cell horizontal bars scaled to the column's value — which migrations frequently *drop* even though it's fully spec-authorable:
+
+```yaml
+conditionalFormats:
+  - type: dataBars
+    columnIds: [t-rev]                 # one or more aggregate/calculation columns
+    scheme: ["#a4dfc0", "#4caf7d"]     # 2+ hex stops (low→high gradient); optional
+    # optional: domain (value range), order, valueLabels
+```
+
+Place it at the element level (sibling of `columns` / `groupings`), targeting the grouping's calculation column(s) by id. Other variants (`single` threshold rules, `backgroundScale`, `fontScale`) are below. Pull the full per-type field set with the `conditionalFormats` property via the `kind`-form recipe at the top.
+
+> **Round-trip caveat:** data bars **authored via spec** persist on `GET`. Data bars **added in the Sigma editor** may *not* appear in `GET /spec` (observed on a converted workbook) — so don't infer "the source had no data bars" from a readback. When migrating, author them explicitly.
+
+### `tableStyle` — presentation preset, spacing, grid lines, banding
+
+`tableStyle` is an element-level object on `table` / `pivot-table`. The default is the dense **spreadsheet** grid; `preset: presentation` switches to the roomier, lighter "presentation" look (taller rows, softer borders) that source BI tools often use for dashboard tables. **Spec-authorable, round-trips, and renders** (verified live 2026-06-24) — but, like data bars, an editor-set value may be absent from `GET /spec`, so author it explicitly when migrating.
+
+```yaml
+kind: table
+tableStyle:
+  preset: presentation          # 'spreadsheet' (default) | 'presentation'
+  cellSpacing: medium           # extra-small | small | medium | large
+  gridLines: horizontal         # none | vertical | horizontal | all
+  banding: shown                # row banding: shown | hidden
+  # also: bandingColor, outerBorder, headerDividerColor, autofitColumns,
+  #       heavyVerticalDividers / heavyHorizontalDividers (pivot only), textStyles
+```
+
+All fields are optional; omit `preset` for the spreadsheet default. Pull the full enum set via the `kind`-form recipe at the top.
 
 ---
 
@@ -118,7 +149,7 @@ columnsBy:
 
 ## `conditionalFormats` — threshold coloring on cells
 
-Available on `pivot-table` and `input-table`. Apply background/text styling per cell based on column values. Variants include `single`, `backgroundScale`, `fontScale`, and `dataBars` — covering threshold rules, gradient scales, font-color scales, and inline data bars. Inspect the OpenAPI for the full operator + style enums (use the `conditionalFormats` property on either kind's schema).
+Available on `table`, `pivot-table`, and `input-table` (the `table` support is verified live — see the table `conditionalFormats` note above). Apply background/text styling per cell based on column values. Variants include `single`, `backgroundScale`, `fontScale`, and `dataBars` — covering threshold rules, gradient scales, font-color scales, and inline data bars. Inspect the OpenAPI for the full operator + style enums (use the `conditionalFormats` property on the element schema).
 
 **Recipe — red/green threshold coloring on a revenue column:**
 
