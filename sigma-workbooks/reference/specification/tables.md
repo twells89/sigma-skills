@@ -91,6 +91,23 @@ Place it at the element level (sibling of `columns` / `groupings`), targeting th
 
 > **Round-trip caveat:** data bars **authored via spec** persist on `GET`. Data bars **added in the Sigma editor** may *not* appear in `GET /spec` (observed on a converted workbook) — so don't infer "the source had no data bars" from a readback. When migrating, author them explicitly.
 
+### `tableStyle` — presentation preset, spacing, grid lines, banding
+
+`tableStyle` is an element-level object on `table` / `pivot-table`. The default is the dense **spreadsheet** grid; `preset: presentation` switches to the roomier, lighter "presentation" look (taller rows, softer borders) that source BI tools often use for dashboard tables. **Spec-authorable, round-trips, and renders** (verified live 2026-06-24) — but, like data bars, an editor-set value may be absent from `GET /spec`, so author it explicitly when migrating.
+
+```yaml
+kind: table
+tableStyle:
+  preset: presentation          # 'spreadsheet' (default) | 'presentation'
+  cellSpacing: medium           # extra-small | small | medium | large
+  gridLines: horizontal         # none | vertical | horizontal | all
+  banding: shown                # row banding: shown | hidden
+  # also: bandingColor, outerBorder, headerDividerColor, autofitColumns,
+  #       heavyVerticalDividers / heavyHorizontalDividers (pivot only), textStyles
+```
+
+All fields are optional; omit `preset` for the spreadsheet default. Pull the full enum set via the `kind`-form recipe at the top.
+
 ---
 
 # Pivot tables
