@@ -15,6 +15,8 @@ The distinctive binding per kind (the part worth knowing up front):
 
 **Shape gotcha:** `geography` / `latitude` / `longitude` / `size` / `region` are **single `{ id }` objects**, but `label` and `tooltip` are **arrays** of `{ id }`.
 
+**Channel-exclusivity gotcha:** a column can sit on only one channel. Binding the same column to both `size` and `color` is a 400 — `Column 'X' is referenced from both 'size' and 'color'` (live-verified 2026-06-26 on `point-map`). To size **and** color by the same measure, add a second column with the same formula and bind one to each — or drop `color`.
+
 ```yaml
 id: sales-by-state
 kind: region-map
