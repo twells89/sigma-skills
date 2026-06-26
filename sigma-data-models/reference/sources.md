@@ -28,6 +28,8 @@ Run a raw SQL query against a connection. Columns then reference `[Custom SQL/<C
 
 > **Column naming:** The formula prefix `[Custom SQL/...]` must match the **exact output column name** from the SQL query. For Snowflake (the most common warehouse), unquoted column names and aliases are returned in UPPERCASE — e.g., `SUM(price) AS revenue` becomes `[Custom SQL/REVENUE]`. Use double-quoted aliases (e.g., `AS "revenue"`) if you need mixed-case or lowercase column names.
 
+> **A `sql` source runs directly against the connection — so it skips the warehouse-table catalog sync.** A `warehouse-table` source resolves through Sigma's cached table catalog, so a **freshly created** warehouse table (just `CREATE`d / loaded) often fails to POST with `Source not found` until the connection is re-synced (and the conn role has `SELECT`). A `sql` source has no such dependency: Sigma executes the `statement` live, so a `sql` element referencing a brand-new table resolves immediately (the role still needs `SELECT`). Handy when landing new tables and building the model in the same pass — and for joins/aggregations you'd otherwise model as relationships, authored once as the SQL `statement`. (Live-verified 2026-06-26 building a data model over a just-loaded schema.)
+
 ## Join
 
 Combine two table elements using a join. Both source tables must be defined as separate elements on the same page and referenced by their element `id`.

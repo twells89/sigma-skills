@@ -83,6 +83,8 @@ stacking: none
 
 ## Bar chart with custom category colors
 
+> **Channel exclusivity:** a column can sit on **only one channel**. Putting the same column on both `color` and an axis (`yAxis`/`xAxis`) is a 400 — `Column 'X' is referenced from both 'yAxis' and 'color'; a column can only be on one channel at a time` (live-verified 2026-06-26 on `scatter-chart`). To color a chart *by its measure*, either drop `color` or add a **second column with the same formula** and bind that to `color` (same pattern as the donut `value`/`holeValue` rule below). To color by category, point `color` at the dimension column, not the measure.
+
 `bar-chart` accepts an optional `color` channel with three variants:
 
 ```yaml

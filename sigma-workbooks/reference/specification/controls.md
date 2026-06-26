@@ -63,6 +63,8 @@ filters:                 # the TARGETS it filters — one entry per element+colu
 
 > **Verified working shape** (pulled from a live, successfully-POSTed workbook 2026-06-15). A list control carries `source` / `mode` / `selectionMode` / `values` as **flat top-level siblings** — NOT inside a nested "value object." The single most common mistake is omitting `source`/`mode`/`selectionMode`/`values` (or nesting them); Sigma then rejects the element with the opaque catch-all `Invalid kind: control`, which means **the inner fields are wrong, NOT that controls are unsupported** (see `reference/workflows/validate.md`). `segmented` and `hierarchy` are the other list-style widgets — same wiring (value-list `source` + `filters` targets).
 
+> **A control cannot bind to a map element** (`point-map` / `region-map` / `geography-map`). Pointing a list control's `source` (value list) or a `filters[]` target at a map element fails the POST with `Dependency not found: '<mapElementId>'` (live-verified 2026-06-26). Back the control with a real `table` element (e.g. a small dimension/directory table on the same column) for both the value list and the filter target. To also scope the map, filter it indirectly (e.g. drive the map's source element off the same filtered table, or apply the predicate in the data model) rather than targeting the map element directly.
+
 ## Date Range
 
 A date-range control filters one or more date columns. The widget shape is determined by `mode`, and each mode takes different additional fields — all of them **flat top-level siblings of `controlType`** (verified against a live workbook 2026-06-15; a nested `value:{mode,unit}` object is rejected with `Invalid kind: control`). No `source` is needed — the column is defined by the `filters` binding.
