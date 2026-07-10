@@ -2,6 +2,11 @@
 # Exchange Sigma client credentials for a bearer token.
 # Usage:  eval "$(scripts/get-token.sh)"
 # Sets SIGMA_API_TOKEN in the calling shell.
+#
+# bash/zsh only — PowerShell and cmd.exe can't run `eval "$(...)"`. For a
+# shell-neutral path (any shell, any agent), use scripts/get_token.py instead:
+#   python3 scripts/get_token.py --workdir /tmp/my-run
+# which writes auth.json for scripts/lib/sigma_rest.rb to pick up automatically.
 
 set -euo pipefail
 

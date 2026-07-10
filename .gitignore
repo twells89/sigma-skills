@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+
+# get_token.py writes this — never commit (auth.json holds a live bearer token).
+auth.json
+
+.env

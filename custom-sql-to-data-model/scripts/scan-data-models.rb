@@ -1,6 +1,7 @@
 #!/usr/bin/env ruby
 # Scan all data models for elements with source.kind == "sql".
-# Outputs a JSON index keyed by normalized SQL to /tmp/dm-sql-index.json,
+# Outputs a JSON index keyed by normalized SQL to <Dir.tmpdir>/dm-sql-index.json
+# (e.g. /tmp/dm-sql-index.json on macOS/Linux),
 # used by plan-dedup.rb to decide whether to reuse an existing DM element
 # or build a new one for a given custom-SQL fingerprint.
 #
@@ -13,6 +14,7 @@ require 'uri'
 require 'json'
 require 'yaml'
 require 'date'
+require 'tmpdir'
 
 BASE_URL = ENV.fetch('SIGMA_BASE_URL') { abort 'SIGMA_BASE_URL not set' }
 $LOAD_PATH.unshift File.expand_path('lib', __dir__)
@@ -117,6 +119,6 @@ end
 puts "\n#{'=' * 60}"
 puts "Unique SQL strings indexed across DMs: #{index.size}"
 
-out = '/tmp/dm-sql-index.json'
+out = File.join(Dir.tmpdir, 'dm-sql-index.json')
 File.write(out, JSON.pretty_generate(index))
 puts "Index written to #{out}"

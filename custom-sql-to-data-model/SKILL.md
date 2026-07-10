@@ -32,14 +32,33 @@ catches.
 
 Required env vars: `SIGMA_BASE_URL`, `SIGMA_CLIENT_ID`, `SIGMA_CLIENT_SECRET`
 
-Always chain the token eval with `&&` so the token is live for all subsequent
-commands in the same block:
+**Default (shell-neutral, works in bash/zsh/PowerShell/cmd):** mint a token
+with the stdlib-only Python script and let `scripts/lib/sigma_rest.rb` pick
+it up automatically from `auth.json` — no `eval`, no shell-specific syntax:
+
+```bash
+python3 scripts/get_token.py --workdir /tmp/custom-sql-run
+```
+
+This writes `/tmp/custom-sql-run/auth.json` (mode 0600). Every Ruby script in
+this skill checks `$SIGMA_WORKDIR/auth.json` (or `./auth.json`) before
+falling back to a fresh client-credentials exchange, so point `SIGMA_WORKDIR`
+at the same directory (or run from inside it) and every subsequent `ruby
+scripts/*.rb` invocation authenticates without any shell-specific token
+plumbing:
+
+```bash
+export SIGMA_WORKDIR=/tmp/custom-sql-run
+ruby scripts/scan-workbooks.rb
+```
+
+**bash/zsh convenience (equivalent, but bash-only):**
 
 ```bash
 eval "$(bash scripts/get-token.sh)"
 ```
 
-> Tokens expire after ~1 hour. **The Ruby scripts in this skill now auto-refresh on 401** via `scripts/lib/sigma_rest.rb` — full-site scans on large orgs (hundreds of workbooks, sometimes >1 hour total) no longer fail mid-run. If you still see `Token missing or malformed` after a refresh, re-run `eval "$(bash scripts/get-token.sh)"` manually.
+> Tokens expire after ~1 hour. **The Ruby scripts in this skill now auto-refresh on 401** via `scripts/lib/sigma_rest.rb` — full-site scans on large orgs (hundreds of workbooks, sometimes >1 hour total) no longer fail mid-run. If you still see `Token missing or malformed` after a refresh, re-run `python3 scripts/get_token.py --workdir "$SIGMA_WORKDIR"` (or `eval "$(bash scripts/get-token.sh)"` in bash) manually.
 
 ---
 
@@ -50,7 +69,8 @@ eval "$(bash scripts/get-token.sh)" && ruby scripts/scan-workbooks.rb
 ```
 
 Reads every workbook spec in the org, finds all elements where
-`source.kind == "sql"`, and writes `/tmp/custom-sql-manifest.json`.
+`source.kind == "sql"`, and writes `custom-sql-manifest.json` to the system
+temp dir (Ruby's `Dir.tmpdir` — `/tmp` on macOS/Linux, `%TEMP%` on Windows).
 
 Each entry:
 
@@ -82,7 +102,7 @@ Review the findings and confirm with the user which workbooks to convert.
 eval "$(bash scripts/get-token.sh)" && ruby scripts/scan-data-models.rb
 ```
 
-Writes `/tmp/dm-sql-index.json`. The scanner emits one entry per existing DM
+Writes `dm-sql-index.json` to the system temp dir (`Dir.tmpdir`). The scanner emits one entry per existing DM
 element of either kind:
 
 - `kind: "sql"` — indexed by normalized SQL text
@@ -98,7 +118,7 @@ planner can prefer focused DMs over kitchen-sink ones.
 ruby scripts/plan-dedup.rb
 ```
 
-Writes `/tmp/swap-plan.json`. The planner:
+Writes `swap-plan.json` to the system temp dir (`Dir.tmpdir`). The planner:
 
 1. Groups manifest entries by normalized SQL (whitespace/case-collapsed, but
    no semantic reformatting — copy/paste duplicates collapse, semantically-
@@ -126,8 +146,8 @@ Summary: 3 unique SQL strings → 1 reuse, 2 build. 5 total swap actions.
 
 Confirm with the user before continuing — a `[REUSE]` decision is only as
 good as the picked candidate. If the heuristic picked the wrong DM, edit
-`/tmp/swap-plan.json` to point `target.dataModelId` / `target.elementId` at
-the preferred DM before Phase 5.
+`swap-plan.json` (in the system temp dir) to point `target.dataModelId` /
+`target.elementId` at the preferred DM before Phase 5.
 
 ---
 
@@ -313,11 +333,12 @@ new name. Then the swap auto-rewrites cleanly.
 
 ```ruby
 require 'json'
+require 'tmpdir'
 WB = '<workbookId>'
 raw = `curl -s -H "Authorization: Bearer $SIGMA_API_TOKEN" -H "Accept: application/json" "$SIGMA_BASE_URL/v2/workbooks/#{WB}/spec"`
 spec = JSON.parse(raw)
 
-manifest = JSON.parse(File.read('/tmp/custom-sql-manifest.json'))
+manifest = JSON.parse(File.read(File.join(Dir.tmpdir, 'custom-sql-manifest.json')))
 new_names = manifest
   .select { |m| m['workbook_id'] == WB }
   .to_h    { |m| [m['element_id'], m['element_name']] }
@@ -345,7 +366,7 @@ spec['pages'].each do |page|
 end
 
 %w[workbookId url ownerId createdBy updatedBy createdAt updatedAt latestDocumentVersion documentVersion].each { |k| spec.delete(k) }
-File.write('/tmp/wb-pre-swap.json', JSON.pretty_generate(spec))
+File.write(File.join(Dir.tmpdir, 'wb-pre-swap.json'), JSON.pretty_generate(spec))
 ```
 
 ```bash
@@ -548,14 +569,14 @@ for completeness.
 
 | Error / symptom | Cause | Fix |
 |---|---|---|
-| `Token missing or malformed` | Token expired between commands | Re-run `eval "$(bash scripts/get-token.sh)"` — chain with `&&` |
+| `Token missing or malformed` | Token expired between commands | Re-run `python3 scripts/get_token.py --workdir "$SIGMA_WORKDIR"` (shell-neutral), or `eval "$(bash scripts/get-token.sh)"` in bash — chain the latter with `&&` |
 | `:swapSources` returns HTTP 200 `{}` but nothing changed | `from.customSqlId` doesn't match a real element (typo or already swapped) | Re-list `/v2/workbooks/{id}/sources`; assert no `custom-sql` entries remain |
 | `Element X not found in data model` (400) on `:swapSources` | `to.elementId` doesn't exist in the DM | Use the server-assigned ID from Phase 3, not your authoring ID |
 | `bad substitution` on the curl URL | Shell expanded `$WB:swapSources` as a parameter modifier | Wrap in braces: `${WB}:swapSources` |
 | Child element formulas show `[Missing node/...]` after swap | Root SQL element was unnamed; the implicit "Custom SQL" prefix lost its referent | **Sticky** — must be fixed manually. Pre-swap: name the root element AND rewrite child formulas to use that name |
 | Query returns an error string inside a data cell, e.g. `Column "[OT Summary/OT_HOURS]" does not exist` | Auto-match silently missed a SNAKE_CASE column alias; formula points at a column ID the DM doesn't expose | Run `scripts/audit-formulas.rb --from-plan` (Phase 6). For repeat offenders, pass `columnMapping` in the swap call proactively |
 | `service_error` 500 on a swap whose `to.definition` contains SQL with single quotes | Heredoc / shell expansion mangled the SQL string | Use a JSON file with `-d @<file>` instead of inline `-d '...'`, or escape carefully |
-| Plan picked the wrong reuse target | The DM with the lowest `dmElementCount` and matching connection was not the most appropriate | Edit `/tmp/swap-plan.json` to point `target.dataModelId` / `target.elementId` at the preferred DM before Phase 5 |
+| Plan picked the wrong reuse target | The DM with the lowest `dmElementCount` and matching connection was not the most appropriate | Edit `swap-plan.json` (system temp dir) to point `target.dataModelId` / `target.elementId` at the preferred DM before Phase 5 |
 | `Invalid array: ...columns, got undefined` | Converter returned no columns (SELECT * case) | Fetch columns via `mcp__sigma-mcp-v2__describe` and add them manually |
 | `formula: Invalid string: undefined` | Column missing `formula` field | Every column needs `formula` — `[Custom SQL/SQL_ALIAS]` for sql, `[TABLE/COL]` for warehouse-table |
 | `Circular column reference` | Formula used the column's own display name with no prefix | Use `[Custom SQL/SQL_ALIAS]` — bare `[Display Name]` self-references |

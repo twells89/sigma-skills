@@ -55,6 +55,16 @@ jq --arg k bar-chart 'first(.. | objects | select((.allOf? and any(.allOf[]?; .p
 
 `WebFetch` works for the JSON too. Either path is fine.
 
+No `curl`/`jq` on the machine (e.g. Windows without WSL)? `scripts/wb-rep.rb`
+ships a `capabilities` subcommand that does the same three queries with
+pure-Ruby `Net::HTTP` + `JSON.parse` — no external tools required:
+
+```bash
+ruby scripts/wb-rep.rb capabilities                          # list every kind
+ruby scripts/wb-rep.rb capabilities --kind bar-chart          # field list for one kind
+ruby scripts/wb-rep.rb capabilities --kind bar-chart --field source  # one field's shape
+```
+
 **Why bother:** the API ships new fields and viz configurations regularly, and this skill covers the common surface, not every field. If you want a capability and don't see it documented here, **assume it may exist and check the spec before concluding it doesn't** — the `kind` query above answers in seconds.
 
 ## Auth
