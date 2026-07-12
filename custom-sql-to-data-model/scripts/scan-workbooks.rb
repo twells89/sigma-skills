@@ -1,6 +1,7 @@
 #!/usr/bin/env ruby
 # Scan all workbooks for elements with source.kind == "sql".
-# Outputs a JSON manifest to /tmp/custom-sql-manifest.json
+# Outputs a JSON manifest to <Dir.tmpdir>/custom-sql-manifest.json
+# (e.g. /tmp/custom-sql-manifest.json on macOS/Linux)
 #
 # Usage:
 #   eval "$(bash scripts/get-token.sh)"
@@ -11,6 +12,7 @@ require 'uri'
 require 'json'
 require 'yaml'
 require 'date'
+require 'tmpdir'
 
 BASE_URL = ENV.fetch('SIGMA_BASE_URL') { abort 'SIGMA_BASE_URL not set — run: eval "$(bash scripts/get-token.sh)"' }
 $LOAD_PATH.unshift File.expand_path('lib', __dir__)
@@ -83,7 +85,7 @@ puts "Custom SQL elements found: #{findings.size}"
 if findings.empty?
   puts "No custom SQL elements found in any workbook."
 else
-  out = '/tmp/custom-sql-manifest.json'
+  out = File.join(Dir.tmpdir, 'custom-sql-manifest.json')
   File.write(out, JSON.pretty_generate(findings))
   puts "Manifest written to #{out}"
 end

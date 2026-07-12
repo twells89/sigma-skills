@@ -4,7 +4,8 @@
 #   - If a DM element already wraps it → reuse (status: "existing")
 #   - Otherwise → mark as needs-build (status: "to-build")
 #
-# Output: /tmp/swap-plan.json — an array of plan entries. Each entry has the
+# Output: <Dir.tmpdir>/swap-plan.json (e.g. /tmp/swap-plan.json on macOS/Linux)
+# — an array of plan entries. Each entry has the
 # normalized SQL, the list of workbook occurrences that share it, and either
 # an existing target {dataModelId, elementId} OR a `to_build: true` flag with
 # a representative sql/connection_id/folder_id the user can pass to Phase 2.
@@ -15,10 +16,11 @@
 #   ruby scripts/plan-dedup.rb
 
 require 'json'
+require 'tmpdir'
 
-MANIFEST = '/tmp/custom-sql-manifest.json'
-DM_INDEX = '/tmp/dm-sql-index.json'
-OUT      = '/tmp/swap-plan.json'
+MANIFEST = File.join(Dir.tmpdir, 'custom-sql-manifest.json')
+DM_INDEX = File.join(Dir.tmpdir, 'dm-sql-index.json')
+OUT      = File.join(Dir.tmpdir, 'swap-plan.json')
 
 unless File.exist?(MANIFEST)
   abort "missing #{MANIFEST} — run scan-workbooks.rb first"

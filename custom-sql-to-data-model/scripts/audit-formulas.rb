@@ -13,12 +13,13 @@
 #
 # Usage:
 #   ruby scripts/audit-formulas.rb <workbookId> [<workbookId> ...]
-# Or, drive from /tmp/swap-plan.json:
+# Or, drive from <Dir.tmpdir>/swap-plan.json (e.g. /tmp/swap-plan.json on macOS/Linux):
 #   ruby scripts/audit-formulas.rb --from-plan
 
 require 'net/http'
 require 'uri'
 require 'json'
+require 'tmpdir'
 
 BASE_URL = ENV.fetch('SIGMA_BASE_URL')
 $LOAD_PATH.unshift File.expand_path('lib', __dir__)
@@ -73,7 +74,7 @@ end
 
 ids =
   if ARGV.first == '--from-plan'
-    plan = JSON.parse(File.read('/tmp/swap-plan.json'))
+    plan = JSON.parse(File.read(File.join(Dir.tmpdir, 'swap-plan.json')))
     plan.flat_map { |e| (e['workbooks'] || []).map { |w| w['workbook_id'] } }.uniq
   else
     ARGV

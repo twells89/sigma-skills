@@ -45,6 +45,7 @@ require 'net/http'
 require 'uri'
 require 'fileutils'
 require 'time'
+require 'tmpdir'
 
 RESPONSE_ONLY = %w[workbookId url documentVersion latestDocumentVersion ownerId
                    createdBy updatedBy createdAt updatedAt].freeze
@@ -400,21 +401,88 @@ def cmd_summarize(args)
   puts "  sources: #{sources.compact.uniq.join(', ')}" unless sources.compact.empty?
 end
 
-OPENAPI_CACHE = '/tmp/sigma-api.json'.freeze
+OPENAPI_CACHE = File.join(Dir.tmpdir, 'sigma-api.json').freeze
+OPENAPI_URL = 'https://help.sigmacomputing.com/openapi/sigma-computing-public-rest-api.json'.freeze
+
+# Depth-first walk mirroring jq's `.. | objects`: yields every Hash reachable
+# from `node` (including `node` itself), descending through both Hash values
+# and Array elements.
+def walk_objects(node, &blk)
+  return enum_for(:walk_objects, node) unless blk
+  case node
+  when Hash
+    blk.call(node)
+    node.each_value { |v| walk_objects(v, &blk) }
+  when Array
+    node.each { |v| walk_objects(v, &blk) }
+  end
+end
+
+# Mirrors the jq selector used throughout: a schema matches `kind` either via
+# an allOf branch's `properties.kind.enum` or its own.
+def kind_schema_match?(obj, kind)
+  all_of = obj['allOf']
+  allof_match = all_of.is_a?(Array) && all_of.any? { |s| s.is_a?(Hash) && s.dig('properties', 'kind', 'enum') == [kind] }
+  allof_match || obj.dig('properties', 'kind', 'enum') == [kind]
+end
+
+def find_kind_schema(doc, kind)
+  walk_objects(doc).find { |obj| kind_schema_match?(obj, kind) }
+end
+
+# Mirrors `[.allOf[]?.properties // .properties | keys[]] | unique[]`: merge
+# property keys across allOf branches, falling back to the schema's own
+# properties when there's no allOf (or none of its branches have properties).
+def merged_properties_keys(schema)
+  props_list = []
+  if schema['allOf'].is_a?(Array)
+    props_list = schema['allOf']
+                 .select { |s| s.is_a?(Hash) && s['properties'].is_a?(Hash) }
+                 .map { |s| s['properties'] }
+  end
+  props_list = [schema['properties']].compact if props_list.empty? && schema['properties'].is_a?(Hash)
+  props_list.flat_map(&:keys).uniq.sort
+end
+
+# Mirrors `.. | objects | select(.properties[field]) | .properties[field] | .[0]`:
+# first descendant schema (depth-first) that declares `field`, returning its
+# sub-schema.
+def find_field_schema(kind_schema, field)
+  walk_objects(kind_schema).each do |obj|
+    return obj['properties'][field] if obj['properties'].is_a?(Hash) && obj['properties'].key?(field)
+  end
+  nil
+end
+
 def cmd_capabilities(args)
   kind = field = nil
   if (i = args.index('--kind')) then kind = args[i + 1]; args.slice!(i, 2); end
   if (i = args.index('--field')) then field = args[i + 1]; args.slice!(i, 2); end
   unless File.exist?(OPENAPI_CACHE)
-    system('curl', '-sf', 'https://help.sigmacomputing.com/openapi/sigma-computing-public-rest-api.json', '-o', OPENAPI_CACHE) or die 'failed to fetch OpenAPI'
+    uri = URI(OPENAPI_URL)
+    res = Net::HTTP.get_response(uri)
+    die 'failed to fetch OpenAPI' unless res.is_a?(Net::HTTPSuccess)
+    File.write(OPENAPI_CACHE, res.body)
   end
-  sel = %q{first(.. | objects | select((.allOf? and any(.allOf[]?; .properties?.kind?.enum==[$k])) or .properties?.kind?.enum==[$k]))}
+  doc = JSON.parse(File.read(OPENAPI_CACHE))
+
   if kind.nil?
-    system('jq', '-r', '[.. | objects | select(.properties.kind.enum) | .properties.kind.enum[0]] | unique[]', OPENAPI_CACHE)
-  elsif field.nil?
-    system('jq', '-r', '--arg', 'k', kind, "#{sel} | [.allOf[]?.properties // .properties | keys[]] | unique[]", OPENAPI_CACHE)
+    kinds = walk_objects(doc).each_with_object([]) do |obj, acc|
+      enum = obj.dig('properties', 'kind', 'enum')
+      acc << enum.first if enum.is_a?(Array) && !enum.empty?
+    end
+    kinds.uniq.sort.each { |k| puts k }
+    return
+  end
+
+  schema = find_kind_schema(doc, kind)
+  die "no schema found for kind #{kind.inspect}" unless schema
+
+  if field.nil?
+    merged_properties_keys(schema).each { |k| puts k }
   else
-    system('jq', '--arg', 'k', kind, "[#{sel} | .. | objects | select(.properties[\"#{field}\"]) | .properties[\"#{field}\"]] | .[0]", OPENAPI_CACHE)
+    result = find_field_schema(schema, field)
+    puts result.nil? ? 'null' : JSON.pretty_generate(result)
   end
 end
 
