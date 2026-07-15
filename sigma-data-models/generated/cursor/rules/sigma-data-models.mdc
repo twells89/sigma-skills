@@ -62,14 +62,14 @@ Call out any of these before presenting the final spec:
 - Input tables, Python elements, and UI elements
 - Referencing Sigma elements in custom SQL
 - Partial updates — the create and update endpoints both require the full representation
-- `CountOver` / `SumOver` / `RowNumberOver` / other window functions inside DM element calculated columns — they silently error. See `reference/calc-columns.md` for workarounds.
+- The `*Over` window functions (`CountOver` / `SumOver` / `RowNumberOver` / `RankOver` / …) — invalid as a spec formula (a DM-spec POST 400s; workbook calc columns error `Unknown function`). The Sigma-**native** window family (`CumulativeSum` / `MovingAvg` / `Rank` / `RowNumber` / `Lag` / `Lead` / `PercentOfTotal`) DOES resolve in DM-element and workbook calc columns — use those. See `reference/calc-columns.md`.
 - `IsIn(...)` in any formula — Sigma's formula language has no such function. Use chained `or` conditions instead. (See the `sigma-workbooks` skill's `formulas.md` for the full function reference.)
 
 ## Cross-Skill References
 
 - **Building a workbook on top of this model** → load the `sigma-workbooks` skill. Its `sources.md` documents the `{ "kind": "data-model", "dataModelId": "...", "elementId": "..." }` source shape.
 - **Repointing existing workbooks to a newly-created model** → see `sigma-workbooks/reference/workflows/crud.md` and the swap-sources endpoint.
-- **Auth, base URLs, regions, token refresh** → always defer to the `sigma-api` skill rather than restating.
+- **Auth, base URLs, regions, token refresh** → always defer to the `sigma-api` skill rather than restating. For automatic 401-retry-with-refresh in Ruby long-running scripts (DM-build loops that outlive the 1-hour token TTL), see `sigma-workbooks/SKILL.md` "401 Unauthorized" — same pattern applies here.
 
 ## Out of Scope (use a different tool)
 
