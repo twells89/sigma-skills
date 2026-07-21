@@ -78,11 +78,11 @@ Each entry:
 {
   "workbook_id":   "25e21c63-...",
   "workbook_name": "Custom Sql Test",
-  "folder_id":     "57e59735-...",
+  "folder_id":     "fe98dc76-...",
   "element_id":    "6YSI-SjSmz",
   "element_name":  "Customer Dim SQL",
-  "connection_id": "cb2f5180-...",
-  "sql":           "select * from CSA.TJ.CUSTOMER_DIM",
+  "connection_id": "ab12cd34-...",
+  "sql":           "select * from DEMO_DB.DEMO.CUSTOMER_DIM",
   "column_count":  18
 }
 ```
@@ -130,7 +130,7 @@ Writes `swap-plan.json` to the system temp dir (`Dir.tmpdir`). The planner:
 
 ```
 [REUSE] group 1: 3 occurrence(s)
-  SQL: select * from csa.tj.customer_dim
+  SQL: select * from demo_db.demo.customer_dim
     - Custom Sql Test / Custom Sql Test SQL (6YSI-SjSmz)
     - Dedup Test Alpha / Customer Source  (el-customers)
     - Dedup Test Beta  / Customer Source  (el-customers-dup)
@@ -139,7 +139,7 @@ Writes `swap-plan.json` to the system temp dir (`Dir.tmpdir`). The planner:
 [BUILD] group 2: 1 occurrence(s)
   SQL: with monthly as ( select employee_id, date_trunc('month', date) as month, …
     - Dedup Test Alpha / OT Summary (el-ot-summary)
-  -> needs new DM (connection cb2f5180-..., folder 57e59735-...)
+  -> needs new DM (connection ab12cd34-..., folder fe98dc76-...)
 
 Summary: 3 unique SQL strings → 1 reuse, 2 build. 5 total swap actions.
 ```
