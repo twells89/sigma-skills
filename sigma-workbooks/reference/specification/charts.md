@@ -281,7 +281,7 @@ Chart-wide fallbacks `barStyle`, `lineAreaStyle`, `pointStyle`, and `gap` also e
 Each of these is a top-level key on cartesian charts; one-liner here, full sub-fields via the kind recipe at the top of this file.
 
 - `orientation: horizontal` on `bar-chart` — horizontal bars. Omit for the default vertical bars.
-- `trellis: { column, row, share?, tileSize? }` — **styles a UI-configured trellis only.** `tileSize` and the `column`/`row` guide styling (`labels`, `border`, `title`) round-trip, but the facet *column binding* cannot be set via spec — `columnId`/`id` inside `column`/`row` are silently stripped (live-verified 2026-06-11). Configure the facets in the editor; the spec can then style them.
+- `trellis: { rowsBy | columnsBy: [{ columnId }] }` — **native small multiples / faceting, authorable from spec** (see the "Trellis / small multiples" section below). This is the `rowsBy`/`columnsBy` form. Do NOT confuse it with the legacy `trellis: { column, row, share?, tileSize? }` *styling* object, which only styles a UI-configured trellis and whose facet `columnId`/`id` binding is silently stripped — use `rowsBy`/`columnsBy` to bind the facet from spec.
 - `legend: { visibility, position, ... }` — legend placement and styling.
 - `tooltip: { columnNames?, multiSeries?, valueFormat? }` — hover-tooltip content. Support is config-dependent (live-verified 2026-06-11): `columnNames` round-trips broadly; `multiSeries` round-trips on line charts but is silently stripped on bar-with-color; `valueFormat` is rejected or stripped in most configurations. Verify the readback after setting anything beyond `columnNames`.
 
@@ -324,6 +324,63 @@ The correct shape binds the scatter to a **grouping**: source a table element th
 ```
 
 `color` always takes the `{ by: single|category|scale, column, ... }` form (see "Bar chart with custom category colors") — a bare `{ id }` / `{ columnId }` is rejected. **Validate a scatter by querying it for >1 distinct x**, not by POST status alone.
+
+## Trellis / small multiples
+
+A **trellis** (small multiples) repeats the same viz once per member of a categorical dimension. Sigma authors this natively from spec with the element-level `trellis` property — **ONE viz element**, the facet dimension added as a `columns[]` entry, and `rowsBy` / `columnsBy` pointing at that column by `columnId`. Do **not** clone one element per member.
+
+```jsonc
+{
+  "id": "el-revenue-by-subregion",
+  "kind": "bar-chart",
+  "source": { "kind": "table", "elementId": "master" },
+  "columns": [
+    { "id": "c-cat", "name": "Region",     "formula": "[Master/Region]" },
+    { "id": "c-x",   "name": "Sub-Region", "formula": "[Master/Sub-Region]" },
+    { "id": "c-y",   "name": "Revenue",    "formula": "Sum([Master/Revenue])" }
+  ],
+  "xAxis": { "columnId": "c-x" },
+  "yAxis": { "columnIds": ["c-y"] },
+  "trellis": { "rowsBy": [ { "columnId": "c-cat" } ] }
+}
+```
+
+With a 3-member `Region` (Region A / Region B / Region C), this renders one bar panel per region, stacked in rows.
+
+- `rowsBy` alone → **vertical** small multiples (panels stacked in rows).
+- `columnsBy` alone → **horizontal** small multiples (panels side by side).
+- **both**, pointing at **two different** columns → a **2-D grid** (rows × columns).
+- The facet reference key is **`columnId`** (a `columns[]` id on the element). This is a different mechanism from the `pivot-table`'s own `rowsBy`/`columnsBy` cross-tab shelves, which key on `id`.
+
+### Supported chart kinds (emit `trellis` for these only)
+
+The native `trellis` key round-trips (survives readback and renders faceted) on exactly these kinds:
+
+| Kind | Trellis |
+|------|---------|
+| `bar-chart` (incl. `stacking: stacked` / `normalized`) | ✅ supported |
+| `line-chart` | ✅ supported |
+| `area-chart` | ✅ supported |
+| `combo-chart` | ✅ supported |
+| `scatter-chart` | ✅ key round-trips (validate the grouping/render separately — see the Scatter section) |
+| `donut-chart` | ✅ supported (one donut per member) |
+| `pie-chart` | ❌ **stripped** → emit a `donut-chart` instead |
+| `kpi-chart` | ❌ stripped → fan out to N sibling KPI elements |
+| `pivot-table` | ❌ stripped → use the pivot's own `rowsBy`/`columnsBy` shelves |
+| `table` | ❌ stripped → keep flat / model the facet as a grouping |
+
+The empirical coverage matrix (how each kind was verified live, POST + readback + render) is the source of truth: **`docs/sigma-trellis-chart-support.md`**.
+
+### Fallbacks for the unsupported kinds
+
+- **`pie-chart` → `donut-chart`.** Pie and donut are both circular (`value` + `color`), but only donut trellises. If the intent is a faceted pie, emit a `donut-chart` with the same `trellis`.
+- **`kpi-chart` → N sibling KPIs.** There is no native KPI trellis. For "one KPI per category," lay out N separate `kpi-chart` elements, one filtered to each member.
+- **`pivot-table` → its own shelves.** The pivot's element-level `rowsBy`/`columnsBy` cross-tab shelves (keyed on `id`) already are the native faceting — do not add a separate `trellis` key.
+- **`table` → keep flat** or add the facet as an extra grouping/row dimension.
+
+### ⚠️ Silent-stripping caveat — ALWAYS re-read and verify
+
+Sigma returns **`200` on POST even for the unsupported kinds**, then **silently drops the `trellis` key** on readback and renders a single un-faceted chart — no error. **POST success is NOT proof the trellis applied.** Any spec that emits a native `trellis` must GET the workbook spec back after create and assert the element still carries its `trellis` key (with the same axis) before treating the trellis as applied; if it was stripped, fall back to the routes above. (Converters do this with a round-trip survival guard.)
 
 ## Other chart kinds
 
