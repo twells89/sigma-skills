@@ -43,7 +43,7 @@ Example: image shows "Gross Margin by Customer Value Tier (Bronze / Silver / Gol
 
 ### Step 0d.1 — Verify each dimension picked is the *right shape*
 
-A common failure: the agent sees "Ship Speed Category" in the target image (four bars labeled Economy / Express / Slow / Standard), grabs the first categorical-looking column in the available data (e.g. `product_brand` with hundreds of values), and ends up with a bar chart that has 200 unreadable rotated labels.
+A common failure: the agent sees "Delivery Speed Tier" in the target image (four bars labeled Economy / Express / Slow / Standard), grabs the first categorical-looking column in the available data (e.g. `product_brand` with hundreds of values), and ends up with a bar chart that has 200 unreadable rotated labels.
 
 Before drafting, for each dimension you picked, sanity-check two things:
 
