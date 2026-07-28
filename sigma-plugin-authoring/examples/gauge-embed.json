@@ -1,0 +1,14 @@
+{
+  "config": {
+    "format": ".0%",
+    "source": {
+      "elementId": "tbl-gauge-data",
+      "kind": "element"
+    },
+    "target": "target",
+    "value": "actual"
+  },
+  "id": "gauge-el",
+  "kind": "plugin",
+  "pluginId": "00000000-0000-4000-8000-000000000000"
+}
