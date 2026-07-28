@@ -46,15 +46,21 @@ Run `./scripts/validate-spec.sh <spec.yaml>` before publishing to catch it.
 
 ## `layout`, `comparison`, and `trend` blocks
 
-The OpenAPI exposes three more kpi-chart objects; their spec-authoring support differs (live-verified 2026-06-11, re-verified 2026-06-24):
+The OpenAPI exposes three more kpi-chart objects; their spec-authoring support differs:
 
-- `layout` — **round-trips.** `{ anchor: start|middle|end, titleOrient: top|bottom, ... }` positions the card contents. Default values are omitted on readback.
-- `value` styling — **round-trips.** `fontSize` (number or `"auto"`), `color`; `fontWeight: bold` reads back omitted (it appears to be the default).
-- `comparison` and `trend` (sparkline) — **did not render from spec in this org / the current public API (verified 2026-06-24); treat as UI-bound here, possibly org/version-dependent.** The public OpenAPI exposes only their *formatting* fields (shape, colors, interpolation, label) — **neither block carries the date/series binding** that drives the sparkline or the period delta, and `kpi-chart` has no `groupings` or dimension field to supply one. In this org that binding is **UI-only state, and `GET /v2/workbooks/{id}/spec` does not surface it.** Safe path: build the KPI via spec, then bind the trend (date) and comparison in the editor; the spec carries formatting overrides on top. For a guaranteed spec-only period-over-period *figure*, use the formula-column recipe above.
+- `layout` — **round-trips.** `{ anchor: start|middle|end, titleOrient: top|bottom, ... }` positions the card contents. Default values are omitted on readback. (live-verified 2026-06-11, re-verified 2026-06-24)
+- `value` styling — **round-trips.** `fontSize` (number or `"auto"`), `color`; `fontWeight: bold` reads back omitted (it appears to be the default). (live-verified 2026-06-11, re-verified 2026-06-24)
+- `comparison` (the Δ badge) via `comparisonColumn: {columnId}` + `comparison: {display: "delta", colorGood, colorBad}` — **spec-authorable and readback-stable.** Verified 2026-07-27 against live staging: POST → export the source table → GET readback, with `comparisonColumn.columnId` intact and correct and `comparison.display`/colors unmodified. **KPIs are comparative by default — this is the house pattern, not an edge case.** See `comparative-kpi-card.yaml` beside this file for a full worked example. This supersedes the "did not render from spec / UI-only / stripped on readback" claim this doc carried through 2026-06-24 — for *this exact shape only* (see below for what's still unproven).
 
-  Behavior on POST/readback differs by block (verified 2026-06-24):
+  **Don't over-extend this finding — two adjacent things remain unverified:**
+  - The UI's **period-comparison MODE** (a date-driven picker like "vs. prior quarter" that derives the comparison value from a date dimension at render time) is a **different mechanism** from `comparisonColumn`. No public-API field exposes that date/series binding, and it remains **UI-bound** here. `comparisonColumn` compares two columns *you* compute (e.g. a `Current` column and a `Prior` column produced by your own formulas/source) — it is not an automatic "vs. last N periods" toggle.
+  - `trend` (sparkline) is **still UI-bound** — unchanged by the 2026-07-27 finding, which tested only `comparisonColumn`/`comparison`, not `trend`. See the reproduction notes below.
+  - An earlier version of this doc claimed `comparison` itself was "best-effort — survives on some KPIs, stripped on others." That blanket claim does **not** hold for the `comparisonColumn` + `comparison:{display:"delta"}` shape (verified 2026-07-27, reproduced twice). If you hit stripping with some *other* `comparison` configuration, treat that configuration as unverified and confirm with a live readback before relying on it — don't assume the whole block is unreliable.
+
+  Behavior on POST/readback (verified 2026-06-24 for `trend`; 2026-07-27 for `comparison`/`comparisonColumn`):
+  - `comparisonColumn` + `comparison:{display:"delta"}` — **accepted and persists** on readback, populated correctly.
   - `trend` — **accepted and persists** on readback, but **inert without a UI binding** — it renders nothing on its own here.
-  - `comparison` and a column-level `columns[].sparkline` — **stripped** on readback. (A second team independently reports `comparison` is "best-effort — survives on some KPIs, stripped on others; finish in the UI if it drops" — i.e. don't rely on it round-tripping.)
+  - A column-level `columns[].sparkline` — **stripped** on readback.
 
   > ⚠️ **The widely-shared sparkline recipe did not reproduce here.** `trend: {shape: line}` + a `DateTrunc("month")` column + a date-range filter on it rendered **no** sparkline — tested ~8 ways on 2026-06-24, including the full documented recipe (a pre-grouped month time-series source, the month column in the KPI, **and both `mode: between` and the relative `mode: last … unit: month`**), column-level `sparkline`, and an exact copy of a *working* UI-bound KPI's columns. Every one rendered the value alone (the **grand total** — no date column ever created the series). Notably, the documented shape that filters a KPI on a `DateTrunc` month column **living on the source** (not in the KPI's own `columns`) is **rejected outright** by this API (`Dependency not found`). A KPI render that shows a live spark in the UI returns **no** `trend`/`sparkline` in its spec — only leftover `DateTrunc`/raw-date columns the editor added.
   >
