@@ -1,0 +1,28 @@
+{
+  "columns": [
+    {
+      "id": "rev_cur",
+      "format": { "kind": "number", "formatString": "$,.0f" }
+    },
+    { "id": "rev_prior" }
+  ],
+  "comparison": {
+    "colorBad": "#cf222e",
+    "colorGood": "#1a7f37",
+    "display": "delta"
+  },
+  "comparisonColumn": { "columnId": "rev_prior" },
+  "id": "kpi-rev",
+  "kind": "kpi-chart",
+  "name": {
+    "color": "#FFFFFF",
+    "text": "Revenue"
+  },
+  "source": {
+    "elementId": "tbl-1",
+    "kind": "table"
+  },
+  "value": {
+    "columnId": "rev_cur"
+  }
+}

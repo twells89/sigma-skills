@@ -1,0 +1,11 @@
+  <LayoutElement elementId="hdr" gridColumn="1 / 25" gridRow="1 / 4"/>
+  <LayoutElement elementId="ctl" gridColumn="1 / 25" gridRow="4 / 6"/>
+  <LayoutElement elementId="kpi1" gridColumn="1 / 13" gridRow="6 / 14"/>
+  <LayoutElement elementId="kpi2" gridColumn="13 / 25" gridRow="6 / 14"/>
+  <LayoutElement elementId="rate1" gridColumn="1 / 13" gridRow="14 / 22"/>
+  <LayoutElement elementId="rate2" gridColumn="13 / 25" gridRow="14 / 22"/>
+  <LayoutElement elementId="trend1" gridColumn="1 / 25" gridRow="22 / 34"/>
+  <LayoutElement elementId="pivot1" gridColumn="1 / 25" gridRow="34 / 48"/>
+  <LayoutElement elementId="base1" gridColumn="1 / 9" gridRow="48 / 57"/>
+  <LayoutElement elementId="base2" gridColumn="9 / 17" gridRow="48 / 57"/>
+  <LayoutElement elementId="base3" gridColumn="17 / 25" gridRow="48 / 57"/>

@@ -1,0 +1,26 @@
+{
+  "columns": [
+    { "id": "rev" },
+    { "id": "prior" }
+  ],
+  "comparison": {
+    "colorBad": "#cf222e",
+    "colorGood": "#1a7f37",
+    "display": "delta"
+  },
+  "comparisonColumn": { "columnId": "prior" },
+  "id": "k",
+  "kind": "kpi-chart",
+  "name": {
+    "text": "Rev"
+  },
+  "source": {
+    "elementId": "t",
+    "kind": "table"
+  },
+  "value": {
+    "columnId": "rev",
+    "color": "#FDE047",
+    "fontSize": 44
+  }
+}

@@ -1,0 +1,149 @@
+{
+  "ai_insight": {
+    "body": "{{ Replace(CallText(\"SNOWFLAKE.CORTEX.COMPLETE\", \"llama3.1-8b\", \"Summarize revenue trends for the period.\") , '\"', \"\") }}",
+    "id": "ai-rev",
+    "kind": "text"
+  },
+  "ai_insight_custom_model": {
+    "body": "{{ Replace(CallText(\"SNOWFLAKE.CORTEX.COMPLETE\", \"mistral-large2\", \"Say one nice thing about the data.\") , '\"', \"\") }}",
+    "id": "ai-rev2",
+    "kind": "text"
+  },
+  "filter_row": [
+    {
+      "controlId": "RegionCtl",
+      "controlType": "list",
+      "filters": [
+        {
+          "columnId": "dt-region",
+          "source": {
+            "elementId": "detail-tbl",
+            "kind": "table"
+          }
+        }
+      ],
+      "id": "ctl-region",
+      "kind": "control",
+      "mode": "include",
+      "name": "Region",
+      "selectionMode": "single",
+      "source": {
+        "columnId": "col-region",
+        "kind": "source",
+        "source": {
+          "elementId": "src",
+          "kind": "table"
+        }
+      },
+      "values": [
+
+      ]
+    },
+    {
+      "controlId": "CategoryCtl",
+      "controlType": "list",
+      "filters": [
+        {
+          "columnId": "dt-category",
+          "source": {
+            "elementId": "detail-tbl",
+            "kind": "table"
+          }
+        },
+        {
+          "columnId": "mc-category",
+          "source": {
+            "elementId": "master-chart",
+            "kind": "table"
+          }
+        }
+      ],
+      "id": "ctl-category",
+      "kind": "control",
+      "mode": "include",
+      "name": "Category",
+      "selectionMode": "single",
+      "source": {
+        "columnId": "col-category",
+        "kind": "source",
+        "source": {
+          "elementId": "src",
+          "kind": "table"
+        }
+      },
+      "values": [
+
+      ]
+    }
+  ],
+  "grain_control": {
+    "controlId": "GrainCtl-ctl",
+    "controlType": "segmented",
+    "id": "GrainCtl",
+    "kind": "control",
+    "name": "Grain",
+    "selectionMode": "single",
+    "source": {
+      "kind": "manual",
+      "valueType": "text",
+      "values": [
+        "Week",
+        "Month",
+        "Day"
+      ]
+    },
+    "value": "Month"
+  },
+  "trend_dimension": "Switch([GrainCtl-ctl],\"Week\",DateTrunc(\"week\",[Src/Date]),\"Month\",DateTrunc(\"month\",[Src/Date]),DateTrunc(\"day\",[Src/Date]))",
+  "wide_pivot": {
+    "columns": [
+      {
+        "formula": "[Src/Region]",
+        "id": "piv-region",
+        "name": "Region"
+      },
+      {
+        "formula": "[Src/Category]",
+        "id": "piv-category",
+        "name": "Category"
+      },
+      {
+        "formula": "Sum([Src/Revenue])",
+        "id": "piv-revenue",
+        "name": "Revenue"
+      },
+      {
+        "formula": "Sum([Src/Orders])",
+        "id": "piv-orders",
+        "name": "Orders"
+      },
+      {
+        "formula": "Avg([Src/Margin])",
+        "id": "piv-margin",
+        "name": "Margin"
+      }
+    ],
+    "columnsBy": [
+
+    ],
+    "id": "piv-1",
+    "kind": "pivot-table",
+    "rowsBy": [
+      {
+        "id": "piv-region"
+      },
+      {
+        "id": "piv-category"
+      }
+    ],
+    "source": {
+      "elementId": "src",
+      "kind": "table"
+    },
+    "values": [
+      "piv-revenue",
+      "piv-orders",
+      "piv-margin"
+    ]
+  }
+}

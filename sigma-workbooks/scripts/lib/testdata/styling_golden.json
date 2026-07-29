@@ -1,0 +1,72 @@
+{
+  "chart_color_categorical": {
+    "themeOverrides": {
+      "categoricalScheme": [
+        "#2563EB",
+        "#0EA5E9",
+        "#14B8A6",
+        "#F59E0B",
+        "#8B5CF6",
+        "#EF4444",
+        "#10B981",
+        "#64748B"
+      ]
+    }
+  },
+  "chart_color_single": {
+    "color": {
+      "by": "single",
+      "value": "#2563EB"
+    }
+  },
+  "format_for_currency": {
+    "formatString": "$,.0f",
+    "kind": "number"
+  },
+  "format_for_decimal": {
+    "formatString": ",.2f",
+    "kind": "number"
+  },
+  "format_for_integer": {
+    "formatString": ",.0f",
+    "kind": "number"
+  },
+  "format_for_percent": {
+    "formatString": ".1%",
+    "kind": "number"
+  },
+  "header": {
+    "element": [
+      {
+        "id": "hdr-bg",
+        "kind": "container",
+        "style": {
+          "backgroundColor": "#0F172A",
+          "borderRadius": "round"
+        }
+      },
+      {
+        "body": "# <span style=\"color: #FFFFFF\">Dashboard</span>",
+        "id": "hdr-title",
+        "kind": "text"
+      }
+    ],
+    "layout": "<GridContainer elementId=\"hdr-bg\" type=\"grid\" gridColumn=\"1 / 25\" gridRow=\"1 / 3\" gridTemplateColumns=\"repeat(24, 1fr)\" gridTemplateRows=\"auto\">\n  <LayoutElement elementId=\"hdr-title\" gridColumn=\"1 / 25\" gridRow=\"1 / 3\"/>\n</GridContainer>"
+  },
+  "kpi_accent": {
+    "color": "#2563EB"
+  },
+  "section_card": {
+    "element": {
+      "id": "card-1",
+      "kind": "container",
+      "style": {
+        "backgroundColor": "#FFFFFF",
+        "borderColor": "#E2E8F0",
+        "borderRadius": "round",
+        "borderWidth": 1
+      }
+    },
+    "wrap": "<GridContainer elementId=\"card-1\" type=\"grid\" gridColumn=\"1 / 25\" gridRow=\"7 / 13\" gridTemplateColumns=\"repeat(24, 1fr)\" gridTemplateRows=\"auto\">\n  <LayoutElement elementId=\"k1\" gridColumn=\"1 / 9\" gridRow=\"1 / 7\"/>\n  <LayoutElement elementId=\"k2\" gridColumn=\"9 / 17\" gridRow=\"1 / 7\"/>\n  <LayoutElement elementId=\"k3\" gridColumn=\"17 / 25\" gridRow=\"1 / 7\"/>\n</GridContainer>"
+  }
+}
