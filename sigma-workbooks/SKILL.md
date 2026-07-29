@@ -224,10 +224,11 @@ The reference is feature-sliced — don't read every file up-front. The index ha
 | `reference/specification/charts.md` | Chart, graph, visualization, line / bar / column / stacked / grouped / combo / donut / pie / scatter / share-of / breakdown. Cartesian axes, color channel, trellis, trendlines, reference marks. |
 | `reference/specification/maps.md` | Map visualizations — `geography-map` (GeoJSON shapes), `point-map` (lat/long bubbles), `region-map` (states / counties / countries). |
 | `reference/specification/kpis.md` | KPI, stat, big number, single value, metric card — including layout / value styling, the comparison Δ badge (`comparisonColumn` + `comparison:{display:"delta"}` — spec-authorable and readback-stable; the house default), and the trend/sparkline block (still UI-bound). |
-| `reference/specification/controls.md` | Filter, dropdown, picker, multi-select, date range, date picker, text filter, number range, slider, segmented, hierarchy. |
+| `reference/specification/controls.md` | Filter, dropdown, picker, multi-select, date range, date picker, text filter, number range, slider, segmented, hierarchy. Also the entry (write) text control shape used with buttons/actions. |
 | `reference/specification/content-elements.md` | The non-data elements — `text` (Markdown + inline styling), `image`, `divider`, `embed` (external URLs). Titles, callouts, logos, rules, embedded content. |
 | `reference/specification/input-tables.md` | Operational supplement for `input-table` (spec shape lives in `tables.md`): write-connection requirement, the publish gate, reading data back via warehouse views, element endpoints for auditing, and migration patterns (Excel/planning models). |
-| `reference/specification/styling.md` | **Load when building a dashboard from scratch.** Design recipe library — vetted color palette, hero header strip, KPI card row, section headers, divider rhythm, categorical chart colors. Turns a default-arrange workbook into a designed-looking one without UI editing. |
+| `reference/specification/styling.md` | **Load when building a dashboard from scratch.** Design recipe library — vetted color palette, hero header strip, gradient header/KPI cards + composite sparkline, KPI card row, section headers, divider rhythm, categorical chart colors. Turns a default-arrange workbook into a designed-looking one without UI editing. |
+| `reference/specification/agents.md` | Workbook AI agent, chat with your data, agent, chatbot, AI assistant. The workbook-top-level `agents:[]` array + page-level `chat` element; read-only analyst vs. write/action agent; org-feature gate + graceful degrade. |
 
 ### Sources
 
@@ -253,6 +254,7 @@ The reference is feature-sliced — don't read every file up-front. The index ha
 |------|--------------|
 | `reference/workflows/discover.md` | Finding connections, tables, and column names. Load before composing a new spec. |
 | `reference/workflows/composition.md` | Open-ended design decisions — calibrating workbook complexity to the request, when to ask the user, what to ask, surfacing structural choices in the final summary, and a few safe defaults (hidden source pages, ranked-table sort direction). Load before drafting anything when the prompt leaves significant design choices unmade. |
+| `reference/workflows/actions.md` | Buttons, write-back, insert-rows/clear-control/set-control-value effects, modals (open/close-overlay), the append-only-log pattern, and the masked-error catalog for input-table/control element kinds. Load when the user wants a button, a "log/save/submit" action, or a write-back workflow. |
 | `reference/workflows/crud.md` | POST / GET / PUT against the workbook spec endpoints. Load when creating, retrieving, or updating a workbook. |
 | `reference/workflows/validate.md` | Pre-submit + post-create validation. Load before any POST or PUT. |
 | `reference/workflows/from-image.md` | The user supplied a target image (screenshot, mockup, BI-tool export) to reproduce. Load *before* discovery — it adds explicit observation and validation steps. |
