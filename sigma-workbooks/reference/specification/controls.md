@@ -61,9 +61,32 @@ filters:                 # the TARGETS it filters — one entry per element+colu
     columnId: scoped-col-region
 ```
 
-> **Verified working shape** (pulled from a live, successfully-POSTed workbook 2026-06-15). A list control carries `source` / `mode` / `selectionMode` / `values` as **flat top-level siblings** — NOT inside a nested "value object." The single most common mistake is omitting `source`/`mode`/`selectionMode`/`values` (or nesting them); Sigma then rejects the element with the opaque catch-all `Invalid kind: "control"`, which means **the inner fields are wrong, NOT that controls are unsupported** (see `reference/workflows/validate.md`). `segmented` and `hierarchy` are the other list-style widgets — same wiring (value-list `source` + `filters` targets).
+> **Verified working shape** (pulled from a live, successfully-POSTed workbook 2026-06-15). A list control carries `source` / `mode` / `selectionMode` / `values` as **flat top-level siblings** — NOT inside a nested "value object." The single most common mistake is omitting `source`/`mode`/`selectionMode`/`values` (or nesting them); Sigma then rejects the element with the opaque catch-all `Invalid kind: "control"`, which means **the inner fields are wrong, NOT that controls are unsupported** (see `reference/workflows/validate.md`). `segmented` is the other flat-scalar list-style widget — same wiring. `hierarchy` is too, but with path-shaped `values` — see `## Hierarchy` below.
 
 > **A control cannot bind to a map element** (`point-map` / `region-map` / `geography-map`). Pointing a list control's `source` (value list) or a `filters[]` target at a map element fails the POST with `Dependency not found: '<mapElementId>'` (live-verified 2026-06-26). Back the control with a real `table` element (e.g. a small dimension/directory table on the same column) for both the value list and the filter target. To also scope the map, filter it indirectly (e.g. drive the map's source element off the same filtered table, or apply the predicate in the data model) rather than targeting the map element directly.
+
+## Hierarchy
+
+`hierarchy` filters a multi-level path (e.g. Region > State > City) selected in a drill-down tree widget. Like `date-range`/`number-range`, **no `source` is needed** — the column comes from `filters` — and `values` holds the selected **paths**: an array of variable-depth string arrays, root to leaf (`[["East"], ["West", "California"]]` — a one-level and a two-level path together are valid).
+
+```yaml
+kind: control
+id: ctrl-category
+controlId: CategoryTree
+name: Product category
+controlType: hierarchy
+mode: include              # include | exclude
+values:
+  - [Electronics]
+  - [Electronics, Laptops]
+filters:
+  - source:
+      kind: table
+      elementId: sales-table
+    columnId: col-category-path
+```
+
+> The schema also documents a `source` field (same double-nesting as List's value-list source, minus the `kind: source` wrapper) for driving the tree's browsable value list from a column. **Live-verified 2026-08-03: setting it is rejected with `Invalid source for hierarchy control`** against a plain warehouse-table or custom-SQL column (tried both, plus a multi-level `groupings` column) — it appears to require a column already backed by real hierarchy metadata in the data model, which isn't reachable through a plain table source. Omitting `source` (as above) POSTs, round-trips, and renders; the tree just has no populated value list to browse (shows a disabled "Hierarchy values appear here" placeholder) until one exists.
 
 ## Date Range
 
@@ -280,6 +303,19 @@ filters:
 ## Top-N
 
 `top-n` is a dedicated control type for "show the top N" interactions. Wire it like any other control via `filters`; the cap is a flat top-level field.
+
+## Synced
+
+A `synced` control is a **mirror** of another control already on the page (or workbook) — the same widget rendered again elsewhere without duplicating its wiring, e.g. repeating a filter at the top and bottom of a long page. It carries none of the usual fields — no `filters`, `source`, `name`, or value fields — just `kind`, `id`, `controlType`, and a repurposed `controlId`:
+
+```yaml
+kind: control
+id: ctrl-region-copy
+controlId: RegionFilter   # NOT this copy's own handle — the PRIMARY control's controlId
+controlType: synced
+```
+
+> **Verified from the live schema** (confirmed via the `synced` control's schema description, not assumed): on every other `controlType`, `controlId` is this control's own formula handle. On `synced` it means the opposite — it names the **primary** control being mirrored, and this copy has no handle of its own. `id` is still this element's own (unique) element id.
 
 ---
 
