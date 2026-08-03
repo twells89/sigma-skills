@@ -29,6 +29,8 @@
 #   push [dir]                   reassemble -> drift-check -> validate -> PUT (or POST create)
 #   assemble [dir] [-o file]     print/write the reassembled spec without pushing
 #   import <spec.yaml> [dir]     explode an existing local spec file (create mode: push POSTs)
+#   verify <spec-file>           dry-run: POST to /v2/workbooks/spec/verify — zero-persistence
+#                                schema/reference check; prints valid: true or the errors array
 #   render [dir] [--page X]      export page(s) (or --element <id>) as PNG into <dir>/renders/
 #                                — LOOK at what you built and iterate; renders server state
 #
@@ -277,6 +279,19 @@ def cmd_import(args)
   raw = File.read(src)
   explode(YAML.load(raw), dir, raw_yaml: raw)
   puts "imported #{src} -> #{dir} (create mode: push will POST a new workbook)"
+end
+
+def cmd_verify(args)
+  path = args.shift or die 'usage: wb-rep.rb verify <spec-file>'
+  die "no such file: #{path}" unless File.exist?(path)
+  result = YAML.load(api(:post, '/v2/workbooks/spec/verify', File.read(path)))
+  if result['valid']
+    puts 'valid: true'
+  else
+    puts 'valid: false'
+    (result['errors'] || []).each { |e| puts "  - #{e['summary']}" }
+    exit 1
+  end
 end
 
 def cmd_status(args)
@@ -544,6 +559,7 @@ cmd = argv.shift
 case cmd
 when 'pull'     then cmd_pull(argv, force: force)
 when 'import'   then cmd_import(argv)
+when 'verify'   then cmd_verify(argv)
 when 'status'   then cmd_status(argv)
 when 'assemble' then cmd_assemble(argv)
 when 'push'         then cmd_push(argv, force: force, validate: !no_validate)
@@ -551,5 +567,5 @@ when 'render'       then cmd_render(argv)
 when 'summarize'    then cmd_summarize(argv)
 when 'capabilities' then cmd_capabilities(argv)
 else
-  die "usage: wb-rep.rb {pull <workbook-id> [dir] | import <spec.yaml> [dir] | status [dir] | assemble [dir] [-o file] | push [dir] | render [dir] [--page <id|name>] [--element <id>] | summarize [dir|workbook-id] | capabilities [--kind K [--field F]]} [--force] [--no-validate]"
+  die "usage: wb-rep.rb {pull <workbook-id> [dir] | import <spec.yaml> [dir] | verify <spec-file> | status [dir] | assemble [dir] [-o file] | push [dir] | render [dir] [--page <id|name>] [--element <id>] | summarize [dir|workbook-id] | capabilities [--kind K [--field F]]} [--force] [--no-validate]"
 end
