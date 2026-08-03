@@ -1,6 +1,6 @@
 # Sources (non-warehouse)
 
-Recipe book for source kinds other than `warehouse-table`. For the canonical schema of any source kind, pull it by its `kind` value (`warehouse-table`, `sql`, `table`, `data-model`, `join`, `union`, `transpose`):
+Recipe book for source kinds other than `warehouse-table`. For the canonical schema of any source kind, pull it by its `kind` value (`warehouse-table`, `sql`, `table`, `data-model`, `join`, `union`, `transpose`, `csv-table`, `metric-view`, `semantic-view`):
 
 ```bash
 jq --arg k join 'first(.. | objects | select((.allOf? and any(.allOf[]?; .properties?.kind?.enum==[$k])) or .properties?.kind?.enum==[$k]))' /tmp/sigma-api.json
@@ -77,6 +77,42 @@ Each entry in a join's top-level `columns[]` is a join-key pair (`left`/`right`,
 ## sql
 
 A custom SQL query against a connection — `kind: sql` with `connectionId` + `statement`. Pull the shape from the spec via the recipe.
+
+## csv-table
+
+References a CSV file uploaded directly into Sigma, not a table synced from a connection.
+
+```yaml
+kind: csv-table
+connectionId: <conn-uuid>
+inodeId: <csv-file-inode-uuid>
+```
+
+The `inodeId` is scoped to the workbook it was uploaded into — it doesn't resolve against another workbook's copy of the same file (live-verified: reusing one elsewhere fails with `CSV table does not belong to this workbook`). No REST endpoint uploads a CSV, and `GET /v2/files` doesn't list these inodes; find one by reading an existing workbook's spec, or upload via the UI. Column formula prefix is the CSV filename, e.g. `[sigma_demo_users.csv/user_id]`.
+
+## metric-view
+
+References a Databricks metric view — a governed dimensions+measures object native to Databricks, not something authored through Sigma's data-model `metrics` block. Same `path`-array shape as `warehouse-table`; Sigma resolves it through a connection's object hierarchy the same way it resolves a table.
+
+```yaml
+kind: metric-view
+connectionId: <conn-uuid>
+path: [CATALOG, SCHEMA, METRIC_VIEW_NAME]
+```
+
+Live-verified: a real metric view builds and reads back; a bogus path is rejected server-side (`metric-view not found: ...`). This org had no REST-exposed way to introspect the view's own dimension/measure names, so populate `columns[]` from names you already know.
+
+## semantic-view
+
+References a Snowflake semantic view — same governed, platform-native pattern as `metric-view`. Per spec, the final `path` segment names the view's **base logical table**, distinct from the view itself.
+
+```yaml
+kind: semantic-view
+connectionId: <conn-uuid>
+path: [DATABASE, SCHEMA, SEMANTIC_VIEW_NAME]  # final segment = base logical table, per spec
+```
+
+A real semantic view exists and resolves in this org, but creating a workbook element against it returned `` `semantic-view` sources are not enabled for this workspace `` — a workspace-level feature flag, independent of the object being real. Unverified end-to-end here; shape above is spec evidence plus that live lookup, not a full create+readback.
 
 ## transpose
 
