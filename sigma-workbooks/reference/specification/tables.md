@@ -110,7 +110,7 @@ All fields are optional; omit `preset` for the spreadsheet default. Pull the ful
 
 ### `columnSecurities`
 
-Column-level security on a table element uses the same `columnSecurities` criteria shapes as a data-model table element — see `sigma-data-models/reference/column-level-security.md`. Confirmed byte-identical against the live OpenAPI schema (2026-08-03) — it's literally the same shared schema node, not just a structural match — and confirmed live create + readback round-trips exactly. This field is only present on `table`, not `pivot-table` or `input-table`.
+Column-level security on a table element uses the same `columnSecurities` criteria shapes as a data-model table element — see `sigma-data-models/reference/column-level-security.md`. Confirmed byte-identical against the live OpenAPI schema (2026-08-03), and confirmed live create + readback round-trips exactly. This field is only present on `table`, not `pivot-table` or `input-table`.
 
 ---
 
