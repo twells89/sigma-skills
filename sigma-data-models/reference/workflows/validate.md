@@ -21,7 +21,7 @@ Run through this before every `POST /v2/dataModels/spec` and `PUT /v2/dataModels
 
 | Error | Likely cause |
 |---|---|
-| `400 Invalid argument` / `unknown field` / `unexpected property` | Schema drift between this skill and the live API. Fetch the OpenAPI (`https://help.sigmacomputing.com/openapi/sigma-computing-public-rest-api.json`) and diff field names. |
+| `400 Invalid argument` / `unknown field` / `unexpected property` | Schema drift between this skill and the live API. Fetch the data-model spec OpenAPI (`https://help.sigmacomputing.com/openapi/code-representation.json` — the `/v2/dataModels/spec` request body) and diff field names. (The `help.sigmacomputing.com/openapi.json` index lists this alongside `sigma-rest-api.json`; the old `sigma-computing-public-rest-api.json` path now 404s.) |
 | `400 Invalid column reference` | Bare `[col]` used where `[TABLE/col]` was needed, or the column name is misspelled. |
 | `400 Invalid element ID` (in relationships) | An UPDATE that mixes external and internal IDs. The existing element ID must come from `GET`. |
 | `403 Forbidden` | Credential lacks "Create, edit, and publish data models" permission, or "Can edit" on the destination folder. Ask your Sigma admin. |
