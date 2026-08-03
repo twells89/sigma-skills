@@ -1,10 +1,10 @@
-# Content Elements (text, image, divider, embed)
+# Content Elements (text, image, divider, embed, form, progress, navigation)
 
 The non-data-bound elements — prose, images, rules, and embedded URLs. None take a `source`. Pull any kind's exact shape from the spec:
 
 ```bash
 jq --arg k text 'first(.. | objects | select((.allOf? and any(.allOf[]?; .properties?.kind?.enum==[$k])) or .properties?.kind?.enum==[$k]))' /tmp/sigma-api.json
-# swap k for image / divider / embed
+# swap k for image / divider / embed / form / progress / navigation
 ```
 
 These position in the page grid via `<LayoutElement>` like any other element — see `layout.md`.
@@ -71,6 +71,70 @@ Renders an external URL inline — a hosted report, form, video, etc. Required `
 id: embed-report
 kind: embed
 url: https://example.com/report
+```
+
+## form
+
+An input form. Required `id`, `kind`, `fields` (array); optional `style`. Each field requires `type` (`text` / `text-area` / `number` / `date` / `checkbox`); optional `label`, `placeholder`, `required` (`required` / `optional`, default `optional` — a **string enum, not a boolean**), and `readOnly` (`readonly` / `editable`, default `editable`).
+
+```yaml
+id: intake-form
+kind: form
+fields:
+  - type: text
+    label: Name
+    required: required
+  - type: number
+    label: Quantity
+  - type: date
+    label: Start date
+  - type: checkbox
+    label: Subscribe
+```
+
+Verified live: `form` elements can be gated behind a per-workspace feature flag — a correctly-shaped spec can still fail `/v2/workbooks/spec/verify` with `` `form` elements are not enabled for this workspace``. That's an entitlement error, not a shape error; the field shape above round-tripped past validation to reach that gate.
+
+## progress
+
+A native progress-bar/gauge element — a single value rendered against a min/max range. Required `id`, `kind`; optional `min`, `max`, `value` (each a **formula string**, e.g. `"Sum([Sales])"` or a literal like `"72"` — not a raw number), `mode` (`percent` / `value`, default `percent`), `shape` (`bar` / `ring`, default `bar`), and a plugin-style `config` object (fill/track color, size, alignment, label/value/description text styling, conditional `colorRules`).
+
+```yaml
+id: capacity-gauge
+kind: progress
+min: "0"
+max: "100"
+value: "72"
+shape: ring
+```
+
+Overlaps the `gauge` plugin's territory (`plugins/sigma-authoring/skills/sigma-plugin-authoring/plugins/gauge/README.md`) — that plugin exists to draw a radial semicircle sweep with red/amber/green banding by closeness-to-target, which native `progress` (even `shape: ring`) doesn't reproduce. For a plain value- or percent-of-range indicator, reach for `progress` first; keep the plugin for the semicircle RAG-gauge look specifically.
+
+## navigation
+
+An in-canvas page-navigation element — two variants sharing `kind: navigation`, discriminated by `mode`. Required on both: `id`, `kind`, `mode`. Optional on both: `style`, `optionStyle` (style/orientation/alignment/size/colors of the option buttons).
+
+**Manual** (`mode: manual`) additionally requires `options` — an array of menu items (`label`, `icon`, `destination`) or one-level submenus; `destination` is one of `{type: page, pageId}`, `{type: element, elementId}`, `{type: link, url}`, or `{type: none}`. Optional `showIcons`.
+
+```yaml
+id: page-nav
+kind: navigation
+mode: manual
+options:
+  - label: Overview
+    destination: { type: page, pageId: page-1 }
+  - label: Docs
+    destination: { type: link, url: https://example.com }
+```
+
+**Auto** (`mode: auto`) has no other required fields; optional `pageLabels` — per-page label overrides keyed by page id.
+
+```yaml
+id: page-nav-auto
+kind: navigation
+mode: auto
+pageLabels:
+  page-1: Overview
+  page-2: Details
 ```
 
 ## plugin (2026-06-18 release)
