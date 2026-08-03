@@ -284,11 +284,11 @@ The single most common spec error is bare `[column_name]` references to warehous
 
 ### "I don't see this field in the skill"
 
-Fetch the OpenAPI. The skill documents stable, common surface area; the API has more. See **Consulting the OpenAPI** above.
+Fetch the OpenAPI. The skill documents stable, common surface area; the API has more. See **Consulting the shapes** above.
 
 ### API schema mismatch (skill is stale)
 
-A 400 about request *shape* — `invalid argument`, `unknown field`, `unexpected property`, `missing required field` — usually means the API moved past the skill. Fetch the OpenAPI (see **Consulting the OpenAPI**), diff the live shape for that `kind`, and retry **once** with the correction. Tell the user it looks like the skill is out of date and worth updating through whatever channel they installed it from; don't loop on retries.
+A 400 about request *shape* — `invalid argument`, `unknown field`, `unexpected property`, `missing required field` — usually means the API moved past the skill. Fetch the OpenAPI (see **Consulting the shapes**), diff the live shape for that `kind`, and retry **once** with the correction. Tell the user it looks like the skill is out of date and worth updating through whatever channel they installed it from; don't loop on retries.
 
 ### 401 Unauthorized
 
