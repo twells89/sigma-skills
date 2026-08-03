@@ -9,7 +9,7 @@ jq --arg k region-map 'first(.. | objects | select((.allOf? and any(.allOf[]?; .
 
 The distinctive binding per kind (the part worth knowing up front):
 
-- **geography-map** — `geography: { id: <columnId> }`, a single column of GeoJSON geometries.
+- **geography-map** — `geography: { id: <columnId> }`, a single column of GeoJSON geometries. Optional `featureStyle: { opacity, pointSize }` (mark opacity 0–1 and point diameter 1–40px for the format panel's "Feature style" section — applies uniformly to every rendered mark, not a true per-row override despite the name; live-verified 2026-08-03: bumping `pointSize` to 35 and `opacity` to 0.35 visibly enlarged and washed out every point on the map) and `tooltipFormat: { columnNames: shown | hidden }` (format-panel tooltip setting, distinct from the `tooltip` array of hover column refs above — not visually confirmable from a static screenshot since tooltips need hover; confirmed instead via round-trip: it POSTs and reads back verbatim).
 - **point-map** — `latitude: { id }` + `longitude: { id }`; optional `size: { id }` makes it a bubble map.
 - **region-map** — `region: { id, regionType }`. `regionType` ∈ `country`, `us-state`, `us-county`, `us-zipcode`, `us-cbsa`, `us-postal-place`, `ca-province`; the region column's values must match it.
 
