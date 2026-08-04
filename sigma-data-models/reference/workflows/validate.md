@@ -26,6 +26,7 @@ Run through this before every `POST /v2/dataModels/spec` and `PUT /v2/dataModels
 | `400 Invalid element ID` (in relationships) | An UPDATE that mixes external and internal IDs. The existing element ID must come from `GET`. |
 | `403 Forbidden` | Credential lacks "Create, edit, and publish data models" permission, or "Can edit" on the destination folder. Ask your Sigma admin. |
 | `409 Conflict` (`inode_archived`) | The target file is archived. Restore via `PATCH /v2/files/<id>` with `{"restore": true}`, then retry. |
+| `Source not found` / other connection-related failures (query timeout, auth error) at query or preview time | Could be the connection, not the spec. Check `GET /v2/connections/{connectionId}/test` first — returns `{"read": "SUCCESS"\|"FAILED", "write": "SUCCESS"\|"FAILED"\|"DISABLED"}` (live-verified 2026-08-03) — before assuming the data-model definition is wrong. |
 
 ## When stuck — pull a known-working model
 
