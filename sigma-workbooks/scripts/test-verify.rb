@@ -20,9 +20,14 @@
 # real, live-resolvable source is the point: it's what lets the bad-ref
 # fixture below fail for the reason under test (an unresolved dependency)
 # instead of an unrelated connection error, and lets the good fixture
-# actually come back `valid: true` in whatever org runs this.
+# actually come back `valid: true` in whatever org runs this. `folderId` is
+# resolved the same way, at runtime, via `/v2/whoami` (same idiom as
+# tableau-to-sigma's probe-control-formula.rb) — never hardcode one org's
+# real folder id here.
 
 require 'json'
+require 'net/http'
+require 'uri'
 require 'tempfile'
 require 'open3'
 
@@ -33,10 +38,31 @@ def check(desc)
   $failures += 1 unless ok
 end
 
+unless ENV['SIGMA_BASE_URL'] && ENV['SIGMA_API_TOKEN']
+  warn 'test-verify: SIGMA_BASE_URL / SIGMA_API_TOKEN not set — eval "$(get-token.sh)" first (sigma-api skill)'
+  exit 2
+end
+
+def api_get(path)
+  uri = URI.join(ENV.fetch('SIGMA_BASE_URL'), path)
+  req = Net::HTTP::Get.new(uri)
+  req['Authorization'] = "Bearer #{ENV.fetch('SIGMA_API_TOKEN')}"
+  req['Accept'] = 'application/json'
+  res = Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == 'https', read_timeout: 30) { |h| h.request(req) }
+  JSON.parse(res.body)
+end
+
+def home_folder_id
+  me = (api_get('/v2/whoami') rescue nil)
+  uid = me && (me['memberId'] || me['userId'] || me['id'])
+  mem = uid ? (api_get("/v2/members/#{uid}") rescue nil) : nil
+  [me, mem].compact.map { |h| h['homeFolderId'] || h['homeFolder'] }.compact.first
+end
+
 WB_REP = File.expand_path('wb-rep.rb', __dir__)
 CONNECTION_ID = '362d859b-f432-4657-8e58-efc8535aa354' # Sigma Sample Database
 TABLE_PATH = %w[RETAIL PLUGS_ELECTRONICS F_POINT_OF_SALE].freeze
-FOLDER_ID = '57e59735-86b9-40b0-b029-217205406f57' # My Documents
+FOLDER_ID = home_folder_id or abort('test-verify: could not resolve home folder id via /v2/whoami — is SIGMA_API_TOKEN valid?')
 
 def spec_with(total_sales_formula)
   {
@@ -66,11 +92,6 @@ def run_verify(spec)
     out, status = Open3.capture2e('ruby', WB_REP, 'verify', f.path)
     return [out, status.exitstatus]
   end
-end
-
-unless ENV['SIGMA_BASE_URL'] && ENV['SIGMA_API_TOKEN']
-  warn 'test-verify: SIGMA_BASE_URL / SIGMA_API_TOKEN not set — eval "$(get-token.sh)" first (sigma-api skill)'
-  exit 2
 end
 
 out, code = run_verify(BAD_SPEC)
