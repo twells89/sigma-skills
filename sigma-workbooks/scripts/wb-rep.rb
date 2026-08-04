@@ -282,6 +282,12 @@ def cmd_import(args)
 end
 
 def cmd_verify(args)
+  # Known caveat (2026-08-03): /v2/workbooks/spec/verify is a private Beta endpoint that has
+  # been observed rejecting well-formed requests matching its own documented OpenAPI schema,
+  # 400ing for an undocumented { document: {...}, layout } envelope instead of this flat one
+  # (which POST /v2/workbooks/spec, the real create endpoint, does accept). If you land here
+  # debugging a mysterious 400, your spec is likely fine — see reference/workflows/validate.md
+  # section 1 and fall back to section 5's post-create verification.
   path = args.shift or die 'usage: wb-rep.rb verify <spec-file>'
   die "no such file: #{path}" unless File.exist?(path)
   result = YAML.load(api(:post, '/v2/workbooks/spec/verify', File.read(path)))

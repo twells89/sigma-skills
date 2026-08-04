@@ -12,6 +12,8 @@ Load this file before any POST or PUT.
 
 Runs the same validation as a real create/update — including whether every `[Source/column]` reference actually resolves — but persists nothing. Prints `valid: true`, or `valid: false` plus each failure's `errors[].summary` (exit code mirrors this: 0 valid, 1 invalid). Do this first: most reference/schema mistakes get caught right here instead of surviving to a real create. It can't catch anything that only manifests against live data — that's what section 5 is for.
 
+> **Known caveat (2026-08-03):** `/v2/workbooks/spec/verify` is a private Beta endpoint. It has been observed rejecting well-formed requests that exactly match its own documented OpenAPI schema — a 400 expecting an undocumented `{document: {...}, layout}` envelope instead of the flat shape the spec (and the real `POST /v2/workbooks/spec` create endpoint) both document. This is live-API/documentation drift on Sigma's side, not a spec-authoring mistake. If `/verify` misbehaves this way, skip it and fall back to section 5's post-create verification instead.
+
 ## 2. Run the bundled validator
 
 ```bash
