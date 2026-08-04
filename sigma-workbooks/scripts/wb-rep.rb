@@ -29,8 +29,9 @@
 #   push [dir]                   reassemble -> drift-check -> validate -> PUT (or POST create)
 #   assemble [dir] [-o file]     print/write the reassembled spec without pushing
 #   import <spec.yaml> [dir]     explode an existing local spec file (create mode: push POSTs)
-#   verify <spec-file>           dry-run: POST to /v2/workbooks/spec/verify — zero-persistence
-#                                schema/reference check; prints valid: true or the errors array
+#   verify <spec-file>           dry-run (Beta endpoint): POST to /v2/workbooks/spec/verify —
+#                                zero-persistence schema/reference check; prints valid: true or
+#                                the errors array
 #   render [dir] [--page X]      export page(s) (or --element <id>) as PNG into <dir>/renders/
 #                                — LOOK at what you built and iterate; renders server state
 #
@@ -281,16 +282,32 @@ def cmd_import(args)
   puts "imported #{src} -> #{dir} (create mode: push will POST a new workbook)"
 end
 
+# Root-cause correction (2026-08-04): an earlier version of this comment blamed a lone
+# "/verify Beta drift" — that diagnosis was wrong. Live A/B testing showed the REAL create
+# endpoint (POST /v2/workbooks/spec) 400s identically on the flat shape, with the exact same
+# fix. Both endpoints now require the request wrapped as
+# { name, folderId, document: { schemaVersion, kind: "workbook", pages, layout } } —
+# not the flat { name, folderId, schemaVersion, pages, layout } shape the OpenAPI text still
+# documents and that every other command in this file (push/pull/import/assemble) still
+# reads/writes on disk. This is a known, broader mismatch across this codebase (tracked
+# separately, well beyond this one file) — see reference/workflows/validate.md section 1 for
+# the full story. This helper fixes it ONLY for verify's outbound request; it does not change
+# the on-disk rep format push/pull/import/assemble use, and does not fix those commands' own
+# create/update calls, which hit the same 400 live and are still flat today.
+def wrap_for_verify(spec)
+  return spec if spec['document'] # already wrapped — pass through unchanged
+
+  document_keys = %w[schemaVersion kind pages layout]
+  document = spec.select { |k, _| document_keys.include?(k) }
+  document['kind'] ||= 'workbook'
+  spec.reject { |k, _| document_keys.include?(k) }.merge('document' => document)
+end
+
 def cmd_verify(args)
-  # Known caveat (2026-08-03): /v2/workbooks/spec/verify is a private Beta endpoint that has
-  # been observed rejecting well-formed requests matching its own documented OpenAPI schema,
-  # 400ing for an undocumented { document: {...}, layout } envelope instead of this flat one
-  # (which POST /v2/workbooks/spec, the real create endpoint, does accept). If you land here
-  # debugging a mysterious 400, your spec is likely fine — see reference/workflows/validate.md
-  # section 1 and fall back to section 5's post-create verification.
   path = args.shift or die 'usage: wb-rep.rb verify <spec-file>'
   die "no such file: #{path}" unless File.exist?(path)
-  result = YAML.load(api(:post, '/v2/workbooks/spec/verify', File.read(path)))
+  spec = wrap_for_verify(strip_response_only(load_yaml_file(path)))
+  result = YAML.load(api(:post, '/v2/workbooks/spec/verify', YAML.dump(spec)))
   if result['valid']
     puts 'valid: true'
   else

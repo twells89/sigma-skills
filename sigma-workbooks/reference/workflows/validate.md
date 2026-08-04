@@ -4,15 +4,15 @@ Validation runs in three phases: **dry-run** (section 1) hits Sigma's own compil
 
 Load this file before any POST or PUT.
 
-## 1. Dry-run: `POST /v2/workbooks/spec/verify`
+## 1. Dry-run: `POST /v2/workbooks/spec/verify` (Beta)
 
 ```bash
 ./scripts/wb-rep.rb verify /tmp/workbook-spec.yaml
 ```
 
-Runs the same validation as a real create/update — including whether every `[Source/column]` reference actually resolves — but persists nothing. Prints `valid: true`, or `valid: false` plus each failure's `errors[].summary` (exit code mirrors this: 0 valid, 1 invalid). Do this first: most reference/schema mistakes get caught right here instead of surviving to a real create. It can't catch anything that only manifests against live data — that's what section 5 is for.
+`/v2/workbooks/spec/verify` is a private Beta endpoint. Runs the same validation as a real create/update — including whether every `[Source/column]` reference actually resolves — but persists nothing. Prints `valid: true`, or `valid: false` plus each failure's `errors[].summary` (exit code mirrors this: 0 valid, 1 invalid). Do this first: most reference/schema mistakes get caught right here instead of surviving to a real create. It can't catch anything that only manifests against live data — that's what section 5 is for. Pass it a normal flat spec file, same as you'd hand `push`/`import` — `wb-rep.rb verify` handles the envelope described in the note below for you.
 
-> **Known caveat (2026-08-03):** `/v2/workbooks/spec/verify` is a private Beta endpoint. It has been observed rejecting well-formed requests that exactly match its own documented OpenAPI schema — a 400 expecting an undocumented `{document: {...}, layout}` envelope instead of the flat shape the spec (and the real `POST /v2/workbooks/spec` create endpoint) both document. This is live-API/documentation drift on Sigma's side, not a spec-authoring mistake. If `/verify` misbehaves this way, skip it and fall back to section 5's post-create verification instead.
+> **Envelope note (2026-08-04, corrects an earlier 2026-08-03 note that misdiagnosed this):** as of this writing, `/v2/workbooks/spec/verify` — and the real `POST /v2/workbooks/spec` create endpoint right alongside it — require the request body wrapped as `{name, folderId, document: {schemaVersion, kind: "workbook", pages, layout}}`, not the flat `{name, folderId, schemaVersion, pages, layout}` shape this file's other sections, `reference/specification/schema.md`, and the rest of `wb-rep.rb` (`push`/`pull`/`import`/`assemble`) still assume. This is **not** `/verify` drifting from its own documented schema in isolation — both endpoints moved together, away from what their shared OpenAPI text still documents. `wb-rep.rb verify` wraps the request for you (`wrap_for_verify` in `scripts/wb-rep.rb`), so the usage above is unaffected by any of this. The broader flat-vs-wrapped mismatch elsewhere in this codebase — `push`/`pull`/`assemble`, this repo's other spec examples, and the real create endpoint's own callers — is a known, separately-tracked issue and is **not** fixed here: those commands still read/write the flat shape on disk and will hit the same 400 against a live org enforcing this requirement.
 
 ## 2. Run the bundled validator
 
