@@ -462,9 +462,17 @@ FERN_DOCS_URL = 'https://docs.sigmacomputing.com/'.freeze
 OPENAPI_ASSET_RE = %r{fdr-prod-docs-files-public[^"\\]*openapi/sigma-computing-public-rest-api\.json\?[^"\\]*}.freeze
 
 # Net::HTTP.get_response doesn't follow redirects; the docs host does redirect.
+# Network failures (offline, DNS, TLS, timeout) are returned as nil rather than
+# raised, so callers can `die` with an actionable message instead of dumping a
+# raw Ruby backtrace on a user who is simply offline.
 def http_get_follow(url, limit: 5)
   limit.times do
-    res = Net::HTTP.get_response(URI(url))
+    res = begin
+      Net::HTTP.get_response(URI(url))
+    rescue StandardError => e
+      @http_get_error = e.message
+      return nil
+    end
     return res if res.is_a?(Net::HTTPSuccess)
     return nil unless res.is_a?(Net::HTTPRedirection) && res['location']
 
@@ -475,8 +483,15 @@ end
 
 # Extract the presigned compiled-OpenAPI URL from the docs site HTML.
 def discover_openapi_url
+  @http_get_error = nil
   res = http_get_follow(FERN_DOCS_URL)
-  die "failed to fetch #{FERN_DOCS_URL} to discover the compiled OpenAPI asset" unless res
+  unless res
+    detail = @http_get_error ? " (#{@http_get_error})" : ''
+    die "failed to fetch #{FERN_DOCS_URL} to discover the compiled OpenAPI asset#{detail}. " \
+        'If you are offline or the docs host is unreachable, use a live workbook readback ' \
+        '(GET /v2/workbooks/{id}/spec) or a per-endpoint reference page ' \
+        '(https://help.sigmacomputing.com/reference/<endpoint-slug>) instead.'
+  end
   m = res.body[OPENAPI_ASSET_RE]
   unless m
     die "could not find the compiled OpenAPI asset URL in #{FERN_DOCS_URL} — the docs " \
