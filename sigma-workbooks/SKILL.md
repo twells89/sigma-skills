@@ -39,7 +39,7 @@ Sigma's public API docs are an index at `https://help.sigmacomputing.com/openapi
 
 ### Fetching the compiled asset (it is presigned — a bare URL 403s)
 
-**Do not hardcode this URL.** The bare S3 path returns `403 AccessDenied` (verified 2026-08-05). Earlier revisions of this skill read that 403 as "the content hash rotated and went dead" and told you to rediscover a new hash — **that diagnosis was wrong, and the recovery it prescribed doesn't work.** The hash has *not* changed (`964b7dcf…` is the same one pinned here for months); what changed is that the asset now requires **AWS presigned query params** (`X-Amz-Signature`, `X-Amz-Credential`, …). A bare `curl` of the same path 403s no matter how current the hash is, and `https://help.sigmacomputing.com/openapi.json` — the old fallback — is now an HTML page that does not link the compiled asset at all.
+**Do not hardcode this URL** — the bare S3 path returns `403 AccessDenied` (verified 2026-08-05). If you see that 403, the cause is the missing signature, **not** a rotated content hash: the hash is unchanged, so "find the new hash" (what earlier revisions of this skill advised) won't fix it, and the old fallback `help.sigmacomputing.com/openapi.json` is now an HTML page that doesn't link the asset at all.
 
 The signed URL is embedded in the docs site HTML. Extract it at request time:
 
