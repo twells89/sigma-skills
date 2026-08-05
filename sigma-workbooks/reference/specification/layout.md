@@ -1,6 +1,8 @@
 # Layout
 
-Recipe book for the `layout` XML — when to write it, the two-tag grammar, and the silent-failure traps to watch for. `layout` is a **single workbook-top-level property** (one XML string holding one `<Page>` block per page — see the grammar below), **not** a per-page field: setting `pages[].layout` silently no-ops and Sigma falls back to auto-arrange (a common, hard-to-spot trap). Its value is the XML string described below. **Default to writing explicit `layout` XML for multi-element workbooks.**
+Recipe book for the top-level `layout` XML — when to write it, the two-tag grammar, and the silent-failure traps to watch for. **Default to writing explicit `layout` XML for multi-element workbooks.**
+
+> ⚠️ **`layout` is a sibling of `pages` — NOT a property nested under a page.** Its value is one XML string containing one `<Page id="…">` block per page (the `id` ties each block to a `pages[].id`). Putting `layout:` *inside* a `pages[]` entry is **silently ignored**: POST/PUT still returns `success: true`, but Sigma discards it and auto-arranges every page into a single stacked column. Verified 2026-06-16 — when correctly placed alongside `pages` it applies on both `POST` (create) and `PUT`; when nested under a page it's dropped on both. The failure is invisible until you render the page or GET the spec back: a readback that shows self-closing `<GridContainer .../>` tags with the children hoisted out as stacked siblings (and every element spanning `1 / 13`) means your authored layout was discarded. **Where `pages`/`layout` live has moved (2026-08-04 correction):** live create/verify now nests both inside a `document` wrapper (`document: {schemaVersion, kind, pages, layout}`), with only `name`/`folderId` staying outside it — not flat top-level siblings of `name`/`folderId` as this note previously said. See `reference/workflows/validate.md` §1 for the full story. See `schema.md` for the top-level object shape.
 
 Container *elements* (the `kind: "container"` JSON placeholders that pair with `<GridContainer>` in this XML) are covered in **Container elements** below.
 
@@ -133,6 +135,17 @@ Because row tracks collapse to `"auto"`, height comes from children, not from th
 ```
 
 Use stacked rows when you want a section header above a row of charts inside the same container, instead of moving those elements out to the page level.
+
+## Element height heuristics — give tables room to breathe
+
+A table element's `gridRow` span controls how many data rows are visible before it scrolls. The recurring mistake is **under-sizing tables** — a detail/raw-row table given a 5–8 row span shows only ~2 data rows, which defeats the point of a "see the underlying data" table. Size by role:
+
+- **Detail / raw-row tables** (the bottom-of-page "drill into the data" table): give a **tall** span — **~14–20 grid rows** (e.g. `gridRow="32 / 50"`). The user should see 6–10+ rows without scrolling. When a detail table is the last element on the page, err on the side of *too tall* — trailing whitespace below it is cheaper than a cramped 2-row table.
+- **Summary / aggregated tables** (a handful of grouped rows): size to roughly the row count + header, ~6–10 grid rows.
+- **KPIs**: short — ~5–6 rows; they're a single number.
+- **Charts**: ~8–12 rows so axes and labels aren't crushed.
+
+Heights are relative grid units (tracks are `auto`), so these are rules of thumb, not pixels — but the asymmetry holds: **tables are the element most often made too short.** If you're unsure, render the page (PNG export) and count visible rows.
 
 ## Page-level fields: `visibility` and `backgroundImage`
 

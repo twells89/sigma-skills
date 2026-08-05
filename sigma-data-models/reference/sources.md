@@ -2,6 +2,34 @@
 
 The `source` property of a table element defines where the data comes from. Replace the entire `source` object with the appropriate type for your use case.
 
+## Connection kinds
+
+Every `connectionId` used below refers to a **warehouse connection** (`/v2/connections` — Snowflake, BigQuery, Databricks, etc.). This is what every converter and every example in this file assumes.
+
+Sigma also has a separate, newer Beta connection kind: **`api-connectors`** (`/v2/api-connectors`, paired with `/v2/api-credentials`), for defining a call to an external REST API — method, URL, headers, path/query/body params, auth via an `authId` — as a first-class Sigma object, primarily for the workbook **Call API** action. It is a distinct resource from `/v2/connections` and is **not** a `source.kind` value for a data-model table element; no current converter or skill wires a table `source` to an API connector. Treat this as a new capability, not yet used by any converter — document its existence, don't build against it unless a future migration target specifically needs a REST API as a data source.
+
+```json
+// POST /v2/api-connectors — minimal create body
+{
+  "name": "My API",
+  "params": {
+    "method": "GET",
+    "url": "https://api.example.com/v1/resource",
+    "headers": [], "pathParams": [], "queryParams": [],
+    "body": ""
+  },
+  "authId": "<apiCredentialId from /v2/api-credentials>"
+}
+```
+
+(Live-verified 2026-08-03: `GET /v2/api-connectors` and `GET /v2/api-credentials` both return `200` with a list shape against this org — `api-credentials` already has real entries from MCP tool auth, `api-connectors` was empty. The `POST` create bodies for both — including the `credential` object's seven `authMethod` variants (`basic`, `bearer`, `apiKey`, `oAuthClientCredentials`, `oAuthAuthorizationCode`, `oAuthPasswordCredentials`, `awsSigV4`) on `api-credentials` — are cited from the OpenAPI schema only; creating a connector/credential end-to-end needs a real external API to point at, which wasn't exercised here.)
+
+### `dbtArtifacts` — dbt metadata enrichment (Beta, not used by any current skill)
+
+`POST /v2/connections/{connectionId}/dbtArtifacts` accepts a multipart `tar.gz` of a dbt project's `target/` directory (`manifest.json`, `catalog.json`, `run_results.json`) and pushes dbt-sourced column descriptions/lineage onto that Sigma connection object. This is a potential enrichment step for a future dbt-aware conversion — e.g., carrying dbt column descriptions through into a Sigma data model — but no current skill or converter calls it.
+
+Note it's effectively one-way: the spec exposes only the `POST`, with no paired `GET`/`DELETE` to inspect or clear what's been pushed. Confirm a connection isn't shared with other automation or teammates before pushing onto it. (Schema-only citation, not exercised live in this task — the only connection on hand was a shared, multi-consumer one, and there was no real dbt project artifact bundle available to test with.)
+
 ## warehouse-table (default)
 
 Direct connection to a warehouse table.

@@ -1,10 +1,10 @@
-# Content Elements (text, image, divider, embed)
+# Content Elements (text, image, divider, embed, form, progress, navigation)
 
 The non-data-bound elements — prose, images, rules, and embedded URLs. None take a `source`. Pull any kind's exact shape from the spec:
 
 ```bash
 jq --arg k text 'first(.. | objects | select((.allOf? and any(.allOf[]?; .properties?.kind?.enum==[$k])) or .properties?.kind?.enum==[$k]))' /tmp/sigma-api.json
-# swap k for image / divider / embed
+# swap k for image / divider / embed / form / progress / navigation
 ```
 
 These position in the page grid via `<LayoutElement>` like any other element — see `layout.md`.
@@ -72,6 +72,90 @@ id: embed-report
 kind: embed
 url: https://example.com/report
 ```
+
+## form
+
+An input form. Required `id`, `kind`, `fields` (array); optional `style`. Each field requires `type` (`text` / `text-area` / `number` / `date` / `checkbox`); optional `label`, `placeholder`, `required` (`required` / `optional`, default `optional` — a **string enum, not a boolean**), and `readOnly` (`readonly` / `editable`, default `editable`).
+
+```yaml
+id: intake-form
+kind: form
+fields:
+  - type: text
+    label: Name
+    required: required
+  - type: number
+    label: Quantity
+  - type: date
+    label: Start date
+  - type: checkbox
+    label: Subscribe
+```
+
+Verified live: `form` elements can be gated behind a per-workspace feature flag — a correctly-shaped spec can still fail `/v2/workbooks/spec/verify` with `` `form` elements are not enabled for this workspace``. That's an entitlement error, not a shape error; the field shape above round-tripped past validation to reach that gate. **Unlike `progress`/`navigation` below, this means `form`'s actual create/render/behavior is unverified in the available test org/workspace** — the entitlement gate blocks even a real `POST /v2/workbooks/spec` create, so there's no readback or screenshot to check against. Re-run this verification (real create, not just `/verify`) if a workspace with `form` enabled becomes available.
+
+## progress
+
+A native progress-bar/gauge element — a single value rendered against a min/max range. Required `id`, `kind`; optional `min`, `max`, `value` (each a **formula string**, e.g. `"Sum([Sales])"` or a literal like `"72"` — not a raw number), `mode` (`percent` / `value`, default `percent`), `shape` (`bar` / `ring`, default `bar`), and a plugin-style `config` object (fill/track color, size, alignment, label/value/description text styling, conditional `colorRules`).
+
+```yaml
+id: capacity-gauge
+kind: progress
+mode: value
+min: "0"
+max: "100"
+value: "72"
+shape: ring
+```
+
+**Live-verified 2026-08-03** (real `POST /v2/workbooks/spec` create + `GET` readback + PNG export screenshot — not just `/verify`): `min`/`max`/`value`/`mode`/`shape` all round-tripped verbatim as strings. Visually, `bar` draws a horizontal fill bar and `ring` a circular gauge with a text label centered inside — both match what the field names imply.
+
+**`mode` gotcha, confirmed by screenshot pixel-measurement — `/v2/workbooks/spec/verify` cannot catch this, it's a rendering behavior, not a schema error:** the fill and the on-element label are computed from `value`/`min`/`max` *differently* depending on `mode`:
+- `mode: value` — the label shows the raw `value` string; the fill fraction is `(value − min) / (max − min)`. Confirmed exactly: `min:"0", max:"10", value:"5"` measured (via pixel sampling of the rendered ring) as precisely a 50%-filled ring labeled "5"; `value:"10"` measured as a fully-filled ring labeled "10". This is the intuitive "N out of a range" gauge — use it for anything like "72 out of 100" (the example above).
+- `mode: percent` (the **default**) — the fill fraction is *still* `(value − min) / (max − min)` (min/max default to `0`/`1` if omitted), **but the label is always `value × 100` formatted with a `%` suffix, unconditionally, ignoring `min`/`max` entirely.** Measured proof: `min:"0", max:"72", value:"72"` (fill should be 100% either way) rendered a fully-filled bar labeled **"7200%"**, not "100%" or "72%". A bare `value:"0.72"` with no `min`/`max` rendered a 72%-filled bar labeled correctly as **"72%"**. So for `mode: percent`, `value` must already be the 0–1 fraction you want displayed — passing a 0–100-scaled number (the intuitive reading of "percent") silently produces a nonsense label while the fill still looks fine, which is easy to ship unnoticed:
+
+```yaml
+# Correct mode:percent recipe — value is a 0-1 fraction, min/max omitted (default 0/1):
+id: capacity-gauge-percent
+kind: progress
+mode: percent
+shape: ring
+value: "0.72"    # renders a 72%-filled ring labeled "72%"
+```
+
+Overlaps the `gauge` plugin's territory (`plugins/sigma-authoring/skills/sigma-plugin-authoring/plugins/gauge/README.md`) — that plugin exists to draw a radial semicircle sweep with red/amber/green banding by closeness-to-target, which native `progress` (even `shape: ring`) doesn't reproduce. For a plain value- or percent-of-range indicator, reach for `progress` first; keep the plugin for the semicircle RAG-gauge look specifically.
+
+## navigation
+
+An in-canvas page-navigation element — two variants sharing `kind: navigation`, discriminated by `mode`. Required on both: `id`, `kind`, `mode`. Optional on both: `style`, `optionStyle` (style/orientation/alignment/size/colors of the option buttons).
+
+**Manual** (`mode: manual`) additionally requires `options` — an array of menu items (`label`, `icon`, `destination`) or one-level submenus; `destination` is one of `{type: page, pageId}`, `{type: element, elementId}`, `{type: link, url, openTarget}` (`openTarget` defaults to `"_blank"` if omitted — confirmed by readback, not stated in the request), or `{type: none}`. Optional `showIcons`.
+
+```yaml
+id: page-nav
+kind: navigation
+mode: manual
+options:
+  - label: Overview
+    destination: { type: page, pageId: page-1 }
+  - label: Docs
+    destination: { type: link, url: https://example.com }
+```
+
+**Auto** (`mode: auto`) has no other required fields; optional `pageLabels` — per-page label overrides keyed by page id.
+
+```yaml
+id: page-nav-auto
+kind: navigation
+mode: auto
+pageLabels:
+  page-1: Overview
+  page-2: Details
+```
+
+**Live-verified 2026-08-03** (real create + readback + screenshot): both variants round-tripped verbatim. Visually, `navigation` renders as a horizontal **tab bar** (underlined label per option, not a sidebar or breadcrumb — expect tabs if you pictured otherwise from the name). `manual` mode showed exactly the `options[].label` strings as tabs, in the given order. `auto` mode showed one tab per workbook page, using `pageLabels` to override the tab text where provided — and, confirmed by adding two more pages after the fact and re-screenshotting, a page with **no** `pageLabels` entry falls back to that page's own `name` as its tab text, and once there are more pages than fit the element's width, the overflow collapses into a trailing **"More ▾"** dropdown rather than wrapping or truncating.
+
+**Caveat:** none of the above can confirm actual click-through — whether a `destination` really navigates (manual) or clicking an auto-generated tab really switches the active page — since that requires driving a live browser session, not just the REST API/screenshot. The structural and label rendering is confirmed; click behavior is not.
 
 ## plugin (2026-06-18 release)
 

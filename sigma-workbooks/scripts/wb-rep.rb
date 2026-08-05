@@ -29,6 +29,9 @@
 #   push [dir]                   reassemble -> drift-check -> validate -> PUT (or POST create)
 #   assemble [dir] [-o file]     print/write the reassembled spec without pushing
 #   import <spec.yaml> [dir]     explode an existing local spec file (create mode: push POSTs)
+#   verify <spec-file>           dry-run (Beta endpoint): POST to /v2/workbooks/spec/verify —
+#                                zero-persistence schema/reference check; prints valid: true or
+#                                the errors array
 #   render [dir] [--page X]      export page(s) (or --element <id>) as PNG into <dir>/renders/
 #                                — LOOK at what you built and iterate; renders server state
 #
@@ -279,6 +282,41 @@ def cmd_import(args)
   puts "imported #{src} -> #{dir} (create mode: push will POST a new workbook)"
 end
 
+# Root-cause correction (2026-08-04): an earlier version of this comment blamed a lone
+# "/verify Beta drift" — that diagnosis was wrong. Live A/B testing showed the REAL create
+# endpoint (POST /v2/workbooks/spec) 400s identically on the flat shape, with the exact same
+# fix. Both endpoints now require the request wrapped as
+# { name, folderId, document: { schemaVersion, kind: "workbook", pages, layout } } —
+# not the flat { name, folderId, schemaVersion, pages, layout } shape the OpenAPI text still
+# documents and that every other command in this file (push/pull/import/assemble) still
+# reads/writes on disk. This is a known, broader mismatch across this codebase (tracked
+# separately, well beyond this one file) — see reference/workflows/validate.md section 1 for
+# the full story. This helper fixes it ONLY for verify's outbound request; it does not change
+# the on-disk rep format push/pull/import/assemble use, and does not fix those commands' own
+# create/update calls, which hit the same 400 live and are still flat today.
+def wrap_for_verify(spec)
+  return spec if spec['document'] # already wrapped — pass through unchanged
+
+  document_keys = %w[schemaVersion kind pages layout]
+  document = spec.select { |k, _| document_keys.include?(k) }
+  document['kind'] ||= 'workbook'
+  spec.reject { |k, _| document_keys.include?(k) }.merge('document' => document)
+end
+
+def cmd_verify(args)
+  path = args.shift or die 'usage: wb-rep.rb verify <spec-file>'
+  die "no such file: #{path}" unless File.exist?(path)
+  spec = wrap_for_verify(strip_response_only(load_yaml_file(path)))
+  result = YAML.load(api(:post, '/v2/workbooks/spec/verify', YAML.dump(spec)))
+  if result['valid']
+    puts 'valid: true'
+  else
+    puts 'valid: false'
+    (result['errors'] || []).each { |e| puts "  - #{e['summary']}" }
+    exit 1
+  end
+end
+
 def cmd_status(args)
   dir = args.shift || '.'
   snap = snapshot_spec(dir)
@@ -402,7 +440,7 @@ def cmd_summarize(args)
 end
 
 OPENAPI_CACHE = File.join(Dir.tmpdir, 'sigma-api.json').freeze
-OPENAPI_URL = 'https://help.sigmacomputing.com/openapi/sigma-computing-public-rest-api.json'.freeze
+OPENAPI_URL = 'https://fdr-prod-docs-files-public.s3.us-east-1.amazonaws.com/sigma.docs.buildwithfern.com/964b7dcf73aa353d3ab89b1550fa14ea8a4d0a6300aed16bcbe329d1bb4cfd9e/assets/openapi/sigma-computing-public-rest-api.json'.freeze
 
 # Depth-first walk mirroring jq's `.. | objects`: yields every Hash reachable
 # from `node` (including `node` itself), descending through both Hash values
@@ -544,6 +582,7 @@ cmd = argv.shift
 case cmd
 when 'pull'     then cmd_pull(argv, force: force)
 when 'import'   then cmd_import(argv)
+when 'verify'   then cmd_verify(argv)
 when 'status'   then cmd_status(argv)
 when 'assemble' then cmd_assemble(argv)
 when 'push'         then cmd_push(argv, force: force, validate: !no_validate)
@@ -551,5 +590,5 @@ when 'render'       then cmd_render(argv)
 when 'summarize'    then cmd_summarize(argv)
 when 'capabilities' then cmd_capabilities(argv)
 else
-  die "usage: wb-rep.rb {pull <workbook-id> [dir] | import <spec.yaml> [dir] | status [dir] | assemble [dir] [-o file] | push [dir] | render [dir] [--page <id|name>] [--element <id>] | summarize [dir|workbook-id] | capabilities [--kind K [--field F]]} [--force] [--no-validate]"
+  die "usage: wb-rep.rb {pull <workbook-id> [dir] | import <spec.yaml> [dir] | verify <spec-file> | status [dir] | assemble [dir] [-o file] | push [dir] | render [dir] [--page <id|name>] [--element <id>] | summarize [dir|workbook-id] | capabilities [--kind K [--field F]]} [--force] [--no-validate]"
 end

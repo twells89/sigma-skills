@@ -21,11 +21,12 @@ Run through this before every `POST /v2/dataModels/spec` and `PUT /v2/dataModels
 
 | Error | Likely cause |
 |---|---|
-| `400 Invalid argument` / `unknown field` / `unexpected property` | Schema drift between this skill and the live API. Fetch the OpenAPI (`https://help.sigmacomputing.com/openapi/sigma-computing-public-rest-api.json`) and diff field names. |
+| `400 Invalid argument` / `unknown field` / `unexpected property` | Schema drift between this skill and the live API. Fetch the data-model spec OpenAPI (`https://help.sigmacomputing.com/openapi/code-representation.json` — the `/v2/dataModels/spec` request body) and diff field names. (The `help.sigmacomputing.com/openapi.json` index lists this alongside `sigma-rest-api.json`; the old `sigma-computing-public-rest-api.json` path now 404s.) |
 | `400 Invalid column reference` | Bare `[col]` used where `[TABLE/col]` was needed, or the column name is misspelled. |
 | `400 Invalid element ID` (in relationships) | An UPDATE that mixes external and internal IDs. The existing element ID must come from `GET`. |
 | `403 Forbidden` | Credential lacks "Create, edit, and publish data models" permission, or "Can edit" on the destination folder. Ask your Sigma admin. |
 | `409 Conflict` (`inode_archived`) | The target file is archived. Restore via `PATCH /v2/files/<id>` with `{"restore": true}`, then retry. |
+| `Source not found` / other connection-related failures (query timeout, auth error) at query or preview time | Could be the connection, not the spec. Check `GET /v2/connections/{connectionId}/test` first — returns `{"read": "SUCCESS"\|"FAILED", "write": "SUCCESS"\|"FAILED"\|"DISABLED"}` (live-verified 2026-08-03) — before assuming the data-model definition is wrong. |
 
 ## When stuck — pull a known-working model
 

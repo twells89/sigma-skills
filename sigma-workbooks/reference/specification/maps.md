@@ -9,7 +9,7 @@ jq --arg k region-map 'first(.. | objects | select((.allOf? and any(.allOf[]?; .
 
 The distinctive binding per kind (the part worth knowing up front):
 
-- **geography-map** — `geography: { id: <columnId> }`, a single column of GeoJSON geometries.
+- **geography-map** — `geography: { id: <columnId> }`, a single column of GeoJSON geometries. Optional `featureStyle: { opacity, pointSize }` (uniform mark-style override, not per-feature despite the name) and `tooltipFormat: { columnNames: shown | hidden }` (hover-tooltip column-name visibility, distinct from the `tooltip` array above).
 - **point-map** — `latitude: { id }` + `longitude: { id }`; optional `size: { id }` makes it a bubble map.
 - **region-map** — `region: { id, regionType }`. `regionType` ∈ `country`, `us-state`, `us-county`, `us-zipcode`, `us-cbsa`, `us-postal-place`, `ca-province`; the region column's values must match it.
 

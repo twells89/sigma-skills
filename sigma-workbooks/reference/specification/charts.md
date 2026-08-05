@@ -390,5 +390,6 @@ Per the OpenAPI, these are all valid `kind` values; documented examples for the 
 - `scatter-chart` — **NOT the same as bar-chart.** It is measure-vs-measure with the dimension as the point identity, and it must bind to a **grouping** or every point collapses to one x. See the Scatter section below.
 - `pie-chart` — like `donut-chart` (`value` + `color`), but without the donut-only `hole` / `holeValue` / `innerRadius` / `trellis` keys.
 - `pivot-table` — uses `values` instead of `yAxis`; useful for cross-tab analysis. See `tables.md`.
+- `waterfall-chart` — same `source`/`columns`/`xAxis`/`yAxis` skeleton as `bar-chart`, plus running-total fields (`startPoint`, `splitBy`, `grouping`, `waterfallColors`, `waterfallShape`). **Gotcha (live-verified 2026-08-03, re-confirmed 2026-08-04 against the corrected `document`-wrapped request body):** `waterfallShape.subtotal`/`endTotal` reject with a 400 unless the chart has `splitBy` or 2+ `yAxis.columnIds` — reproduces exactly as documented; `visibility: shown`/`hidden` are not the issue (both 400 identically without the escape hatch, both pass with it).
 
 For element-level reference of `kind: "text"` (free-form Markdown blocks), see `content-elements.md`.
