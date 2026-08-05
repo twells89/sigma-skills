@@ -137,12 +137,19 @@ is not a valid overlay target.
 
 ## Navigation, refresh, and row-editing effects
 
-**All live-verified 2026-08-05** — each shape below passed
-`POST /v2/workbooks/spec/verify`, was created for real via
+**Spec-verified 2026-08-05 — read the exact bar below before relying on these.**
+Each shape passed `POST /v2/workbooks/spec/verify`, was created for real via
 `POST /v2/workbooks/spec`, and came back byte-intact from `GET .../spec` on a
 single test workbook whose page render was visually confirmed by PNG export.
-(Click-through behavior still needs a browser to confirm, as everywhere else in
-this doc — what's proven here is that the shapes are accepted, persist, and render.)
+
+> **What that does NOT cover: the actual effect firing.** No button was clicked.
+> So it is proven that Sigma *accepts, persists, and renders* these effects — and
+> **not** that a click opens the URL, switches the tab, refreshes the element, or
+> **mutates a row**. `update-rows` / `delete-rows` are the ones to be careful
+> about: their write behavior (which rows match, what gets set, whether the
+> delete lands) is **entirely unverified here** — only the instruction's shape is.
+> Confirm any write-back flow against a real click and a real row before shipping
+> it, same discipline as the rest of this doc.
 
 ### `open-url` — open an external link
 
