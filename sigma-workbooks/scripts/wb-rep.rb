@@ -416,7 +416,12 @@ def cmd_push(args, force:, validate: true)
 end
 
 # Zoom-style reads (no full-spec load): summarize a workbook or rep cheaply,
-# and distil authorable capabilities live from the public OpenAPI.
+# and distil authorable capabilities live from the public OpenAPI. `capabilities`
+# is inherently a BULK-discovery tool (every kind, or every field on one kind) —
+# for a single endpoint's current request/response shape, the stable per-endpoint
+# pages at https://help.sigmacomputing.com/reference/<endpoint-slug> (see
+# SKILL.md's "Sources of truth") are the better source; this command doesn't
+# cover that case and isn't meant to.
 def cmd_summarize(args)
   target = args.shift || '.'
   spec = if File.directory?(target)
@@ -439,6 +444,17 @@ def cmd_summarize(args)
   puts "  sources: #{sources.compact.uniq.join(', ')}" unless sources.compact.empty?
 end
 
+# Content-addressed Fern docs asset — pins one docs build, so this hash goes dead
+# (403 AccessDenied, not a redirect) on every docs redeploy. This exact hash has
+# already gone dead twice since being pinned here (most recently reconfirmed via
+# curl while documenting this — see SKILL.md's "Sources of truth" for the count).
+# If `capabilities` fails with "failed to fetch OpenAPI", rediscover the current
+# link from https://help.sigmacomputing.com/openapi.json and update this constant
+# — but don't expect the replacement to be durable either; that's inherent to
+# content-addressing, not a one-off bug. For a single endpoint's shape rather than
+# bulk kind/field discovery, prefer the durable per-endpoint pages documented in
+# SKILL.md's "Sources of truth" (https://help.sigmacomputing.com/reference/<endpoint-slug>)
+# — they don't rotate, so there's nothing to keep in sync here.
 OPENAPI_CACHE = File.join(Dir.tmpdir, 'sigma-api.json').freeze
 OPENAPI_URL = 'https://fdr-prod-docs-files-public.s3.us-east-1.amazonaws.com/sigma.docs.buildwithfern.com/964b7dcf73aa353d3ab89b1550fa14ea8a4d0a6300aed16bcbe329d1bb4cfd9e/assets/openapi/sigma-computing-public-rest-api.json'.freeze
 

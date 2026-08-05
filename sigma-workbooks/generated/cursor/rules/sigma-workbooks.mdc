@@ -25,22 +25,29 @@ Sigma's public API docs are an index at `https://help.sigmacomputing.com/openapi
 1. **`https://help.sigmacomputing.com/openapi/openapi/sigma-rest-api.json`** — the REST API: endpoint request/response shapes (workbooks, data models, members, connections, exports, materialization, …). Use for API *calls*.
 2. **`https://help.sigmacomputing.com/openapi/openapi/code-representation.json`** — the "code representation" (as-code) spec. Today it documents the **data-model** spec (`/v2/dataModels/spec`); use it for data-model element shapes.
 
-**Workbook element/control/format shapes** (the `bar-chart` / `kpi-chart` / `control` / format `kind`s that go under `/v2/workbooks/spec`) are **not inlined in either split spec** — get them from one of:
+**Workbook element/control/format shapes** (the `bar-chart` / `kpi-chart` / `control` / format `kind`s that go under `/v2/workbooks/spec`) are **not inlined in either split spec** — get them from one of, roughly in this order:
 
-- **A live workbook readback** — `GET /v2/workbooks/{id}/spec` on the user's org. The durable, always-current source: read a real workbook and navigate `pages[].elements[]` by `kind`. **Prefer this.**
-- **The full compiled OpenAPI** — one spec that *does* inline every workbook `kind`, served as a content-addressed Fern docs asset (the sanctioned reference for now):
+- **A live workbook readback** — `GET /v2/workbooks/{id}/spec` on the user's org. The durable, always-current source: read a real workbook and navigate `pages[].elements[]` by `kind`. **Prefer this** when you have a workbook to read.
+- **A single endpoint's stable reference page** — `https://help.sigmacomputing.com/reference/<endpoint-slug>`. Verified live and current (2026-08-04): `create-workbook-spec`, `update-workbook-spec`, `verify-workbook-spec`, `get-workbook-spec`. Unlike the compiled asset below, **this path is not content-addressed** — it's the same URL forever regardless of docs redeploys, so it's safe to hardcode. **Use this for "what shape does endpoint X need right now"** — confirming one field, checking one endpoint's request or response body. (These four currently agree: `create-workbook-spec` and `verify-workbook-spec` both show the request body wrapped as `{name, folderId, document: {schemaVersion, kind, pages, layout}}`; `update-workbook-spec`, a PUT against an existing workbook, sends just `{document: {...}}`.)
+- **The full compiled OpenAPI** — one spec that *does* inline every workbook `kind` in one document, useful for **bulk discovery** (e.g. "list every kind the API accepts") that no single per-endpoint page can do. Served as a content-addressed Fern docs asset:
   `https://fdr-prod-docs-files-public.s3.us-east-1.amazonaws.com/sigma.docs.buildwithfern.com/964b7dcf73aa353d3ab89b1550fa14ea8a4d0a6300aed16bcbe329d1bb4cfd9e/assets/openapi/sigma-computing-public-rest-api.json`
-  Good for offline `jq` navigation. Caveats: it may **lag** the live API slightly (it's refreshed out-of-band — manually today, moving to an automated refresh + a dedicated reliably-hosted asset that will also back the CLI), and the hash pins a build so the path can change on a docs redeploy. So treat a **live workbook readback** (above) as the always-current source, and if this asset 404s, rediscover the current link from the Sigma API reference docs. (The retired `help.sigmacomputing.com/openapi/sigma-computing-public-rest-api.json` path now 404s.)
+  **Treat this as a bulk-discovery convenience, not a citation.** The hash pins one docs build: this exact hash has gone dead twice since it was pinned here (confirmed via direct `curl` — `403 AccessDenied`, not a redirect — most recently while writing this note), on top of the original dead URL it replaced. Hardcoding any one hash is a losing game — each Fern docs redeploy invalidates the previous one. It may also **lag** the live API slightly (refreshed out-of-band — manually today, moving to an automated refresh + a dedicated reliably-hosted asset that will also back the CLI). If a specific field looks wrong, check that field's per-endpoint page (above) directly rather than trusting this asset. If this link 404s/403s, rediscover the current link from `https://help.sigmacomputing.com/openapi.json` or the Sigma API reference docs. (The retired `help.sigmacomputing.com/openapi/sigma-computing-public-rest-api.json` path now 404s too.)
 
 When this skill and the spec (or a live readback) disagree, the spec wins. When a feature isn't covered here, consult the spec / a live workbook and use what it documents.
 
-## Consulting the shapes (compiled OpenAPI or a live readback)
+## Consulting the shapes (per-endpoint pages, compiled OpenAPI, or a live readback)
 
-**The field lists and examples in this skill are illustrative, not exhaustive** — when you need the complete, current shape of anything, query the full compiled spec (the Fern asset in *Sources of truth*) or a live workbook readback. Fetch the compiled spec once per session and inspect with `jq`:
+**The field lists and examples in this skill are illustrative, not exhaustive** — when you need the complete, current shape of anything, pick the right tool for the question:
+
+- **One endpoint, one doubt** (does this field still exist, is the body wrapped or flat, what's required) — go straight to that endpoint's stable reference page, `https://help.sigmacomputing.com/reference/<endpoint-slug>` (see *Sources of truth*). No caching, no `jq`, just read the page.
+- **Every `kind` the API accepts, or every field on a `kind`** (bulk discovery — e.g. building out `reference/specification/*.md`) — the per-endpoint pages don't help here (one endpoint each); use the compiled OpenAPI or a live workbook readback instead. Fetch the compiled spec once per session and inspect with `jq`:
 
 ```bash
 curl -sf https://fdr-prod-docs-files-public.s3.us-east-1.amazonaws.com/sigma.docs.buildwithfern.com/964b7dcf73aa353d3ab89b1550fa14ea8a4d0a6300aed16bcbe329d1bb4cfd9e/assets/openapi/sigma-computing-public-rest-api.json > /tmp/sigma-api.json
-# ^ content-addressed docs asset (see "Sources of truth"); if it 404s, use the current link from the Sigma API reference docs, or read a live workbook spec (GET /v2/workbooks/{id}/spec) and navigate pages[].elements[] by kind.
+# ^ content-addressed docs asset (see "Sources of truth") — may LAG the per-endpoint pages after a docs
+# redeploy; if one field looks wrong, check that field's per-endpoint page directly instead of trusting this.
+# If this 404s/403s, use the current link from https://help.sigmacomputing.com/openapi.json, or read a
+# live workbook spec (GET /v2/workbooks/{id}/spec) and navigate pages[].elements[] by kind.
 
 # The entire workbook spec request body lives under one path (it is not split into named schemas):
 jq '.paths."/v2/workbooks/spec".post.requestBody.content."application/json".schema' /tmp/sigma-api.json
