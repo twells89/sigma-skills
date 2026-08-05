@@ -63,6 +63,19 @@ id: section-rule
 kind: divider
 ```
 
+## page-break
+
+Forces a page break for PDF export / print pagination. The **entire** element is `id` + `kind` — it takes no other fields at all (confirmed via `capabilities --kind page-break`), and nothing renders on screen beyond a thin spacer band.
+
+```yaml
+id: pb-before-detail
+kind: page-break
+```
+
+**Live-verified 2026-08-05** (create + readback round-trip; present and intact in the GET-back).
+
+> **Height is fixed at 1 grid row.** A multi-row `gridRow` in the layout XML is rejected: `page-break 'pb' must span exactly one grid row (got height 2). Page breaks are fixed at height 1; set gridRow to a one-row span (e.g. "1 / 2")`. So `<LayoutElement elementId="pb" gridColumn="1 / 25" gridRow="24 / 25"/>` — always a one-row span.
+
 ## embed
 
 Renders an external URL inline — a hosted report, form, video, etc. Required `id`, `kind`, `url`; `url` supports `{{formula}}` references.

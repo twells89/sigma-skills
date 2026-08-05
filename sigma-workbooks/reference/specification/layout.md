@@ -62,6 +62,22 @@ jq --arg k container 'first(.. | objects | select((.allOf? and any(.allOf[]?; .p
 - **Element on a background image:** to place an element *on top of* a container's `backgroundImage`, make it a **child** of that container in the layout XML — the background spans the container and the child sits on top.
 - **When to skip:** with no shared background or logical grouping, position elements directly with `<LayoutElement>`. A container around a single element is usually overkill.
 
+### Repeated containers are **not** spec-authorable (UI only)
+
+A **repeated container** — one card or list row that repeats once per row of a source element, with child text/images bound to that row's columns — is a real and heavily-used Sigma UI feature. **It cannot be created, or preserved, through the spec API.** Verified 2026-08-05:
+
+- The `container` element schema has exactly **four** properties: `id`, `kind`, `style`, `backgroundImage`. There is no source binding, no repeat/`repeatFrom` field, and no child list. (`wb-rep.rb capabilities --kind container` confirms.)
+- Nothing in the compiled OpenAPI exposes repetition on a container. Every `"repeat"` string in the whole spec is the background-image **tiling** value (`repeat`), unrelated to repeated containers.
+- A speculative `repeatFrom` on a container **passed `/verify` and the real create, then came back absent** from `GET .../spec` — the classic silent drop. `/verify` accepting a field is not evidence the field exists.
+
+**The dangerous part is the read direction.** `GET /v2/workbooks/{id}/spec` on a workbook that *does* contain repeated containers **silently drops them**, leaving behind child elements whose formulas reference an element that no longer exists anywhere in the spec — e.g. `{{[Base Notifications repeated container/Title]}}` with no `Base Notifications repeated container` declared in `pages[].elements[]`. Consequences:
+
+- **Never treat such a GET-back as a faithful copy.** Re-POSTing it produces a workbook with dangling references and missing cards, not a clone.
+- **Don't "clone a repeated container" from a captured spec** — the repeat wiring was never in the file to clone. Bindings like `{{[Source/Column]}}` do round-trip; the *repeat* that gives them per-row meaning does not.
+- If a spec you're editing contains `{{[X/Col]}}` references to an undeclared element, suspect a dropped repeated container rather than a typo, and expect to rebuild that region in the UI.
+
+When a request needs repeated cards, say so during planning and offer a spec-authorable substitute: a `table` with `conditionalFormats`, or a fixed set of hand-placed KPI/text elements when the row count is small and stable.
+
 ## Tabbed containers
 
 A `kind: "tabbed-container"` element packs several views into one region — switchable tabs instead of a long vertical scroll or extra pages. Unlike the `kind: "container"` placeholder above, it's a real element with its own JSON shape, not a bare grouping wrapper.

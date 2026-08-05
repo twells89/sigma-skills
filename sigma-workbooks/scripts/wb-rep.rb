@@ -444,19 +444,49 @@ def cmd_summarize(args)
   puts "  sources: #{sources.compact.uniq.join(', ')}" unless sources.compact.empty?
 end
 
-# Content-addressed Fern docs asset — pins one docs build, so this hash goes dead
-# (403 AccessDenied, not a redirect) on every docs redeploy. This exact hash has
-# already gone dead twice since being pinned here (most recently reconfirmed via
-# curl while documenting this — see SKILL.md's "Sources of truth" for the count).
-# If `capabilities` fails with "failed to fetch OpenAPI", rediscover the current
-# link from https://help.sigmacomputing.com/openapi.json and update this constant
-# — but don't expect the replacement to be durable either; that's inherent to
-# content-addressing, not a one-off bug. For a single endpoint's shape rather than
-# bulk kind/field discovery, prefer the durable per-endpoint pages documented in
-# SKILL.md's "Sources of truth" (https://help.sigmacomputing.com/reference/<endpoint-slug>)
-# — they don't rotate, so there's nothing to keep in sync here.
+# The compiled OpenAPI lives in a Fern docs S3 asset that requires AWS PRESIGNED
+# QUERY PARAMS — a bare fetch of the path 403s (AccessDenied) no matter how current
+# the content hash is. An earlier revision of this file hardcoded the bare path and
+# read that 403 as "the hash rotated", telling you to swap in a new hash; that
+# diagnosis was wrong (the hash is unchanged) and its fix doesn't work. The old
+# fallback, https://help.sigmacomputing.com/openapi.json, is now an HTML page that
+# doesn't link the asset at all.
+#
+# So: discover the SIGNED url at runtime from the docs site HTML. The signatures
+# carry X-Amz-Expires=604800 (7 days), which is the other reason not to pin one.
+# For a single endpoint's shape rather than bulk kind/field discovery, prefer the
+# durable per-endpoint pages in SKILL.md's "Sources of truth"
+# (https://help.sigmacomputing.com/reference/<endpoint-slug>) — they don't rotate.
 OPENAPI_CACHE = File.join(Dir.tmpdir, 'sigma-api.json').freeze
-OPENAPI_URL = 'https://fdr-prod-docs-files-public.s3.us-east-1.amazonaws.com/sigma.docs.buildwithfern.com/964b7dcf73aa353d3ab89b1550fa14ea8a4d0a6300aed16bcbe329d1bb4cfd9e/assets/openapi/sigma-computing-public-rest-api.json'.freeze
+FERN_DOCS_URL = 'https://docs.sigmacomputing.com/'.freeze
+OPENAPI_ASSET_RE = %r{fdr-prod-docs-files-public[^"\\]*openapi/sigma-computing-public-rest-api\.json\?[^"\\]*}.freeze
+
+# Net::HTTP.get_response doesn't follow redirects; the docs host does redirect.
+def http_get_follow(url, limit: 5)
+  limit.times do
+    res = Net::HTTP.get_response(URI(url))
+    return res if res.is_a?(Net::HTTPSuccess)
+    return nil unless res.is_a?(Net::HTTPRedirection) && res['location']
+
+    url = URI.join(url, res['location']).to_s
+  end
+  nil
+end
+
+# Extract the presigned compiled-OpenAPI URL from the docs site HTML.
+def discover_openapi_url
+  res = http_get_follow(FERN_DOCS_URL)
+  die "failed to fetch #{FERN_DOCS_URL} to discover the compiled OpenAPI asset" unless res
+  m = res.body[OPENAPI_ASSET_RE]
+  unless m
+    die "could not find the compiled OpenAPI asset URL in #{FERN_DOCS_URL} — the docs " \
+        'build changed shape. Use a per-endpoint reference page ' \
+        '(https://help.sigmacomputing.com/reference/<endpoint-slug>) or a live workbook ' \
+        'readback (GET /v2/workbooks/{id}/spec) instead.'
+  end
+  # The URL appears HTML-escaped (and sometimes JS-escaped) in the page source.
+  "https://#{m.gsub('&amp;', '&').gsub('\\u0026', '&')}"
+end
 
 # Depth-first walk mirroring jq's `.. | objects`: yields every Hash reachable
 # from `node` (including `node` itself), descending through both Hash values
@@ -513,9 +543,8 @@ def cmd_capabilities(args)
   if (i = args.index('--kind')) then kind = args[i + 1]; args.slice!(i, 2); end
   if (i = args.index('--field')) then field = args[i + 1]; args.slice!(i, 2); end
   unless File.exist?(OPENAPI_CACHE)
-    uri = URI(OPENAPI_URL)
-    res = Net::HTTP.get_response(uri)
-    die 'failed to fetch OpenAPI' unless res.is_a?(Net::HTTPSuccess)
+    res = http_get_follow(discover_openapi_url)
+    die 'failed to fetch OpenAPI (presigned asset URL rejected — re-run to re-discover it)' unless res
     File.write(OPENAPI_CACHE, res.body)
   end
   doc = JSON.parse(File.read(OPENAPI_CACHE))

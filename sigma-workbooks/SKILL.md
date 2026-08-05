@@ -22,18 +22,39 @@ The workbook **spec** — the JSON you POST to `/v2/workbooks/spec` defining pag
 
 ## Sources of truth
 
-Sigma's public API docs are an index at `https://help.sigmacomputing.com/openapi.json` that lists two **canonical split specs** (split from one large spec to fix compilation / out-of-memory errors — so the structure changed subtly):
+Sigma's public API docs are an index at `https://help.sigmacomputing.com/openapi.json` that lists two **canonical split specs** (split from one large spec to fix compilation / out-of-memory errors — so the structure changed subtly). **That index now serves an HTML page, not JSON** (verified 2026-08-05) — it renders links to the two specs rather than returning a machine-readable list, so treat it as a human landing page and go straight to the two URLs below:
 
 1. **`https://help.sigmacomputing.com/openapi/openapi/sigma-rest-api.json`** — the REST API: endpoint request/response shapes (workbooks, data models, members, connections, exports, materialization, …). Use for API *calls*.
 2. **`https://help.sigmacomputing.com/openapi/openapi/code-representation.json`** — the "code representation" (as-code) spec. Today it documents the **data-model** spec (`/v2/dataModels/spec`); use it for data-model element shapes.
 
-**Workbook element/control/format shapes** (the `bar-chart` / `kpi-chart` / `control` / format `kind`s that go under `/v2/workbooks/spec`) are **not inlined in either split spec** — get them from one of, roughly in this order:
+**Workbook element/control/format shapes** (the `bar-chart` / `kpi-chart` / `control` / format `kind`s that go under `/v2/workbooks/spec`) are **not inlined in either split spec** — get them from one of, roughly in this order.
+
+> **The split specs don't document the workbook spec endpoint at all** (verified 2026-08-05): `sigma-rest-api.json` has **zero** paths matching `spec` — no `/v2/workbooks/spec`, no `/v2/workbooks/spec/verify`, no `/v2/workbooks/{id}/spec` — and `code-representation.json` carries only the two `/v2/dataModels/spec*` paths. So for workbook authoring the split specs are not merely missing the inlined element shapes; the endpoint itself is absent. Use a per-endpoint reference page, the compiled asset, or a live readback (all below).
 
 - **A live workbook readback** — `GET /v2/workbooks/{id}/spec` on the user's org. The durable, always-current source: read a real workbook and navigate `pages[].elements[]` by `kind`. **Prefer this** when you have a workbook to read.
 - **A single endpoint's stable reference page** — `https://help.sigmacomputing.com/reference/<endpoint-slug>`. Verified live and current (2026-08-04): `create-workbook-spec`, `update-workbook-spec`, `verify-workbook-spec`, `get-workbook-spec`. Unlike the compiled asset below, **this path is not content-addressed** — it's the same URL forever regardless of docs redeploys, so it's safe to hardcode. **Use this for "what shape does endpoint X need right now"** — confirming one field, checking one endpoint's request or response body. (These four currently agree: `create-workbook-spec` and `verify-workbook-spec` both show the request body wrapped as `{name, folderId, document: {schemaVersion, kind, pages, layout}}`; `update-workbook-spec`, a PUT against an existing workbook, sends just `{document: {...}}`.)
-- **The full compiled OpenAPI** — one spec that *does* inline every workbook `kind` in one document, useful for **bulk discovery** (e.g. "list every kind the API accepts") that no single per-endpoint page can do. Served as a content-addressed Fern docs asset:
-  `https://fdr-prod-docs-files-public.s3.us-east-1.amazonaws.com/sigma.docs.buildwithfern.com/964b7dcf73aa353d3ab89b1550fa14ea8a4d0a6300aed16bcbe329d1bb4cfd9e/assets/openapi/sigma-computing-public-rest-api.json`
-  **Treat this as a bulk-discovery convenience, not a citation.** The hash pins one docs build: this exact hash has gone dead twice since it was pinned here (confirmed via direct `curl` — `403 AccessDenied`, not a redirect — most recently while writing this note), on top of the original dead URL it replaced. Hardcoding any one hash is a losing game — each Fern docs redeploy invalidates the previous one. It may also **lag** the live API slightly (refreshed out-of-band — manually today, moving to an automated refresh + a dedicated reliably-hosted asset that will also back the CLI). If a specific field looks wrong, check that field's per-endpoint page (above) directly rather than trusting this asset. If this link 404s/403s, rediscover the current link from `https://help.sigmacomputing.com/openapi.json` or the Sigma API reference docs. (The retired `help.sigmacomputing.com/openapi/sigma-computing-public-rest-api.json` path now 404s too.)
+- **The full compiled OpenAPI** — one spec that *does* inline every workbook `kind` in one document (title "Sigma Computing Public REST API", `version: 2.0.0`, ~82 MB), useful for **bulk discovery** (e.g. "list every kind the API accepts") that no single per-endpoint page can do. It is the **only** source that documents `/v2/workbooks/spec` in full. Served as a content-addressed Fern docs asset that now also requires **AWS presigned query parameters** — see *Fetching the compiled asset* below for the one command that gets it.
+
+  **Treat this as a bulk-discovery convenience, not a citation.** It may **lag** the live API slightly (refreshed out-of-band). If a specific field looks wrong, check that field's per-endpoint page (above) directly rather than trusting this asset.
+
+### Fetching the compiled asset (it is presigned — a bare URL 403s)
+
+**Do not hardcode this URL.** The bare S3 path returns `403 AccessDenied` (verified 2026-08-05). Earlier revisions of this skill read that 403 as "the content hash rotated and went dead" and told you to rediscover a new hash — **that diagnosis was wrong, and the recovery it prescribed doesn't work.** The hash has *not* changed (`964b7dcf…` is the same one pinned here for months); what changed is that the asset now requires **AWS presigned query params** (`X-Amz-Signature`, `X-Amz-Credential`, …). A bare `curl` of the same path 403s no matter how current the hash is, and `https://help.sigmacomputing.com/openapi.json` — the old fallback — is now an HTML page that does not link the compiled asset at all.
+
+The signed URL is embedded in the docs site HTML. Extract it at request time:
+
+```bash
+curl -sfL https://docs.sigmacomputing.com/ -o /tmp/sigma-docs.html
+python3 - <<'EOF' > /tmp/sigma-api-url.txt
+import re, html
+h = open('/tmp/sigma-docs.html', encoding='utf-8').read()
+m = re.findall(r'fdr-prod-docs-files-public[^"\\]*openapi/sigma-computing-public-rest-api\.json\?[^"\\]*', h)
+print('https://' + html.unescape(m[0]).replace('&amp;', '&'))
+EOF
+curl -sfL "$(cat /tmp/sigma-api-url.txt)" -o /tmp/sigma-api.json
+```
+
+**The signature expires** — the URLs served carry `X-Amz-Expires=604800` (7 days) from their issue date, so a URL you captured last week may 403 even though the extraction still works. Re-extract rather than reusing a saved URL; that's why this skill documents the *procedure* and not a literal link. If the extraction finds no match, the docs build changed shape — fall back to a per-endpoint reference page or a live workbook readback.
 
 When this skill and the spec (or a live readback) disagree, the spec wins. When a feature isn't covered here, consult the spec / a live workbook and use what it documents.
 
@@ -45,11 +66,11 @@ When this skill and the spec (or a live readback) disagree, the spec wins. When 
 - **Every `kind` the API accepts, or every field on a `kind`** (bulk discovery — e.g. building out `reference/specification/*.md`) — the per-endpoint pages don't help here (one endpoint each); use the compiled OpenAPI or a live workbook readback instead. Fetch the compiled spec once per session and inspect with `jq`:
 
 ```bash
-curl -sf https://fdr-prod-docs-files-public.s3.us-east-1.amazonaws.com/sigma.docs.buildwithfern.com/964b7dcf73aa353d3ab89b1550fa14ea8a4d0a6300aed16bcbe329d1bb4cfd9e/assets/openapi/sigma-computing-public-rest-api.json > /tmp/sigma-api.json
-# ^ content-addressed docs asset (see "Sources of truth") — may LAG the per-endpoint pages after a docs
-# redeploy; if one field looks wrong, check that field's per-endpoint page directly instead of trusting this.
-# If this 404s/403s, use the current link from https://help.sigmacomputing.com/openapi.json, or read a
-# live workbook spec (GET /v2/workbooks/{id}/spec) and navigate pages[].elements[] by kind.
+# Fetch it with the presigned-URL extraction in "Fetching the compiled asset" above — a bare
+# curl of the S3 path 403s. That block writes /tmp/sigma-api.json; everything below assumes it.
+# The asset may LAG the per-endpoint pages after a docs redeploy; if one field looks wrong, check
+# that field's per-endpoint page directly instead of trusting this. Or read a live workbook spec
+# (GET /v2/workbooks/{id}/spec) and navigate pages[].elements[] by kind.
 
 # The entire workbook spec request body lives under one path (it is not split into named schemas):
 jq '.paths."/v2/workbooks/spec".post.requestBody.content."application/json".schema' /tmp/sigma-api.json
@@ -241,10 +262,10 @@ The reference is feature-sliced — don't read every file up-front. The index ha
 | `reference/specification/maps.md` | Map visualizations — `geography-map` (GeoJSON shapes), `point-map` (lat/long bubbles), `region-map` (states / counties / countries). |
 | `reference/specification/kpis.md` | KPI, stat, big number, single value, metric card — including layout / value styling, the comparison Δ badge (`comparisonColumn` + `comparison:{display:"delta"}` — spec-authorable and readback-stable; the house default), and the trend/sparkline block (still UI-bound). |
 | `reference/specification/controls.md` | Filter, dropdown, picker, multi-select, date range, date picker, text filter, number range, slider, segmented, hierarchy. Also the entry (write) text control shape used with buttons/actions. |
-| `reference/specification/content-elements.md` | The non-data elements — `text` (Markdown + inline styling), `image`, `divider`, `embed` (external URLs). Titles, callouts, logos, rules, embedded content. |
+| `reference/specification/content-elements.md` | The non-data elements — `text` (Markdown + inline styling), `image`, `divider`, `embed` (external URLs), `page-break` (PDF/print pagination), `form`, `progress`, `navigation`, `plugin`. Titles, callouts, logos, rules, embedded content. |
 | `reference/specification/input-tables.md` | Operational supplement for `input-table` (spec shape lives in `tables.md`): write-connection requirement, the publish gate, reading data back via warehouse views, element endpoints for auditing, and migration patterns (Excel/planning models). |
 | `reference/specification/styling.md` | **Load when building a dashboard from scratch.** Design recipe library — vetted color palette, hero header strip, gradient header/KPI cards + composite sparkline, KPI card row, section headers, divider rhythm, categorical chart colors. Turns a default-arrange workbook into a designed-looking one without UI editing. |
-| `reference/specification/agents.md` | Workbook AI agent, chat with your data, agent, chatbot, AI assistant. The workbook-top-level `agents:[]` array + page-level `chat` element; read-only analyst vs. write/action agent; org-feature gate + graceful degrade. |
+| `reference/specification/agents.md` | Workbook AI agent, chat with your data, agent, chatbot, AI assistant. The workbook-top-level `agents:[]` array + page-level `chat` element; read-only analyst vs. write/action agent; the four `tools[]` kinds (`action`, `mcp-connector`, `warehouse-agent`, `search-service`), `greeting`, `requiresApproval`, why action sequences are referenceable but not authorable; org-feature gate + graceful degrade. |
 
 ### Sources
 
@@ -257,10 +278,10 @@ The reference is feature-sliced — don't read every file up-front. The index ha
 
 | File | When to load |
 |------|--------------|
-| `reference/specification/schema.md` | Always — load before drafting any spec. Top-level shape, required fields, response-only fields to strip. |
+| `reference/specification/schema.md` | Always — load before drafting any spec. Top-level shape, required fields, response-only fields to strip, page `type` (`page` / `modal` / `drawer`) and the overlay config objects. |
 | `reference/specification/formulas.md` | Always — load before drafting any spec. Formula syntax, qualification, special characters, the #1 mistake. |
 | `reference/specification/formatting.md` | Format, currency, percentage, date format, decimals — column formatting. |
-| `reference/specification/layout.md` | **Always load for multi-element workbooks.** Layout XML, GridContainer/LayoutElement, container elements, tabbed containers (pack multiple views into one region — spec-authorable, not UI-only), page visibility / background, auto-arrange fallback rules, when to write explicit layout vs. omit. |
+| `reference/specification/layout.md` | **Always load for multi-element workbooks.** Layout XML, GridContainer/LayoutElement, container elements, tabbed containers (pack multiple views into one region — spec-authorable, not UI-only), **why repeated containers are UI-only and silently dropped by GET-spec**, page visibility / background, auto-arrange fallback rules, when to write explicit layout vs. omit. |
 | `reference/specification/example-full.yaml` | A real multi-page reference spec (KPIs, charts, joins, controls, layout) — copy shapes from when in doubt. |
 | `reference/specification/comparative-kpi-card.yaml` | Minimal clone-able comparative KPI card — `value` + `comparisonColumn` + `comparison:{display:"delta"}`, the house-default comparative shape (see `kpis.md`). |
 
@@ -270,7 +291,7 @@ The reference is feature-sliced — don't read every file up-front. The index ha
 |------|--------------|
 | `reference/workflows/discover.md` | Finding connections, tables, and column names. Load before composing a new spec. |
 | `reference/workflows/composition.md` | Open-ended design decisions — calibrating workbook complexity to the request, when to ask the user, what to ask, surfacing structural choices in the final summary, and a few safe defaults (hidden source pages, ranked-table sort direction). Load before drafting anything when the prompt leaves significant design choices unmade. |
-| `reference/workflows/actions.md` | Buttons, write-back, insert-rows/clear-control/set-control-value effects, modals (open/close-overlay), the append-only-log pattern, and the masked-error catalog for input-table/control element kinds. Load when the user wants a button, a "log/save/submit" action, or a write-back workflow. |
+| `reference/workflows/actions.md` | Buttons, write-back, and **all twelve** action effects — insert/update/delete-rows, clear-control, set-control-value, open/close-overlay (modal **and** drawer), open-url, open-document (incl. passing `targetControls` into another workbook), navigate, select-tab, refresh-element — plus the append-only-log pattern and the masked-error catalog. Load when the user wants a button, a "log/save/submit" action, tab/page navigation, a deep link, or a write-back workflow. |
 | `reference/workflows/crud.md` | POST / GET / PUT against the workbook spec endpoints. Load when creating, retrieving, or updating a workbook. |
 | `reference/workflows/validate.md` | Pre-submit + post-create validation. Load before any POST or PUT. |
 | `reference/workflows/from-image.md` | The user supplied a target image (screenshot, mockup, BI-tool export) to reproduce. Load *before* discovery — it adds explicit observation and validation steps. |

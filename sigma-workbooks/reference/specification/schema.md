@@ -56,6 +56,39 @@ The `elements` array holds table elements, charts, KPIs, controls, and container
 
 `visibility: hidden` keeps the page in the workbook (so other elements can `source` from its tables via `elementId`) but excludes it from the viewer. See `reference/workflows/composition.md` for when to reach for this.
 
+### Page `type` — `page`, `modal`, or `drawer`
+
+A page's optional `type` decides whether it's a navigable tab or an overlay. There are **three** variants, and they take different fields:
+
+| `type` | Renders as | Extra fields |
+|---|---|---|
+| `page` (default) | A normal navigable page/tab | `visibility` |
+| `modal` | A centered overlay | `modal`, `actions` |
+| `drawer` | An overlay sliding in from a page edge | `drawer`, `actions` |
+
+Only `type: page` accepts `visibility`; only the two overlay types accept `actions`. Both overlays are opened by the **same** `open-overlay` effect via `overlayId` pointing at the overlay **page's** `id` — see `reference/workflows/actions.md` → *Overlays*. **`drawer` is live-verified 2026-08-05** (create + readback round-trip, `type` intact).
+
+The overlay config objects differ:
+
+```yaml
+# type: modal
+modal:
+  width: medium        # x-small | small | medium | large | x-large
+  header: { ... }
+  footer: { ... }
+
+# type: drawer  — no footer; adds edge + shadow
+drawer:
+  width: medium        # x-small | small | medium | large | x-large
+  position: end        # start | end  (which edge it slides from)
+  showShadow: shown    # shown | hidden
+  header: { ... }
+```
+
+Page-level `actions[]` entries are `{ id, trigger, effects, name?, state? }` where `trigger` ∈ `on-click`, `on-select`, `on-primary-cta-click`, `on-secondary-cta-click`, `on-close` and `state` ∈ `enabled`, `disabled`. The CTA triggers are what wire an overlay's header/footer buttons; `on-close` fires when the overlay dismisses. (Enums read from the OpenAPI; of these only the overlay round-trip itself is live-verified — the individual CTA triggers aren't yet.)
+
+Overlay pages still need their own `<Page>` block in the top-level `layout` XML — see the layout gotcha in `actions.md`.
+
 ## ID Rules
 
 - Element IDs and column IDs must be unique within their scope.
