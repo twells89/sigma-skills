@@ -331,12 +331,21 @@ recover.
 and update any child formulas that used the `Custom SQL` prefix to use the
 new name. Then the swap auto-rewrites cleanly.
 
+> **The workbook-spec body is wrapped, not flat (verified live 2026-08).**
+> `GET`/`POST`/`PUT` all nest `schemaVersion`/`pages`/`layout` under a
+> top-level `document` key; `name`/`folderId`/response-only fields stay
+> outside it, and `PUT` takes **only** `{document: {...}}` — see
+> `sigma-workbooks`'s `reference/specification/schema.md`. The snippet below
+> unwraps `spec['document']` before touching `pages`, and re-wraps just the
+> document for the PUT body.
+
 ```ruby
 require 'json'
 require 'tmpdir'
 WB = '<workbookId>'
 raw = `curl -s -H "Authorization: Bearer $SIGMA_API_TOKEN" -H "Accept: application/json" "$SIGMA_BASE_URL/v2/workbooks/#{WB}/spec"`
 spec = JSON.parse(raw)
+doc  = spec['document']   # schemaVersion/pages/layout live here, not on spec directly
 
 manifest = JSON.parse(File.read(File.join(Dir.tmpdir, 'custom-sql-manifest.json')))
 new_names = manifest
@@ -345,14 +354,14 @@ new_names = manifest
 
 # Children that referenced a root we're renaming
 child_parent = {}
-spec['pages'].each do |page|
+doc['pages'].each do |page|
   page['elements'].each do |el|
     parent = el.dig('source', 'elementId')
     child_parent[el['id']] = parent if parent && new_names.key?(parent)
   end
 end
 
-spec['pages'].each do |page|
+doc['pages'].each do |page|
   page['elements'].each do |el|
     if new_names.key?(el['id'])
       el['name'] = new_names[el['id']] if el['name'].to_s.strip.empty?
@@ -365,8 +374,8 @@ spec['pages'].each do |page|
   end
 end
 
-%w[workbookId url ownerId createdBy updatedBy createdAt updatedAt latestDocumentVersion documentVersion].each { |k| spec.delete(k) }
-File.write(File.join(Dir.tmpdir, 'wb-pre-swap.json'), JSON.pretty_generate(spec))
+# PUT takes ONLY the document object — no name/folderId/response-only fields.
+File.write(File.join(Dir.tmpdir, 'wb-pre-swap.json'), JSON.pretty_generate({ 'document' => doc }))
 ```
 
 ```bash
@@ -499,9 +508,17 @@ cost: you keep prefix/display-name rewrite logic in sync with the DM, you
 must strip response-only fields, and layout edits may get rebuilt server-
 side. Prefer `:swapSources` whenever it works.
 
+> **`/tmp/wb-spec.yaml` here is a saved `GET /v2/workbooks/{id}/spec` response** —
+> which, like every workbook-spec body, nests `schemaVersion`/`pages`/`layout`
+> under `document` (verified live 2026-08; see the wrapper note in Phase 5, and
+> `sigma-workbooks`'s `reference/specification/schema.md`). The snippet unwraps
+> `spec['document']` before touching `pages`, and the PUT body is just the
+> re-wrapped `document` — not the full GET response.
+
 ```ruby
 require 'yaml'; require 'json'; require 'date'
 spec = YAML.safe_load(File.read('/tmp/wb-spec.yaml'), permitted_classes: [Date, Time])
+doc  = spec['document']   # schemaVersion/pages/layout live here, not on spec directly
 
 conversions = {
   '<root_element_id>' => {
@@ -513,14 +530,14 @@ conversions = {
 
 root_ids = conversions.keys.to_set
 child_parent = {}
-spec['pages'].each do |page|
+doc['pages'].each do |page|
   page['elements'].each do |el|
     parent = el.dig('source', 'elementId')
     child_parent[el['id']] = parent if parent && root_ids.include?(parent)
   end
 end
 
-spec['pages'].each do |page|
+doc['pages'].each do |page|
   page['elements'].each do |el|
     if (conv = conversions[el['id']])
       el['name']   = conv[:elementName]
@@ -536,8 +553,8 @@ spec['pages'].each do |page|
   end
 end
 
-%w[workbookId url ownerId createdBy updatedBy createdAt updatedAt latestDocumentVersion].each { |k| spec.delete(k) }
-File.write('/tmp/wb-updated.json', JSON.pretty_generate(spec))
+# PUT takes ONLY the document object — no name/folderId/response-only fields.
+File.write('/tmp/wb-updated.json', JSON.pretty_generate({ 'document' => doc }))
 ```
 
 ```bash
