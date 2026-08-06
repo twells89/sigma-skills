@@ -33,6 +33,16 @@ Nothing is a new format: every file is a verbatim slice of the spec, so all the
 per-element reference files in this skill (charts.md, kpis.md, tables.md, …)
 apply unchanged to a single element file.
 
+> **On-disk stays flat; the wire is wrapped.** `workbook.yaml` and the exploded
+> page/element files intentionally keep the pre-2026-08 flat shape
+> (`schemaVersion`/`pages`/`layout` as plain top-level fields) — this is the
+> rep's own format, not the raw API body. `GET`/`POST`/`PUT` against
+> `/v2/workbooks/spec` nest those same fields under a `document` key on the
+> wire (verified live 2026-08; see `reference/specification/schema.md`).
+> `pull`/`push`/`import`/`assemble` are meant to wrap and unwrap at that
+> boundary so this stays invisible day to day — if you call the raw endpoints
+> yourself instead of going through `wb-rep.rb`, use the wrapped shape.
+
 ## Commands
 
 All commands need `SIGMA_BASE_URL` / `SIGMA_API_TOKEN` (sigma-api skill) except
