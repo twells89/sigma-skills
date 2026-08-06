@@ -37,6 +37,7 @@ module Sigma
     # loaded from an on-disk rep file, or a legacy fixture) passes through
     # unchanged, so it's always safe to call.
     def self.document(spec)
+      return {} unless spec.is_a?(Hash)
       return spec unless wrapped?(spec)
 
       spec.reject { |k, _| k == 'document' }.merge(spec['document'])
