@@ -17,6 +17,7 @@ require 'tmpdir'
 BASE_URL = ENV.fetch('SIGMA_BASE_URL') { abort 'SIGMA_BASE_URL not set — run: eval "$(bash scripts/get-token.sh)"' }
 $LOAD_PATH.unshift File.expand_path('lib', __dir__)
 require 'sigma_rest'
+require 'code_rep'
 
 # Full-site workbook scans paginate over hundreds of items and can take >1
 # hour on large customer orgs; Sigma.request auto-refreshes on 401.
@@ -47,7 +48,9 @@ workbooks.each do |wb|
 
   begin
     raw  = get("/v2/workbooks/#{wid}/spec")
-    spec = YAML.safe_load(raw, permitted_classes: [Date, Time])
+    # Read-only scan: unwrap the live GET's nested {document: {...}} shape (the workbook
+    # code-rep wire format Sigma now requires) back to flat so spec['pages'] below still works.
+    spec = Sigma::CodeRep.document(YAML.safe_load(raw, permitted_classes: [Date, Time]))
     next unless spec.is_a?(Hash) && spec['pages']
 
     folder_id = spec['folderId']
