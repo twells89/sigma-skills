@@ -170,7 +170,7 @@ Write the spec YAML to disk (e.g., `/tmp/workbook-spec.yaml`). YAML is preferred
 - **Write explicit `layout` XML for multi-element workbooks.** Auto-arrange (omitting `layout`) is acceptable only for single-element pages or a uniform stack of tables. See `reference/specification/layout.md` for the rubric.
 - Start with 1–2 pages. Add more later via update.
 
-For **create**, the file must include top-level `name`, `folderId`, `schemaVersion`, and `pages`. `description` is optional. `layout` is technically optional but expected for multi-element workbooks. `schemaVersion` is usually `1` — that's the current value; it may change in the future, so if the API rejects the spec on that field, check what your reference-workbook GET in Step 2 returned and use that instead. Full CRUD mechanics are in `reference/workflows/crud.md`.
+For **create**, the file must include top-level `name` and `folderId`, plus a nested `document` object carrying `schemaVersion` and `pages` (see *Sources of truth*, above, and `reference/specification/schema.md` for the full wrapped shape). `description` is optional at the top level; `layout` is technically optional but expected for multi-element workbooks, and — like `schemaVersion`/`pages` — lives inside `document`, not flat. `schemaVersion` is usually `1` — that's the current value; it may change in the future, so if the API rejects the spec on that field, check what your reference-workbook GET in Step 2 returned and use that instead. Full CRUD mechanics are in `reference/workflows/crud.md`.
 
 ### Step 6 — Validate the spec
 
@@ -215,18 +215,21 @@ After initial creation, use `PUT /v2/workbooks/<id>/spec` to add pages or refine
 
 **For anything beyond ~1 page / ~10 elements, switch to the element rep** (`reference/workflows/element-rep.md`): `scripts/wb-rep.rb pull <id> <dir>` explodes the spec into one file per element so each edit touches a ~½KB file instead of the whole spec, `push` handles drift-check + validation + PUT, and `render` exports page PNGs you can actually look at. The raw GET/PUT flow below remains fine for small workbooks and one-off tweaks.
 
-> **IDs are preserved on CREATE.** The `id` values you POST (pages, elements, columns) are kept verbatim, and `layout` `elementId` references stay valid — so you can edit your saved spec and `PUT` it back directly. `GET` the current spec first only if you don't have your latest copy. See `reference/workflows/crud.md`.
+> **IDs are preserved on CREATE.** The `id` values you POST (pages, elements, columns) are kept verbatim, and `layout` `elementId` references stay valid — so you can edit your saved spec and `PUT` it back, re-wrapped as just `{document: {...}}` (see below — PUT does not take the outer `name`/`folderId`). `GET` the current spec first only if you don't have your latest copy. See `reference/workflows/crud.md`.
 
 ```bash
 curl -s -H "Authorization: Bearer $SIGMA_API_TOKEN" \
   "$SIGMA_BASE_URL/v2/workbooks/<workbook-id>/spec" \
   > /tmp/current-spec.yaml
 
-# Edit /tmp/current-spec.yaml, then:
+# Edit /tmp/current-spec.yaml inside .document (pages, layout, schemaVersion),
+# then PUT only the document object — see reference/workflows/crud.md for why
+# sending the outer name/folderId/response-only fields alongside it 400s:
+yq '{document: .document}' /tmp/current-spec.yaml > /tmp/current-spec-put.yaml
 curl -s -X PUT -H "Authorization: Bearer $SIGMA_API_TOKEN" \
   -H "Content-Type: application/yaml" \
   -H "Accept: application/yaml" \
-  --data-binary @/tmp/current-spec.yaml \
+  --data-binary @/tmp/current-spec-put.yaml \
   "$SIGMA_BASE_URL/v2/workbooks/<workbook-id>/spec" | yq .
 
 cp /tmp/current-spec.yaml "/tmp/workbook-spec-<workbook-id>.yaml"
