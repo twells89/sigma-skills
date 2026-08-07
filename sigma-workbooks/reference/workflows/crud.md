@@ -12,7 +12,7 @@ Every call includes `-H "Authorization: Bearer $SIGMA_API_TOKEN"`. Auth comes fr
 
 ## The body is wrapped under `document`
 
-**Verified live 2026-08-04/05.** `schemaVersion`, `kind`, `pages`, and `layout` nest under a top-level `document` key; `name`, `folderId`, `description`, and the response-only fields stay outside it. A flat pre-2026-08 body gets HTTP 400. Full shape + field lists: `reference/specification/schema.md`. This affects CREATE, GET, and UPDATE identically — every example below already reflects it.
+**Verified live 2026-08-04/05.** `schemaVersion`, `kind`, `pages`, `layout`, `settings`, and `agents` nest under a top-level `document` key; `name`, `folderId`, `description`, and the response-only fields stay outside it. A flat pre-2026-08 body gets HTTP 400. Full shape + field lists: `reference/specification/schema.md`. This affects CREATE, GET, and UPDATE identically — every example below already reflects it.
 
 ## Endpoints
 
@@ -96,7 +96,7 @@ Report **both** the workbook URL **and** the saved spec path.
 The PUT endpoint replaces the entire `document` — partial updates are not supported. Always:
 
 1. GET the current spec first.
-2. Edit the file on disk (inside `document` — `pages`, `layout`, `schemaVersion`, `kind`).
+2. Edit the file on disk (inside `document` — `pages`, `layout`, `schemaVersion`, `kind`, `settings`, `agents`).
 3. PUT the **full** `document` object back — just `{document: {...}}`, not the outer `name`/`folderId`/response-only fields the GET also returned.
 
 If you skip the GET and submit a partial `document`, anything you didn't include is gone.
@@ -113,7 +113,7 @@ The `id` values you send in `POST /v2/workbooks/spec` — for pages, elements, a
 
 ```bash
 # Get current spec (YAML by default) — full response shape:
-# {name, folderId, ..., document: {schemaVersion, pages, layout, ...}}
+# {name, folderId, ..., document: {schemaVersion, kind, pages, layout, settings, agents}}
 curl -s -H "Authorization: Bearer $SIGMA_API_TOKEN" \
   "$SIGMA_BASE_URL/v2/workbooks/<workbook-id>/spec" \
   > /tmp/current-spec.yaml
