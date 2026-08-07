@@ -53,22 +53,38 @@ never an override of a user's stated branding or a migration's source fidelity.*
 
 ## Workbook theme (2026-06-18 release; `themeOverrides` schema documented 2026-06-25)
 
-A workbook carries a **top-level theme**, alongside `pages` and `layout`:
+> **⚠ Relocated (confirmed 2026-08-05).** The flat `themeName` / `themeOverrides` keys shown throughout this section are **no longer `document`-level**. Theming now lives under **`document.settings.theme`**, as `{ name, overrides }`:
+>
+> ```yaml
+> document:
+>   settings:
+>     theme:
+>       name: Dark        # was `themeName`      — Light | Dark | Surface, or an org theme UUID
+>       overrides: { }    # was `themeOverrides` — same field set, same semantics
+>     navigation: { }     # page headers / sidebars / tabs
+> ```
+>
+> The **field semantics below are unchanged** — only the path moved, plus the `themeName`→`name` and `themeOverrides`→`overrides` rename. Mentally prefix every `themeName` / `themeOverrides` in the rest of this section with `document.settings.theme`. (Verify against the current spec asset before relying on the old flat form; see `SKILL.md` → *Fetching the compiled asset*.)
+
+A workbook carries a theme under `document.settings`, alongside `pages` and `layout`:
 
 ```yaml
 name: My Workbook
-schemaVersion: 1
-pages: [ ... ]
-layout: ...
-themeName: Dark          # built-in: Light | Dark | Surface  — OR an org theme UUID
-themeOverrides:          # optional — colors / fonts / layout style / table defaults
-  colors:
-    text: "#FFFFFF"
-    highlight: "#1E88E5"
-    surface: "#101826"
+document:
+  schemaVersion: 1
+  pages: [ ... ]
+  layout: ...
+  settings:
+    theme:
+      name: Dark           # built-in: Light | Dark | Surface — OR an org theme UUID
+      overrides:           # optional — colors / fonts / layout style / table defaults
+        colors:
+          text: "#FFFFFF"
+          highlight: "#1E88E5"
+          surface: "#101826"
 ```
 
-The **full `themeOverrides` schema is now in the public OpenAPI** (`.../spec` POST/PUT request body and GET response — added 2026-06-25; earlier release notes shipped the feature before the spec documented it). The OpenAPI is the source of truth for every field; the list below is the verified summary.
+The **full overrides schema is in the public OpenAPI** (`.../spec` POST/PUT request body and GET response). The OpenAPI is the source of truth for every field; the list below is the verified summary.
 
 ### `themeName`
 

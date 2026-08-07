@@ -10,20 +10,31 @@ This file covers what the OpenAPI alone won't tell you: which fields are respons
 
 ## Top-Level Object
 
-The object passed to `POST /v2/workbooks/spec`:
+The object passed to `POST /v2/workbooks/spec`. **Everything except `name` / `folderId` / `description` lives inside a `document` wrapper:**
 
 ```yaml
 name: My Workbook
 folderId: <folder-uuid>
 description: Optional description
-schemaVersion: 1
-pages: [...]
-layout: |
-  <?xml ...?>...
+document:
+  schemaVersion: 1
+  kind: workbook          # informational; ignored on write
+  pages: [...]
+  layout: |
+    <?xml ...?>...
+  agents: [...]           # optional — see agents.md
+  settings:               # optional — theme + navigation
+    theme: { ... }
+    navigation: { ... }
 ```
 
-**Required:** `name`, `folderId`, `schemaVersion`, `pages`.
-**Optional:** `description`, `layout`.
+**Required (outer):** `name`, `folderId`, `document`.
+**Optional (outer):** `description`.
+**Inside `document`:** `schemaVersion` and `pages` are required; `kind`, `layout`, `agents`, `settings` optional.
+
+> **The wrapper is now documented in the OpenAPI** (confirmed 2026-08-05 against `assets.sigmacomputing.com/openapi/public-rest-api/…`). Older notes in this repo — and the stale Fern docs asset — described a flat `{name, folderId, schemaVersion, pages, layout}` body and treated the wrapper as an undocumented live-API divergence. That gap is closed: spec and live behavior agree, and the wrapped form is canonical. `PUT /v2/workbooks/{id}/spec` sends just `{document: {...}}`.
+
+> **`themeName` / `themeOverrides` moved.** They are no longer `document`-level keys; theming now lives under `document.settings.theme` ("a built-in or org theme by name, plus per-field overrides"), alongside `document.settings.navigation` (page headers, sidebars, tabs). See `styling.md`.
 
 Use the `schemaVersion` returned by `GET /v2/workbooks/<reference-workbook-id>/spec` in Step 2 of the workflow — don't hardcode it. The server will reject a spec whose `schemaVersion` doesn't match what the API expects.
 

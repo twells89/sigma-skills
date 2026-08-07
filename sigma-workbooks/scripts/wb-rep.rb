@@ -444,24 +444,21 @@ def cmd_summarize(args)
   puts "  sources: #{sources.compact.uniq.join(', ')}" unless sources.compact.empty?
 end
 
-# The compiled OpenAPI lives in a Fern docs S3 asset that requires AWS PRESIGNED
-# QUERY PARAMS — a bare fetch of the path 403s (AccessDenied) no matter how current
-# the content hash is. An earlier revision of this file hardcoded the bare path and
-# read that 403 as "the hash rotated", telling you to swap in a new hash; that
-# diagnosis was wrong (the hash is unchanged) and its fix doesn't work. The old
-# fallback, https://help.sigmacomputing.com/openapi.json, is now an HTML page that
-# doesn't link the asset at all.
+# Canonical, stable, unauthenticated compiled OpenAPI. Plain GET — no auth, no
+# presigning, no content hash — so it is safe to pin.
 #
-# So: discover the SIGNED url at runtime from the docs site HTML. The signatures
-# carry X-Amz-Expires=604800 (7 days), which is the other reason not to pin one.
-# For a single endpoint's shape rather than bulk kind/field discovery, prefer the
-# durable per-endpoint pages in SKILL.md's "Sources of truth"
-# (https://help.sigmacomputing.com/reference/<endpoint-slug>) — they don't rotate.
+# History worth not repeating: this used to point at the content-addressed Fern
+# docs asset (fdr-prod-docs-files-public.s3.../sigma.docs.buildwithfern.com/<hash>/…).
+# That asset later began requiring AWS presigned query params (bare fetch -> 403),
+# and — the part that actually bit — it LAGS the live API: as of 2026-08-05 it was
+# missing /v2/reports/spec*, still documented the pre-`document`-wrapper request
+# body, and lacked the `repeated-container` element kind entirely, which led this
+# skill to wrongly document repeated containers as not spec-authorable. Use the
+# assets.sigmacomputing.com URL; treat a live workbook readback as the tiebreaker.
 OPENAPI_CACHE = File.join(Dir.tmpdir, 'sigma-api.json').freeze
-FERN_DOCS_URL = 'https://docs.sigmacomputing.com/'.freeze
-OPENAPI_ASSET_RE = %r{fdr-prod-docs-files-public[^"\\]*openapi/sigma-computing-public-rest-api\.json\?[^"\\]*}.freeze
+OPENAPI_URL = 'https://assets.sigmacomputing.com/openapi/public-rest-api/sigma-computing-public-rest-api.json'.freeze
 
-# Net::HTTP.get_response doesn't follow redirects; the docs host does redirect.
+# Net::HTTP.get_response doesn't follow redirects; the assets host may redirect.
 # Network failures (offline, DNS, TLS, timeout) are returned as nil rather than
 # raised, so callers can `die` with an actionable message instead of dumping a
 # raw Ruby backtrace on a user who is simply offline.
@@ -479,28 +476,6 @@ def http_get_follow(url, limit: 5)
     url = URI.join(url, res['location']).to_s
   end
   nil
-end
-
-# Extract the presigned compiled-OpenAPI URL from the docs site HTML.
-def discover_openapi_url
-  @http_get_error = nil
-  res = http_get_follow(FERN_DOCS_URL)
-  unless res
-    detail = @http_get_error ? " (#{@http_get_error})" : ''
-    die "failed to fetch #{FERN_DOCS_URL} to discover the compiled OpenAPI asset#{detail}. " \
-        'If you are offline or the docs host is unreachable, use a live workbook readback ' \
-        '(GET /v2/workbooks/{id}/spec) or a per-endpoint reference page ' \
-        '(https://help.sigmacomputing.com/reference/<endpoint-slug>) instead.'
-  end
-  m = res.body[OPENAPI_ASSET_RE]
-  unless m
-    die "could not find the compiled OpenAPI asset URL in #{FERN_DOCS_URL} — the docs " \
-        'build changed shape. Use a per-endpoint reference page ' \
-        '(https://help.sigmacomputing.com/reference/<endpoint-slug>) or a live workbook ' \
-        'readback (GET /v2/workbooks/{id}/spec) instead.'
-  end
-  # The URL appears HTML-escaped (and sometimes JS-escaped) in the page source.
-  "https://#{m.gsub('&amp;', '&').gsub('\\u0026', '&')}"
 end
 
 # Depth-first walk mirroring jq's `.. | objects`: yields every Hash reachable
@@ -558,8 +533,15 @@ def cmd_capabilities(args)
   if (i = args.index('--kind')) then kind = args[i + 1]; args.slice!(i, 2); end
   if (i = args.index('--field')) then field = args[i + 1]; args.slice!(i, 2); end
   unless File.exist?(OPENAPI_CACHE)
-    res = http_get_follow(discover_openapi_url)
-    die 'failed to fetch OpenAPI (presigned asset URL rejected — re-run to re-discover it)' unless res
+    @http_get_error = nil
+    res = http_get_follow(OPENAPI_URL)
+    unless res
+      detail = @http_get_error ? " (#{@http_get_error})" : ''
+      die "failed to fetch the compiled OpenAPI from #{OPENAPI_URL}#{detail}. If you are " \
+          'offline or the host is unreachable, use a live workbook readback ' \
+          '(GET /v2/workbooks/{id}/spec) or a per-endpoint reference page ' \
+          '(https://help.sigmacomputing.com/reference/<endpoint-slug>) instead.'
+    end
     File.write(OPENAPI_CACHE, res.body)
   end
   doc = JSON.parse(File.read(OPENAPI_CACHE))

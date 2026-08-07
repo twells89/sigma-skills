@@ -33,28 +33,24 @@ Sigma's public API docs are an index at `https://help.sigmacomputing.com/openapi
 
 - **A live workbook readback** — `GET /v2/workbooks/{id}/spec` on the user's org. The durable, always-current source: read a real workbook and navigate `pages[].elements[]` by `kind`. **Prefer this** when you have a workbook to read.
 - **A single endpoint's stable reference page** — `https://help.sigmacomputing.com/reference/<endpoint-slug>`. Verified live and current (2026-08-04): `create-workbook-spec`, `update-workbook-spec`, `verify-workbook-spec`, `get-workbook-spec`. Unlike the compiled asset below, **this path is not content-addressed** — it's the same URL forever regardless of docs redeploys, so it's safe to hardcode. **Use this for "what shape does endpoint X need right now"** — confirming one field, checking one endpoint's request or response body. (These four currently agree: `create-workbook-spec` and `verify-workbook-spec` both show the request body wrapped as `{name, folderId, document: {schemaVersion, kind, pages, layout}}`; `update-workbook-spec`, a PUT against an existing workbook, sends just `{document: {...}}`.)
-- **The full compiled OpenAPI** — one spec that *does* inline every workbook `kind` in one document (title "Sigma Computing Public REST API", `version: 2.0.0`, ~82 MB), useful for **bulk discovery** (e.g. "list every kind the API accepts") that no single per-endpoint page can do. It is the **only** source that documents `/v2/workbooks/spec` in full. Served as a content-addressed Fern docs asset that now also requires **AWS presigned query parameters** — see *Fetching the compiled asset* below for the one command that gets it.
+- **The full compiled OpenAPI** — one document covering every workbook `kind`, and the **only** source that documents `/v2/workbooks/spec` at all. Use it for bulk discovery ("list every kind the API accepts") that no single per-endpoint page can do. **This is the canonical, stable, unauthenticated URL — use it directly:**
 
-  **Treat this as a bulk-discovery convenience, not a citation.** It may **lag** the live API slightly (refreshed out-of-band). If a specific field looks wrong, check that field's per-endpoint page (above) directly rather than trusting this asset.
+  ```
+  https://assets.sigmacomputing.com/openapi/public-rest-api/sigma-computing-public-rest-api.json
+  ```
 
-### Fetching the compiled asset (it is presigned — a bare URL 403s)
-
-**Do not hardcode this URL** — the bare S3 path returns `403 AccessDenied` (verified 2026-08-05). If you see that 403, the cause is the missing signature, **not** a rotated content hash: the hash is unchanged, so "find the new hash" (what earlier revisions of this skill advised) won't fix it, and the old fallback `help.sigmacomputing.com/openapi.json` is now an HTML page that doesn't link the asset at all.
-
-The signed URL is embedded in the docs site HTML. Extract it at request time:
+### Fetching the compiled asset
 
 ```bash
-curl -sfL https://docs.sigmacomputing.com/ -o /tmp/sigma-docs.html
-python3 - <<'EOF' > /tmp/sigma-api-url.txt
-import re, html
-h = open('/tmp/sigma-docs.html', encoding='utf-8').read()
-m = re.findall(r'fdr-prod-docs-files-public[^"\\]*openapi/sigma-computing-public-rest-api\.json\?[^"\\]*', h)
-print('https://' + html.unescape(m[0]).replace('&amp;', '&'))
-EOF
-curl -sfL "$(cat /tmp/sigma-api-url.txt)" -o /tmp/sigma-api.json
+curl -sfL https://assets.sigmacomputing.com/openapi/public-rest-api/sigma-computing-public-rest-api.json \
+  -o /tmp/sigma-api.json
 ```
 
-**The signature expires** — the URLs served carry `X-Amz-Expires=604800` (7 days) from their issue date, so a URL you captured last week may 403 even though the extraction still works. Re-extract rather than reusing a saved URL; that's why this skill documents the *procedure* and not a literal link. If the extraction finds no match, the docs build changed shape — fall back to a per-endpoint reference page or a live workbook readback.
+Plain `GET`, no auth, no signature, no content hash — safe to hardcode. Title "Sigma Computing Public REST API", `version: 2.0.0`, ~6.8 MB (it uses `$ref`s into `components.schemas`, so **deref as you walk** — element kinds are behind `#/components/schemas/WorkbookElement`).
+
+> **Do not use the old Fern docs asset** (`fdr-prod-docs-files-public.s3.amazonaws.com/sigma.docs.buildwithfern.com/<hash>/…`). It is content-addressed, now requires AWS presigned query params (a bare fetch 403s), and — the reason that actually matters — **it lags the live API**. As of 2026-08-05 it was missing `/v2/reports/spec*` entirely, still documented the pre-`document`-wrapper request body, and **did not contain the `repeated-container` element kind**, which caused this skill to previously assert that repeated containers were not spec-authorable. They are. Working from a stale asset produces confidently wrong documentation; prefer the `assets.sigmacomputing.com` URL above, and treat a live workbook readback as the tiebreaker.
+
+The old `help.sigmacomputing.com/openapi.json` index is now an HTML landing page and does not link the compiled asset at all.
 
 When this skill and the spec (or a live readback) disagree, the spec wins. When a feature isn't covered here, consult the spec / a live workbook and use what it documents.
 
@@ -66,17 +62,16 @@ When this skill and the spec (or a live readback) disagree, the spec wins. When 
 - **Every `kind` the API accepts, or every field on a `kind`** (bulk discovery — e.g. building out `reference/specification/*.md`) — the per-endpoint pages don't help here (one endpoint each); use the compiled OpenAPI or a live workbook readback instead. Fetch the compiled spec once per session and inspect with `jq`:
 
 ```bash
-# Fetch it with the presigned-URL extraction in "Fetching the compiled asset" above — a bare
-# curl of the S3 path 403s. That block writes /tmp/sigma-api.json; everything below assumes it.
-# The asset may LAG the per-endpoint pages after a docs redeploy; if one field looks wrong, check
-# that field's per-endpoint page directly instead of trusting this. Or read a live workbook spec
+# Assumes /tmp/sigma-api.json from "Fetching the compiled asset" above.
+# If a field looks wrong, check that field's per-endpoint page, or read a live workbook spec
 # (GET /v2/workbooks/{id}/spec) and navigate pages[].elements[] by kind.
 
-# The entire workbook spec request body lives under one path (it is not split into named schemas):
+# The workbook spec request body. NOTE: the outer object is {name, folderId, description?, document},
+# so the pages/layout/agents you care about are one level down, under .document:
 jq '.paths."/v2/workbooks/spec".post.requestBody.content."application/json".schema' /tmp/sigma-api.json
 ```
 
-Element, source, control, and format shapes are **inlined** under that path and identified by their `kind` value (e.g. `bar-chart`, `kpi-chart`, `join`, `warehouse-table`) — not by a top-level schema name. Navigate by the `kind` discriminator:
+Element, source, control, and format shapes are identified by their `kind` value (e.g. `bar-chart`, `kpi-chart`, `join`, `warehouse-table`) rather than by a top-level schema name. They live in `components.schemas` and are reached by `$ref` (element kinds hang off `#/components/schemas/WorkbookElement`) — so **deref as you walk** if you're writing your own traversal. The `jq` recipes below scan the whole document, so they work regardless:
 
 ```bash
 # List every kind the spec accepts (elements, sources, controls, formats, …):
@@ -281,7 +276,7 @@ The reference is feature-sliced — don't read every file up-front. The index ha
 | `reference/specification/schema.md` | Always — load before drafting any spec. Top-level shape, required fields, response-only fields to strip, page `type` (`page` / `modal` / `drawer`) and the overlay config objects. |
 | `reference/specification/formulas.md` | Always — load before drafting any spec. Formula syntax, qualification, special characters, the #1 mistake. |
 | `reference/specification/formatting.md` | Format, currency, percentage, date format, decimals — column formatting. |
-| `reference/specification/layout.md` | **Always load for multi-element workbooks.** Layout XML, GridContainer/LayoutElement, container elements, tabbed containers (pack multiple views into one region — spec-authorable, not UI-only), **why repeated containers are UI-only and silently dropped by GET-spec**, page visibility / background, auto-arrange fallback rules, when to write explicit layout vs. omit. |
+| `reference/specification/layout.md` | **Always load for multi-element workbooks.** Layout XML, GridContainer/LayoutElement, container elements, tabbed containers, **`repeated-container` (cards repeating once per source row — spec-authorable, incl. the derived `{{[X repeated container/Col]}}` binding form)**, page visibility / background, auto-arrange fallback rules, when to write explicit layout vs. omit. |
 | `reference/specification/example-full.yaml` | A real multi-page reference spec (KPIs, charts, joins, controls, layout) — copy shapes from when in doubt. |
 | `reference/specification/comparative-kpi-card.yaml` | Minimal clone-able comparative KPI card — `value` + `comparisonColumn` + `comparison:{display:"delta"}`, the house-default comparative shape (see `kpis.md`). |
 
