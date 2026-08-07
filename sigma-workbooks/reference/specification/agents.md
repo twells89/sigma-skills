@@ -2,45 +2,48 @@
 
 A Sigma workbook can carry a **spec-authorable AI agent** that end users chat with
 inside the workbook. It is easy to miss: it is **not a page element** — it's a
-**workbook-top-level `agents:[]` array**, a sibling of `pages`/`layout`/`themeName`.
+**`document.agents[]` array**, a sibling of `pages` / `layout` / `settings`.
 An element-kind scan of `pages[].elements[]` alone will never find it and can wrongly
 conclude "not authorable." The agent is *surfaced* on a page via a small `chat`
 element that just references the agent's id.
 
-> **Not in the compiled/public OpenAPI as of this writing.** Unlike most of this
-> skill's surface, `agents[]` / `dataSources` / `tools` / the `chat` element kind
-> do not appear in the compiled OpenAPI asset this skill points to (see
-> `SKILL.md`'s *Sources of truth*) — this shape was recovered by live POST +
-> GET-readback + render probing on a test org, not read off a schema. Treat field
-> names as verified-by-example, not exhaustive; if you need a field not listed
-> here, confirm it against a live workbook readback before relying on it.
+> **Now fully in the public OpenAPI** (confirmed 2026-08-05 against the canonical
+> asset — see `SKILL.md` → *Fetching the compiled asset*). `document.agents[]`,
+> `dataSources`, `greeting`, all four `tools[]` kinds, and the `chat` element kind
+> are schema-documented. An earlier revision of this file said they were absent and
+> recovered only by live probing; that was true of the **stale** Fern docs asset,
+> not of the current spec. Read the schema, and use a live readback as the tiebreaker.
 
 ## Shape
 
+Note the `document` wrapper — `agents` is a sibling of `pages` / `layout` /
+`settings`, **inside** `document` (see `schema.md`):
+
 ```yaml
 name: My Workbook
-schemaVersion: 1
 folderId: <folderId>
-agents:
-  - id: ag-analyst
-    name: Analyst
-    instructions: >-
-      You are an analyst for this dataset. Answer questions about revenue,
-      orders, and trends over time. Be concise and quantitative; cite the
-      numbers you used.
-    dataSources:
-      - kind: table
-        elementId: src          # an element id already in this workbook's pages
-pages:
-  - id: pg
-    name: Overview
-    elements:
-      - id: src
-        kind: table
-        # ...
-      - id: chat
-        kind: chat
-        agentId: ag-analyst     # the AGENT's `id` above, not an element id
+document:
+  schemaVersion: 1
+  agents:
+    - id: ag-analyst
+      name: Analyst
+      instructions: >-
+        You are an analyst for this dataset. Answer questions about revenue,
+        orders, and trends over time. Be concise and quantitative; cite the
+        numbers you used.
+      dataSources:
+        - kind: table
+          elementId: src        # an element id already in this workbook's pages
+  pages:
+    - id: pg
+      name: Overview
+      elements:
+        - id: src
+          kind: table
+          # ...
+        - id: chat
+          kind: chat
+          agentId: ag-analyst   # the AGENT's `id` above, not an element id
 ```
 
 | Field (agent entry) | Required | Notes |
@@ -172,7 +175,7 @@ steps:
 > **You cannot define a sequence from spec — only reference one.** There is **no**
 > top-level `sequences` array in the workbook spec (confirmed against the compiled
 > OpenAPI: top-level keys are `name`, `folderId`, `schemaVersion`, `kind`, `pages`,
-> `layout`, `themeName`, `themeOverrides`, `agents`, `description`). A
+> `layout`, `settings`, `agents`; `name`/`folderId`/`description` sit outside `document`). A
 > `sequenceId` that isn't already in the workbook is rejected at verify time:
 > `agents[0].tools[0].steps[0].sequenceId: references unknown action sequence
 > 'seq-1'`. So `kind: sequence` is only usable against a sequence created in the
