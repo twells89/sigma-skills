@@ -46,10 +46,10 @@ module Styling
   SURFACES = {
     kpi_name_color: true,     # name:{text,color} on a kpi-chart (value.color bonus also GO, not emitted here)
     chart_color_by: true,     # color:{by:"single",value:"#hex"} on a chart element
-    categorical_scheme: true, # workbook-level themeOverrides:{categoricalScheme:[...]}
+    categorical_scheme: true, # document.settings.theme.overrides:{categoricalScheme:[...]}
     format_string: true,      # format:{kind:"number",formatString:<d3>} — Excel-style formatString is 400-rejected, never emitted
     container_style: true,    # container style:{backgroundColor,borderRadius,borderColor,borderWidth} (borderRadius, NOT cornerRadius; never combine with padding)
-    typography: true,         # themeOverrides.titleFont + per-element name:{fontSize} — verified GO live, but no helper below emits it (out of scope here); kept for a complete surface map
+    typography: true,         # settings.theme.overrides.titleFont + per-element name:{fontSize} — verified GO live, but no helper below emits it (out of scope here); kept for a complete surface map
     # A container backgroundImage:{url:"data:image/svg+xml;base64,...",
     # style:{fit:"cover"}} carrying a composed <linearGradient>+motif SVG
     # survived readback + a real render. Two independent gates:
@@ -135,7 +135,8 @@ module Styling
   def self.chart_color(theme, categorical: false, surfaces: SURFACES)
     if categorical
       return {} unless surfaces[:categorical_scheme]
-      { 'themeOverrides' => { 'categoricalScheme' => theme[:categorical] } }
+      # theming moved: document.settings.theme.overrides (themeOverrides was REMOVED)
+      { 'settings' => { 'theme' => { 'overrides' => { 'categoricalScheme' => theme[:categorical] } } } }
     else
       return {} unless surfaces[:chart_color_by]
       { 'color' => { 'by' => 'single', 'value' => theme[:categorical][0] } }
