@@ -96,7 +96,7 @@ check('chart_color(theme): single-series color:{by:"single",value:} (categorical
 end
 check('chart_color(theme, categorical: true): workbook-level categoricalScheme patch') do
   Styling.chart_color(Styling::DEFAULT_THEME, categorical: true) ==
-    { 'themeOverrides' => { 'categoricalScheme' => Styling::DEFAULT_THEME[:categorical] } }
+    { 'settings' => { 'theme' => { 'overrides' => { 'categoricalScheme' => Styling::DEFAULT_THEME[:categorical] } } } }
 end
 check('chart_color: NO-GO chart_color_by -> {}') do
   Styling.chart_color(Styling::DEFAULT_THEME, surfaces: Styling::SURFACES.merge(chart_color_by: false)) == {}

@@ -1,16 +1,20 @@
 {
   "chart_color_categorical": {
-    "themeOverrides": {
-      "categoricalScheme": [
-        "#2563EB",
-        "#0EA5E9",
-        "#14B8A6",
-        "#F59E0B",
-        "#8B5CF6",
-        "#EF4444",
-        "#10B981",
-        "#64748B"
-      ]
+    "settings": {
+      "theme": {
+        "overrides": {
+          "categoricalScheme": [
+            "#2563EB",
+            "#0EA5E9",
+            "#14B8A6",
+            "#F59E0B",
+            "#8B5CF6",
+            "#EF4444",
+            "#10B981",
+            "#64748B"
+          ]
+        }
+      }
     }
   },
   "chart_color_single": {

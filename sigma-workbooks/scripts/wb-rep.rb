@@ -444,19 +444,39 @@ def cmd_summarize(args)
   puts "  sources: #{sources.compact.uniq.join(', ')}" unless sources.compact.empty?
 end
 
-# Content-addressed Fern docs asset — pins one docs build, so this hash goes dead
-# (403 AccessDenied, not a redirect) on every docs redeploy. This exact hash has
-# already gone dead twice since being pinned here (most recently reconfirmed via
-# curl while documenting this — see SKILL.md's "Sources of truth" for the count).
-# If `capabilities` fails with "failed to fetch OpenAPI", rediscover the current
-# link from https://help.sigmacomputing.com/openapi.json and update this constant
-# — but don't expect the replacement to be durable either; that's inherent to
-# content-addressing, not a one-off bug. For a single endpoint's shape rather than
-# bulk kind/field discovery, prefer the durable per-endpoint pages documented in
-# SKILL.md's "Sources of truth" (https://help.sigmacomputing.com/reference/<endpoint-slug>)
-# — they don't rotate, so there's nothing to keep in sync here.
+# Canonical, stable, unauthenticated compiled OpenAPI. Plain GET — no auth, no
+# presigning, no content hash — so it is safe to pin.
+#
+# History worth not repeating: this used to point at the content-addressed Fern
+# docs asset (fdr-prod-docs-files-public.s3.../sigma.docs.buildwithfern.com/<hash>/…).
+# That asset later began requiring AWS presigned query params (bare fetch -> 403),
+# and — the part that actually bit — it LAGS the live API: as of 2026-08-05 it was
+# missing /v2/reports/spec*, still documented the pre-`document`-wrapper request
+# body, and lacked the `repeated-container` element kind entirely, which led this
+# skill to wrongly document repeated containers as not spec-authorable. Use the
+# assets.sigmacomputing.com URL; treat a live workbook readback as the tiebreaker.
 OPENAPI_CACHE = File.join(Dir.tmpdir, 'sigma-api.json').freeze
-OPENAPI_URL = 'https://fdr-prod-docs-files-public.s3.us-east-1.amazonaws.com/sigma.docs.buildwithfern.com/964b7dcf73aa353d3ab89b1550fa14ea8a4d0a6300aed16bcbe329d1bb4cfd9e/assets/openapi/sigma-computing-public-rest-api.json'.freeze
+OPENAPI_URL = 'https://assets.sigmacomputing.com/openapi/public-rest-api/sigma-computing-public-rest-api.json'.freeze
+
+# Net::HTTP.get_response doesn't follow redirects; the assets host may redirect.
+# Network failures (offline, DNS, TLS, timeout) are returned as nil rather than
+# raised, so callers can `die` with an actionable message instead of dumping a
+# raw Ruby backtrace on a user who is simply offline.
+def http_get_follow(url, limit: 5)
+  limit.times do
+    res = begin
+      Net::HTTP.get_response(URI(url))
+    rescue StandardError => e
+      @http_get_error = e.message
+      return nil
+    end
+    return res if res.is_a?(Net::HTTPSuccess)
+    return nil unless res.is_a?(Net::HTTPRedirection) && res['location']
+
+    url = URI.join(url, res['location']).to_s
+  end
+  nil
+end
 
 # Depth-first walk mirroring jq's `.. | objects`: yields every Hash reachable
 # from `node` (including `node` itself), descending through both Hash values
@@ -513,9 +533,15 @@ def cmd_capabilities(args)
   if (i = args.index('--kind')) then kind = args[i + 1]; args.slice!(i, 2); end
   if (i = args.index('--field')) then field = args[i + 1]; args.slice!(i, 2); end
   unless File.exist?(OPENAPI_CACHE)
-    uri = URI(OPENAPI_URL)
-    res = Net::HTTP.get_response(uri)
-    die 'failed to fetch OpenAPI' unless res.is_a?(Net::HTTPSuccess)
+    @http_get_error = nil
+    res = http_get_follow(OPENAPI_URL)
+    unless res
+      detail = @http_get_error ? " (#{@http_get_error})" : ''
+      die "failed to fetch the compiled OpenAPI from #{OPENAPI_URL}#{detail}. If you are " \
+          'offline or the host is unreachable, use a live workbook readback ' \
+          '(GET /v2/workbooks/{id}/spec) or a per-endpoint reference page ' \
+          '(https://help.sigmacomputing.com/reference/<endpoint-slug>) instead.'
+    end
     File.write(OPENAPI_CACHE, res.body)
   end
   doc = JSON.parse(File.read(OPENAPI_CACHE))

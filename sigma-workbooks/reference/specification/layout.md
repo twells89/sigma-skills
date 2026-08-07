@@ -47,7 +47,7 @@ Use `<GridContainer>` for any tag with nested children — a `<LayoutElement>` o
 
 ## Container elements
 
-A `kind: "container"` element in `pages[].elements[]` is a grouping placeholder — a labeled section, a branded header strip, a KPI row treated as a unit. It renders **only** when a matching `<GridContainer elementId="…">` positions it; declared without one, it's a no-op. Containers carry optional `style` (background color, border, corner radius, padding) and `backgroundImage` — pull the current shape from the spec rather than hardcoding it (the set of container/layout options is growing):
+A `kind: "container"` element in `pages[].elements[]` is a grouping placeholder — a labeled section, a branded header strip, a KPI row treated as a unit. It renders **only** when a matching `<GridContainer elementId="…">` positions it; declared without one, it's a no-op. Containers carry optional `style` (background color, border, corner radius, padding), `backgroundImage`, and the child-spacing pair `elementGap` (`shown` / `hidden`) + `spacing` (`small` / `medium` / `large`) — pull the current shape from the spec rather than hardcoding it (the set of container/layout options is growing):
 
 ```bash
 jq --arg k container 'first(.. | objects | select((.allOf? and any(.allOf[]?; .properties?.kind?.enum==[$k])) or .properties?.kind?.enum==[$k]))' /tmp/sigma-api.json
@@ -61,6 +61,58 @@ jq --arg k container 'first(.. | objects | select((.allOf? and any(.allOf[]?; .p
 
 - **Element on a background image:** to place an element *on top of* a container's `backgroundImage`, make it a **child** of that container in the layout XML — the background spans the container and the child sits on top.
 - **When to skip:** with no shared background or logical grouping, position elements directly with `<LayoutElement>`. A container around a single element is usually overkill.
+
+## `repeated-container` — cards that repeat once per source row
+
+A **repeated container** is a first-class element kind: one card (or list row) rendered once per row of a source, with child text/images bound to that row's values. It is **fully spec-authorable and round-trips** — live-verified 2026-08-05 by create → `GET .../spec` → PNG export (cards rendered one per row), and by reading back a UI-built one intact.
+
+```yaml
+- id: rc
+  kind: repeated-container
+  source: { kind: table, elementId: bt-stars }   # or warehouse-table / data-model / sql / …
+  arrangement: list          # list | grid   (default grid)
+  cardSize: small            # x-small | small | medium | large | x-large
+  cardStyle:
+    backgroundColor: "#EEF2F7"
+    borderRadius: round      # square | round | pill
+  noDataText: No rows yet
+```
+
+Required: `id`, `kind`, `source`. `source` takes the usual union — `table` (another element, via `elementId`), `warehouse-table`, `data-model`, `sql`, `join`, `union`, `csv-table`, `metric-view`, `semantic-view`, `transpose`. Optional: `arrangement`, `cardSize`, `cardGap` / `cardSpacing`, `elementGap` / `elementSpacing`, `scroll` (`vertical` | `horizontal` | `none`), `filters`, `sort`, `noDataText`, `style`, `cardStyle`.
+
+### Binding children to the row — the derived name
+
+The card's children are ordinary `text` / `image` elements declared in `pages[].elements[]` and placed **inside** the container in the layout XML. They reference the current row through a **derived** name:
+
+```
+{{[<source element's `name`> repeated container/<Column name>]}}
+```
+
+So a source element named `Star Events` yields `{{[Star Events repeated container/Repo Name]}}`. Columns are referenced by their `name`, not their `id`.
+
+> **That reference target is deliberately not declared anywhere** — it's synthesized from the source element's name. Do **not** "validate" a spec by checking whether an element with that name exists in `pages[].elements[]`; the correct form can never satisfy that test, and treating it as a dangling reference is a false positive. If the name doesn't resolve, the fix is almost always the *source element's* `name`, not the binding.
+>
+> Corollary: `[rc/<column>]` (using the container's `id`) does **not** work — it fails with `Dependency not found: 'rc/<column>'`.
+
+### Layout XML
+
+Use a plain `<GridContainer>`; there is **no** `<RepeatedContainer>` tag. Children go inside it as `<LayoutElement>`s:
+
+```xml
+<GridContainer elementId="rc" type="grid" gridColumn="1 / 24" gridRow="36 / 54"
+               gridTemplateColumns="repeat(12, 1fr)" gridTemplateRows="auto">
+  <LayoutElement elementId="card-title" gridColumn="1 / 3"  gridRow="1 / 3"/>
+  <LayoutElement elementId="card-sub"   gridColumn="3 / 13" gridRow="1 / 3"/>
+</GridContainer>
+```
+
+- **An unknown tag is a server error, not a validation error.** `<RepeatedContainer>` or `<Container>` returns an opaque `An error has occurred. Please try again later (incident-id=…)` from both `/verify` and create — it reads like an outage, but it's your XML. Use `<GridContainer>`.
+- Sigma normalizes the card's inner grid to **12** columns (`gridTemplateColumns="repeat(12, 1fr)"`) and rewrites `type` to `"grid"` on readback, whatever you send.
+- `arrangement: grid` is the default and is **dropped** from the readback; `arrangement: list` persists. Don't read its absence as a lost field.
+
+### Caveat on older captured specs
+
+A spec captured **before** this element kind existed will contain the styled child elements and their `{{[… repeated container/…]}}` bindings but **no** `repeated-container` element — so replaying it gives you the cards' contents without the repeat. That's a stale fixture, not an API limitation: re-capture from the current API, or add the `repeated-container` element by hand.
 
 ## Tabbed containers
 

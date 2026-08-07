@@ -10,20 +10,31 @@ This file covers what the OpenAPI alone won't tell you: which fields are respons
 
 ## Top-Level Object
 
-The object passed to `POST /v2/workbooks/spec`:
+The object passed to `POST /v2/workbooks/spec`. **Everything except `name` / `folderId` / `description` lives inside a `document` wrapper:**
 
 ```yaml
 name: My Workbook
 folderId: <folder-uuid>
 description: Optional description
-schemaVersion: 1
-pages: [...]
-layout: |
-  <?xml ...?>...
+document:
+  schemaVersion: 1
+  kind: workbook          # informational; ignored on write
+  pages: [...]
+  layout: |
+    <?xml ...?>...
+  agents: [...]           # optional — see agents.md
+  settings:               # optional — theme + navigation
+    theme: { ... }
+    navigation: { ... }
 ```
 
-**Required:** `name`, `folderId`, `schemaVersion`, `pages`.
-**Optional:** `description`, `layout`.
+**Required (outer):** `name`, `folderId`, `document`.
+**Optional (outer):** `description`.
+**Inside `document`:** `schemaVersion` and `pages` are required; `kind`, `layout`, `agents`, `settings` optional.
+
+> **The wrapper is now documented in the OpenAPI** (confirmed 2026-08-05 against `assets.sigmacomputing.com/openapi/public-rest-api/…`). Older notes in this repo — and the stale Fern docs asset — described a flat `{name, folderId, schemaVersion, pages, layout}` body and treated the wrapper as an undocumented live-API divergence. That gap is closed: spec and live behavior agree, and the wrapped form is canonical. `PUT /v2/workbooks/{id}/spec` sends just `{document: {...}}`.
+
+> **`themeName` / `themeOverrides` moved.** They are no longer `document`-level keys; theming now lives under `document.settings.theme` ("a built-in or org theme by name, plus per-field overrides"), alongside `document.settings.navigation` (page headers, sidebars, tabs). See `styling.md`.
 
 Use the `schemaVersion` returned by `GET /v2/workbooks/<reference-workbook-id>/spec` in Step 2 of the workflow — don't hardcode it. The server will reject a spec whose `schemaVersion` doesn't match what the API expects.
 
@@ -55,6 +66,39 @@ visibility: shown   # optional: "shown" (default) | "hidden"
 The `elements` array holds table elements, charts, KPIs, controls, and containers. See the per-element reference files.
 
 `visibility: hidden` keeps the page in the workbook (so other elements can `source` from its tables via `elementId`) but excludes it from the viewer. See `reference/workflows/composition.md` for when to reach for this.
+
+### Page `type` — `page`, `modal`, or `drawer`
+
+A page's optional `type` decides whether it's a navigable tab or an overlay. There are **three** variants, and they take different fields:
+
+| `type` | Renders as | Extra fields |
+|---|---|---|
+| `page` (default) | A normal navigable page/tab | `visibility` |
+| `modal` | A centered overlay | `modal`, `actions` |
+| `drawer` | An overlay sliding in from a page edge | `drawer`, `actions` |
+
+Only `type: page` accepts `visibility`; only the two overlay types accept `actions`. Both overlays are opened by the **same** `open-overlay` effect via `overlayId` pointing at the overlay **page's** `id` — see `reference/workflows/actions.md` → *Overlays*. **`drawer` is live-verified 2026-08-05** (create + readback round-trip, `type` intact).
+
+The overlay config objects differ:
+
+```yaml
+# type: modal
+modal:
+  width: medium        # x-small | small | medium | large | x-large
+  header: { ... }
+  footer: { ... }
+
+# type: drawer  — no footer; adds edge + shadow
+drawer:
+  width: medium        # x-small | small | medium | large | x-large
+  position: end        # start | end  (which edge it slides from)
+  showShadow: shown    # shown | hidden
+  header: { ... }
+```
+
+Page-level `actions[]` entries are `{ id, trigger, effects, name?, state? }` where `trigger` ∈ `on-click`, `on-select`, `on-primary-cta-click`, `on-secondary-cta-click`, `on-close` and `state` ∈ `enabled`, `disabled`. The CTA triggers are what wire an overlay's header/footer buttons; `on-close` fires when the overlay dismisses. (Enums read from the OpenAPI; of these only the overlay round-trip itself is live-verified — the individual CTA triggers aren't yet.)
+
+Overlay pages still need their own `<Page>` block in the top-level `layout` XML — see the layout gotcha in `actions.md`.
 
 ## ID Rules
 
