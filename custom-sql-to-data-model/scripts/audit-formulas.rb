@@ -24,6 +24,7 @@ require 'tmpdir'
 BASE_URL = ENV.fetch('SIGMA_BASE_URL')
 $LOAD_PATH.unshift File.expand_path('lib', __dir__)
 require 'sigma_rest'
+require 'code_rep'
 
 # Audit loops over every dedup candidate's workbook + PUTs corrections;
 # Sigma.request auto-refreshes on 401 mid-run.
@@ -34,7 +35,13 @@ end
 
 def audit_one(wb_id)
   raw = http_req(:get, "/v2/workbooks/#{wb_id}/spec")
-  spec = JSON.parse(raw)
+  # Unwrap the live GET's nested {document: {...}} shape (the workbook code-rep wire
+  # format Sigma now requires) back to flat, so spec['pages'] below still works. This
+  # method mutates spec['pages'] in place and PUTs the whole thing back, so unlike a
+  # read-only scan the flat shape has to persist through to the wrap-for-wire step below.
+  # canonical document() narrows; this reader wants the flat shape (spec['name'] etc)
+  j = JSON.parse(raw)
+  spec = Sigma::CodeRep.metadata(j).merge(Sigma::CodeRep.document(j))
 
   fixed_count = 0
   spec['pages'].each do |page|
@@ -66,8 +73,14 @@ def audit_one(wb_id)
   # Strip response-only top-level fields before PUT
   %w[workbookId url ownerId createdBy updatedBy createdAt updatedAt latestDocumentVersion documentVersion].each { |k| spec.delete(k) }
 
-  resp = http_req(:put, "/v2/workbooks/#{wb_id}/spec", JSON.pretty_generate(spec))
-  ok = JSON.parse(resp)['workbookId'] rescue nil
+  # On-disk/in-memory spec stays flat throughout this method (mutated via spec['pages']
+  # above); wrap_for_wire nests it under "document" only right here, at the wire boundary,
+  # matching the PUT /v2/workbooks/{id}/spec shape ({document: {...}}, no name/folderId).
+  # PUT takes `document` and nothing else; narrow before wrapping.
+  resp = http_req(:put, "/v2/workbooks/#{wb_id}/spec",
+                  JSON.pretty_generate(Sigma::CodeRep.wrap(Sigma::CodeRep.document(spec))))
+  # workbookId is METADATA under the canonical split, not a document field.
+  ok = Sigma::CodeRep.metadata(JSON.parse(resp))['workbookId'] rescue nil
   abort "PUT failed for #{wb_id}: #{resp}" unless ok
   [wb_id, fixed_count]
 end

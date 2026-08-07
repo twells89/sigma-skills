@@ -49,6 +49,7 @@ require 'uri'
 require 'fileutils'
 require 'time'
 require 'tmpdir'
+require_relative 'lib/code_rep'
 
 RESPONSE_ONLY = %w[workbookId url documentVersion latestDocumentVersion ownerId
                    createdBy updatedBy createdAt updatedAt].freeze
@@ -267,8 +268,9 @@ def cmd_pull(args, force:)
     die "rep at #{dir} has local changes (see `status`) — pull would overwrite them; use --force to discard", 1
   end
   raw = api(:get, "/v2/workbooks/#{wb_id}/spec")
-  spec = YAML.load(raw)
-  explode(spec, dir, raw_yaml: raw,
+  spec = flatten_spec(YAML.load(raw)) # unwrap the live nested response to flat
+  flat_yaml = YAML.dump(spec) # rep files + snapshot.yaml stay flat — see wrap_for_wire's comment
+  explode(spec, dir, raw_yaml: flat_yaml,
                      manifest_extra: { 'workbookId' => wb_id, 'url' => spec['url'] })
   n_el = (spec['pages'] || []).sum { |p| (p['elements'] || []).size }
   puts "pulled \"#{spec['name']}\" -> #{dir} (#{(spec['pages'] || []).size} pages, #{n_el} elements)"
@@ -285,28 +287,46 @@ end
 # Root-cause correction (2026-08-04): an earlier version of this comment blamed a lone
 # "/verify Beta drift" — that diagnosis was wrong. Live A/B testing showed the REAL create
 # endpoint (POST /v2/workbooks/spec) 400s identically on the flat shape, with the exact same
-# fix. Both endpoints now require the request wrapped as
-# { name, folderId, document: { schemaVersion, kind: "workbook", pages, layout } } —
-# not the flat { name, folderId, schemaVersion, pages, layout } shape the OpenAPI text still
-# documents and that every other command in this file (push/pull/import/assemble) still
-# reads/writes on disk. This is a known, broader mismatch across this codebase (tracked
-# separately, well beyond this one file) — see reference/workflows/validate.md section 1 for
-# the full story. This helper fixes it ONLY for verify's outbound request; it does not change
-# the on-disk rep format push/pull/import/assemble use, and does not fix those commands' own
-# create/update calls, which hit the same 400 live and are still flat today.
-def wrap_for_verify(spec)
-  return spec if spec['document'] # already wrapped — pass through unchanged
+# fix. Both endpoints — plus PUT /v2/workbooks/{id}/spec and every GET of the same
+# resource — moved to the nested wire shape { name, folderId, document: { schemaVersion,
+# kind: "workbook", pages, layout } } (PUT sends/GETs return just { document: {...} } —
+# no name/folderId), not the flat { name, folderId, schemaVersion, pages, layout } shape
+# the OpenAPI text still documents. See reference/workflows/validate.md section 1 for the
+# full story.
+#
+# UPDATE (this commit): this used to be named `wrap_for_verify` and cover ONLY verify's
+# outbound request, leaving push/pull/import/assemble and their create/update calls on the
+# same 400 live. It's now the one wrapper every write path in this file uses (verify, push
+# create, push update), delegating to Sigma::CodeRep (lib/code_rep.rb) so there's a single
+# implementation instead of a second parallel one. Reads go through
+# Sigma::CodeRep.document right after the GET, for the same reason.
+#
+# On-disk format decision: rep files (workbook.yaml, pages/*), .sigma/snapshot.yaml, and
+# every spec this file loads from or writes to disk stay FLAT. Users already have specs on
+# disk in the flat shape, and silently migrating that format would break every existing one
+# for no benefit — wrapping/unwrapping happens only at the API boundary, right before a
+# POST/PUT body goes over the wire and right after a GET response comes back.
+# Canonical Sigma::CodeRep.wrap takes an ALREADY-BUILT document hash and does not
+# narrow, so narrow here with document() before wrapping. Passing a raw flat spec
+# straight to wrap() would nest metadata (name/folderId/url/workbookId) INSIDE
+# `document`, which no endpoint accepts.
+def wrap_for_wire(spec, extra: {})
+  doc = Sigma::CodeRep.document(spec)
+  doc = doc.merge('kind' => 'workbook') unless doc['kind']
+  Sigma::CodeRep.wrap(doc, extra: extra)
+end
 
-  document_keys = %w[schemaVersion kind pages layout]
-  document = spec.select { |k, _| document_keys.include?(k) }
-  document['kind'] ||= 'workbook'
-  spec.reject { |k, _| document_keys.include?(k) }.merge('document' => document)
+# Canonical document() NARROWS to the six document keys; this file's readers want
+# the flat on-disk shape (they read spec['name'], spec['url'], ...), so recombine.
+def flatten_spec(resp)
+  Sigma::CodeRep.metadata(resp).merge(Sigma::CodeRep.document(resp))
 end
 
 def cmd_verify(args)
   path = args.shift or die 'usage: wb-rep.rb verify <spec-file>'
   die "no such file: #{path}" unless File.exist?(path)
-  spec = wrap_for_verify(strip_response_only(load_yaml_file(path)))
+  clean = strip_response_only(load_yaml_file(path))
+  spec = wrap_for_wire(clean, extra: Sigma::CodeRep.metadata(clean))
   result = YAML.load(api(:post, '/v2/workbooks/spec/verify', YAML.dump(spec)))
   if result['valid']
     puts 'valid: true'
@@ -363,7 +383,7 @@ def cmd_push(args, force:, validate: true)
   puts(lines.empty? ? '  (initial create)' : lines.map { |l| "  #{l}" })
 
   if wb_id && !force
-    remote = YAML.load(api(:get, "/v2/workbooks/#{wb_id}/spec"))
+    remote = flatten_spec(YAML.load(api(:get, "/v2/workbooks/#{wb_id}/spec")))
     drift = diff_specs(snap, remote)
     unless drift.empty?
       warn 'wb-rep: remote workbook changed since last pull — pushing would overwrite:'
@@ -374,11 +394,13 @@ def cmd_push(args, force:, validate: true)
 
   lint_layout_coverage(spec)
 
-  body = YAML.dump(strip_response_only(spec))
+  # flat_body is what stays on disk / feeds validate-spec.sh (which expects flat .pages);
+  # it's wrapped via wrap_for_wire only in the api() calls below, right at the wire boundary.
+  flat_body = strip_response_only(spec)
   if validate
     require 'tempfile'
     Tempfile.create(['wb-rep-spec', '.yaml']) do |f|
-      f.write(body)
+      f.write(YAML.dump(flat_body))
       f.flush
       validator = File.expand_path('validate-spec.sh', __dir__)
       if File.exist?(validator)
@@ -389,18 +411,18 @@ def cmd_push(args, force:, validate: true)
   end
 
   if wb_id
-    api(:put, "/v2/workbooks/#{wb_id}/spec", body)
+    api(:put, "/v2/workbooks/#{wb_id}/spec", YAML.dump(wrap_for_wire(flat_body)))
   else
-    die 'create mode: workbook.yaml must include folderId' unless spec['folderId']
-    res = YAML.load(api(:post, '/v2/workbooks/spec', body))
+    die 'create mode: workbook.yaml must include folderId' unless flat_body['folderId']
+    wire = wrap_for_wire(flat_body, extra: Sigma::CodeRep.metadata(flat_body))
+    res = flatten_spec(YAML.load(api(:post, '/v2/workbooks/spec', YAML.dump(wire))))
     wb_id = res['workbookId'] or die "create response had no workbookId:\n#{res.inspect}"
     mf['workbookId'] = wb_id
   end
 
-  raw = api(:get, "/v2/workbooks/#{wb_id}/spec")
-  readback = YAML.load(raw)
+  readback = flatten_spec(YAML.load(api(:get, "/v2/workbooks/#{wb_id}/spec")))
   FileUtils.mkdir_p(File.join(dir, '.sigma'))
-  File.write(File.join(dir, '.sigma', 'snapshot.yaml'), raw)
+  File.write(File.join(dir, '.sigma', 'snapshot.yaml'), YAML.dump(readback))
   mf['url'] = readback['url']
   mf['pushedAt'] = Time.now.utc.iso8601
   File.write(File.join(dir, '.sigma', 'manifest.yaml'), YAML.dump(mf))
@@ -427,7 +449,7 @@ def cmd_summarize(args)
   spec = if File.directory?(target)
            snapshot_spec(target) || assemble(target)
          else
-           YAML.load(api(:get, "/v2/workbooks/#{target}/spec"))
+           flatten_spec(YAML.load(api(:get, "/v2/workbooks/#{target}/spec")))
          end
   puts "#{spec['name']}  (schemaVersion #{spec['schemaVersion']})"
   sources = []

@@ -27,14 +27,17 @@
 #
 # Envelope (2026-08-04): /v2/workbooks/spec/verify now requires the request
 # wrapped as { name, folderId, document: { schemaVersion, kind, pages,
-# layout } } — see wb-rep.rb's wrap_for_verify comment for the full story.
+# layout } } — see wb-rep.rb's wrap_for_wire comment for the full story
+# (this helper used to be named wrap_for_verify and cover only this one
+# endpoint; it's now shared by every write path in wb-rep.rb, including
+# push's create/update calls, via lib/code_rep.rb).
 # GOOD_SPEC/BAD_SPEC below are written in that wrapped shape directly (they
 # exercise cmd_verify's already-wrapped passthrough branch). GOOD_SPEC_FLAT
-# is deliberately the OLD flat shape — the shape every other command in
-# this file (push/pull/import/assemble) still reads/writes on disk, and
-# what `validate.md` §1 tells a human to hand `wb-rep.rb verify` — to pin
-# that cmd_verify's auto-wrap-at-the-boundary keeps that documented usage
-# working without the caller having to know about the envelope at all.
+# is deliberately the OLD flat shape — the shape every rep file on disk
+# (workbook.yaml, pages/*) still uses, and what `validate.md` §1 tells a
+# human to hand `wb-rep.rb verify` — to pin that cmd_verify's
+# auto-wrap-at-the-boundary keeps that documented usage working without the
+# caller having to know about the envelope at all.
 
 require 'json'
 require 'net/http'
