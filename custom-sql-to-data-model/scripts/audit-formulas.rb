@@ -39,7 +39,9 @@ def audit_one(wb_id)
   # format Sigma now requires) back to flat, so spec['pages'] below still works. This
   # method mutates spec['pages'] in place and PUTs the whole thing back, so unlike a
   # read-only scan the flat shape has to persist through to the wrap-for-wire step below.
-  spec = Sigma::CodeRep.document(JSON.parse(raw))
+  # canonical document() narrows; this reader wants the flat shape (spec['name'] etc)
+  j = JSON.parse(raw)
+  spec = Sigma::CodeRep.metadata(j).merge(Sigma::CodeRep.document(j))
 
   fixed_count = 0
   spec['pages'].each do |page|
@@ -74,8 +76,11 @@ def audit_one(wb_id)
   # On-disk/in-memory spec stays flat throughout this method (mutated via spec['pages']
   # above); wrap_for_wire nests it under "document" only right here, at the wire boundary,
   # matching the PUT /v2/workbooks/{id}/spec shape ({document: {...}}, no name/folderId).
-  resp = http_req(:put, "/v2/workbooks/#{wb_id}/spec", JSON.pretty_generate(Sigma::CodeRep.wrap(spec)))
-  ok = Sigma::CodeRep.document(JSON.parse(resp))['workbookId'] rescue nil
+  # PUT takes `document` and nothing else; narrow before wrapping.
+  resp = http_req(:put, "/v2/workbooks/#{wb_id}/spec",
+                  JSON.pretty_generate(Sigma::CodeRep.wrap(Sigma::CodeRep.document(spec))))
+  # workbookId is METADATA under the canonical split, not a document field.
+  ok = Sigma::CodeRep.metadata(JSON.parse(resp))['workbookId'] rescue nil
   abort "PUT failed for #{wb_id}: #{resp}" unless ok
   [wb_id, fixed_count]
 end

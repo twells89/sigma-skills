@@ -50,7 +50,9 @@ workbooks.each do |wb|
     raw  = get("/v2/workbooks/#{wid}/spec")
     # Read-only scan: unwrap the live GET's nested {document: {...}} shape (the workbook
     # code-rep wire format Sigma now requires) back to flat so spec['pages'] below still works.
-    spec = Sigma::CodeRep.document(YAML.safe_load(raw, permitted_classes: [Date, Time]))
+    y = YAML.safe_load(raw, permitted_classes: [Date, Time])
+    # canonical document() narrows; recombine for the flat shape this scanner reads
+    spec = Sigma::CodeRep.metadata(y).merge(Sigma::CodeRep.document(y))
     next unless spec.is_a?(Hash) && spec['pages']
 
     folder_id = spec['folderId']

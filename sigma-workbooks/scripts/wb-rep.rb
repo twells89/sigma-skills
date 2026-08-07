@@ -268,7 +268,7 @@ def cmd_pull(args, force:)
     die "rep at #{dir} has local changes (see `status`) — pull would overwrite them; use --force to discard", 1
   end
   raw = api(:get, "/v2/workbooks/#{wb_id}/spec")
-  spec = Sigma::CodeRep.document(YAML.load(raw)) # unwrap the live nested response to flat
+  spec = flatten_spec(YAML.load(raw)) # unwrap the live nested response to flat
   flat_yaml = YAML.dump(spec) # rep files + snapshot.yaml stay flat — see wrap_for_wire's comment
   explode(spec, dir, raw_yaml: flat_yaml,
                      manifest_extra: { 'workbookId' => wb_id, 'url' => spec['url'] })
@@ -306,8 +306,20 @@ end
 # disk in the flat shape, and silently migrating that format would break every existing one
 # for no benefit — wrapping/unwrapping happens only at the API boundary, right before a
 # POST/PUT body goes over the wire and right after a GET response comes back.
+# Canonical Sigma::CodeRep.wrap takes an ALREADY-BUILT document hash and does not
+# narrow, so narrow here with document() before wrapping. Passing a raw flat spec
+# straight to wrap() would nest metadata (name/folderId/url/workbookId) INSIDE
+# `document`, which no endpoint accepts.
 def wrap_for_wire(spec, extra: {})
-  Sigma::CodeRep.wrap(spec, extra: extra)
+  doc = Sigma::CodeRep.document(spec)
+  doc = doc.merge('kind' => 'workbook') unless doc['kind']
+  Sigma::CodeRep.wrap(doc, extra: extra)
+end
+
+# Canonical document() NARROWS to the six document keys; this file's readers want
+# the flat on-disk shape (they read spec['name'], spec['url'], ...), so recombine.
+def flatten_spec(resp)
+  Sigma::CodeRep.metadata(resp).merge(Sigma::CodeRep.document(resp))
 end
 
 def cmd_verify(args)
@@ -371,7 +383,7 @@ def cmd_push(args, force:, validate: true)
   puts(lines.empty? ? '  (initial create)' : lines.map { |l| "  #{l}" })
 
   if wb_id && !force
-    remote = Sigma::CodeRep.document(YAML.load(api(:get, "/v2/workbooks/#{wb_id}/spec")))
+    remote = flatten_spec(YAML.load(api(:get, "/v2/workbooks/#{wb_id}/spec")))
     drift = diff_specs(snap, remote)
     unless drift.empty?
       warn 'wb-rep: remote workbook changed since last pull — pushing would overwrite:'
@@ -403,12 +415,12 @@ def cmd_push(args, force:, validate: true)
   else
     die 'create mode: workbook.yaml must include folderId' unless flat_body['folderId']
     wire = wrap_for_wire(flat_body, extra: Sigma::CodeRep.metadata(flat_body))
-    res = Sigma::CodeRep.document(YAML.load(api(:post, '/v2/workbooks/spec', YAML.dump(wire))))
+    res = flatten_spec(YAML.load(api(:post, '/v2/workbooks/spec', YAML.dump(wire))))
     wb_id = res['workbookId'] or die "create response had no workbookId:\n#{res.inspect}"
     mf['workbookId'] = wb_id
   end
 
-  readback = Sigma::CodeRep.document(YAML.load(api(:get, "/v2/workbooks/#{wb_id}/spec")))
+  readback = flatten_spec(YAML.load(api(:get, "/v2/workbooks/#{wb_id}/spec")))
   FileUtils.mkdir_p(File.join(dir, '.sigma'))
   File.write(File.join(dir, '.sigma', 'snapshot.yaml'), YAML.dump(readback))
   mf['url'] = readback['url']
@@ -437,7 +449,7 @@ def cmd_summarize(args)
   spec = if File.directory?(target)
            snapshot_spec(target) || assemble(target)
          else
-           Sigma::CodeRep.document(YAML.load(api(:get, "/v2/workbooks/#{target}/spec")))
+           flatten_spec(YAML.load(api(:get, "/v2/workbooks/#{target}/spec")))
          end
   puts "#{spec['name']}  (schemaVersion #{spec['schemaVersion']})"
   sources = []
