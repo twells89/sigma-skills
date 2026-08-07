@@ -135,7 +135,10 @@ module Styling
   def self.chart_color(theme, categorical: false, surfaces: SURFACES)
     if categorical
       return {} unless surfaces[:categorical_scheme]
-      # theming moved: document.settings.theme.overrides (themeOverrides was REMOVED)
+      # Workbook-level palette patch at settings.theme.overrides (the removed
+      # top-level themeOverrides key is silently dropped by the API).
+      # NOTE for callers: this is a NESTED patch, so deep-merge it into the spec;
+      # a shallow merge of `settings` would clobber sibling settings (navigation).
       { 'settings' => { 'theme' => { 'overrides' => { 'categoricalScheme' => theme[:categorical] } } } }
     else
       return {} unless surfaces[:chart_color_by]
