@@ -55,12 +55,14 @@ document:
 | Field (agent entry) | Required | Notes |
 |---|---|---|
 | `id` | yes | The agent's handle — referenced by `chat.agentId`, not an element id. |
-| `name` | yes | Display name shown in the chat UI. |
-| `instructions` | yes | System-prompt-style guidance: role, scope, tone. |
-| `dataSources` | yes | Array of `{ kind: table, elementId: <id> }` — one entry per element (table/pivot/etc.) the agent may query. Maps 1:1 to the elements it can see; it cannot see elements not listed here. |
+| `instructions` | yes | System-prompt-style guidance: role, scope, tone. Per the live OpenAPI the string also supports `@dataSource("elementId")` and `@tool("toolId")` reference syntax in addition to `{{formula}}` — pointing at a `dataSources`/`tools` entry declared on this same agent — not just plain text. |
+| `name` | no | Display name shown in the chat UI. **Corrected 2026-08-08:** an earlier revision of this table marked `name` required; the live `CreateWorkbookSpec` schema's agent-entry `required` is exactly `[id, instructions]` — `name` (and `dataSources`, below) are schema-optional. Still worth always setting for a usable chat UI. |
+| `dataSources` | no | Array of `{ kind: table, elementId: <id> }` — one entry per element (table/pivot/etc.) the agent may query. Maps 1:1 to the elements it can see; it cannot see elements not listed here. Schema-optional, but an agent with no `dataSources` has nothing to answer questions about — set it in practice. |
 | `tools` | — | **Omit entirely for a read-only analyst** (see below). Present only on a write/action agent. Four `kind`s — see *Tool kinds* below. |
 | `description` | — | Free-text description of the agent. |
 | `greeting` | — | The chat's opening message. **An object, not a string** — see below. Omit for Sigma's default greeting. |
+
+Several `chat` elements may reference the same `agents[]` entry by `agentId` — one agent, many chat surfaces (e.g. one on the main page, one in a modal).
 
 ### `greeting` — the chat's first message
 
