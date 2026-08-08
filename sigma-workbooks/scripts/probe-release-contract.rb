@@ -351,7 +351,7 @@ begin
   end
 ensure
   if strict_workbook_id
-    json_request(:delete, "/v2/workbooks/#{strict_workbook_id}")
+    json_request(:delete, "/v2/files/#{strict_workbook_id}")
   end
 end
 
@@ -423,7 +423,7 @@ begin
   end
 ensure
   if workbook_id
-    code, response = json_request(:delete, "/v2/workbooks/#{workbook_id}")
+    code, response = json_request(:delete, "/v2/files/#{workbook_id}")
     warn "WARN — cleanup DELETE returned #{code}: #{response}" unless code.between?(200, 299)
   end
 end
