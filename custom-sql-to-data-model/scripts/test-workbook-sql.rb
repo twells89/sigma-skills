@@ -29,8 +29,8 @@ response = {
         'source' => { 'kind' => 'warehouse-table', 'connectionId' => 'connection-1' }
       }
     ],
-    'layout' => '<Page id="page-1"><LayoutElement elementId="sql-1"/>' \
-                '<LayoutElement elementId="warehouse-1"/></Page>'
+    'layout' => '<Page id="page-1"><Element elementId="sql-1"/>' \
+                '<Element elementId="warehouse-1"/></Page>'
   }
 }
 
@@ -52,6 +52,17 @@ expected = {
 }
 abort "unexpected finding: #{finding.inspect}" unless finding == expected
 abort 'scanner must not re-nest elements under pages' if response.dig('document', 'pages', 0).key?('elements')
+abort 'canonical layout ownership was not parsed' unless Sigma::CodeRep.workbook_page_element_ids(
+  response
+) == { 'page-1' => %w[sql-1 warehouse-1] }
+
+legacy_response = Marshal.load(Marshal.dump(response))
+legacy_response['document']['layout'] =
+  '<Page id="page-1"><GridContainer elementId="old-container">' \
+  '<LayoutElement elementId="old-child"/></GridContainer></Page>'
+abort 'legacy layout aliases must remain readable' unless Sigma::CodeRep.workbook_page_element_ids(
+  legacy_response
+) == { 'page-1' => %w[old-container old-child] }
 
 audit_doc = {
   'elements' => [

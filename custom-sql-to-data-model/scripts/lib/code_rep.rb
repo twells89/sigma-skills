@@ -30,6 +30,11 @@ module Sigma
     # container path moved. document() folds the legacy pair forward so specs
     # and fixtures written before the move still produce a valid body.
     LEGACY_THEME_KEYS = %w[themeName themeOverrides].freeze
+    CANONICAL_LAYOUT_NODE_TAGS = %w[Element Container TabbedContainer].freeze
+    LEGACY_LAYOUT_NODE_TAGS = %w[LayoutElement GridContainer].freeze
+    LAYOUT_NODE_TAG_PATTERN = (
+      CANONICAL_LAYOUT_NODE_TAGS + LEGACY_LAYOUT_NODE_TAGS
+    ).join('|').freeze
 
     class << self
       # Read path: accepts the live nested shape OR a legacy flat artifact.
@@ -82,11 +87,18 @@ module Sigma
       end
 
       # { page_id => [element_id, ...] }, in layout order.
+      # Current GET specs use <Element> leaves, <Container> nested grids, and
+      # <TabbedContainer> tab groups. Keep the two pre-release aliases readable
+      # for old snapshots, but do not treat arbitrary XML tags carrying an
+      # elementId as workbook ownership.
       def workbook_page_element_ids(spec)
         document(spec)['layout'].to_s
                        .scan(%r{<Page\b[^>]*\bid="([^"]*)"[^>]*>(.*?)</Page>}m)
                        .each_with_object({}) do |(page_id, body), out|
-          out[page_id] = body.scan(/\belementId="([^"]*)"/).flatten.uniq
+          nodes = body.scan(
+            %r{<(?:#{LAYOUT_NODE_TAG_PATTERN})\b[^>]*\belementId="([^"]*)"}m
+          )
+          out[page_id] = nodes.flatten.uniq
         end
       end
 
