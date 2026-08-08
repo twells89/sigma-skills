@@ -181,11 +181,11 @@ document:
   layout: |
     <?xml version="1.0" encoding="utf-8"?>
     <Page type="grid" gridTemplateColumns="repeat(24, 1fr)" gridTemplateRows="auto" id="overview">
-      <LayoutElement elementId="sales-table" gridColumn="1 / 25" gridRow="1 / 20"/>
+      <Element elementId="sales-table" gridColumn="1 / 25" gridRow="1 / 20"/>
     </Page>
 ```
 
-Raw warehouse names are accepted in warehouse-table formulas and canonicalized
-by Sigma on POST. Always GET the saved spec and use the canonical readback for
-later edits; Custom SQL aliases and join keys follow special rules documented
-in `formulas.md` and `sources.md`.
+Raw warehouse names are accepted in warehouse-table formulas. Sigma may
+canonicalize them on POST or preserve the raw spelling. Always GET the saved
+spec and use the returned form for later edits; Custom SQL aliases and join
+keys follow special rules documented in `formulas.md` and `sources.md`.

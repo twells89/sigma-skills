@@ -58,6 +58,6 @@ document:
   layout: |
     <?xml version="1.0" encoding="utf-8"?>
     <Page type="grid" gridTemplateColumns="repeat(24, 1fr)" gridTemplateRows="auto" id="page-kpi-example">
-      <LayoutElement elementId="kpi-revenue" gridColumn="1 / 9" gridRow="1 / 8"/>
-      <LayoutElement elementId="kpi-source" gridColumn="1 / 25" gridRow="8 / 20"/>
+      <Element elementId="kpi-revenue" gridColumn="1 / 9" gridRow="1 / 8"/>
+      <Element elementId="kpi-source" gridColumn="1 / 25" gridRow="8 / 20"/>
     </Page>

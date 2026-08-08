@@ -47,8 +47,8 @@ document:
   layout: |
     <?xml version="1.0" encoding="utf-8"?>
     <Page type="grid" gridTemplateColumns="repeat(24, 1fr)" gridTemplateRows="auto" id="pg">
-      <LayoutElement elementId="src" gridColumn="1 / 17" gridRow="1 / 20"/>
-      <LayoutElement elementId="chat" gridColumn="17 / 25" gridRow="1 / 20"/>
+      <Element elementId="src" gridColumn="1 / 17" gridRow="1 / 20"/>
+      <Element elementId="chat" gridColumn="17 / 25" gridRow="1 / 20"/>
     </Page>
 ```
 
@@ -86,7 +86,7 @@ created workbook.
 
 The `chat` page element is minimal: `{ id, kind: "chat", agentId }` — no other
 fields observed. Lay it out like any other element (`gridColumn`/`gridRow` via
-`<LayoutElement>`), typically in a sidebar rail next to the dashboard body.
+`<Element>`), typically in a sidebar rail next to the dashboard body.
 
 ## Read-only analyst vs. write/action agent
 

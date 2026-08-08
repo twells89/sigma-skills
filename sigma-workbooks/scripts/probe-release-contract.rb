@@ -22,6 +22,11 @@ TABLE_PATH = ENV.fetch(
   'SIGMA_PROBE_TABLE_PATH',
   'RETAIL,PLUGS_ELECTRONICS,F_POINT_OF_SALE'
 ).split(',').map(&:strip).freeze
+REPEATER_DATA_MODEL_ID = ENV.fetch(
+  'SIGMA_PROBE_REPEATER_DATA_MODEL_ID',
+  'a8f744bb-fcab-42d0-a997-07abff1eed8f'
+)
+REPEATER_ELEMENT_ID = ENV.fetch('SIGMA_PROBE_REPEATER_ELEMENT_ID', 'RKOGnJDCdT')
 
 def request(method, path, body = nil, accept: 'application/json')
   uri = URI("#{BASE_URL}#{path}")
@@ -63,35 +68,64 @@ def home_folder_id
   candidates.filter_map { |entry| entry['homeFolderId'] || entry['homeFolder'] }.first
 end
 
-def layout
-  <<~XML
-    <?xml version="1.0" encoding="utf-8"?>
-    <Page type="grid" gridTemplateColumns="repeat(24, 1fr)" gridTemplateRows="auto" id="page-main">
-      <LayoutElement elementId="probe-number" gridColumn="1 / 7" gridRow="1 / 4"/>
-      <LayoutElement elementId="warehouse-table" gridColumn="1 / 13" gridRow="4 / 14"/>
-      <LayoutElement elementId="sql-table" gridColumn="13 / 25" gridRow="4 / 14"/>
-      <GridContainer elementId="header-container" type="grid" gridColumn="7 / 25" gridRow="1 / 4" gridTemplateColumns="repeat(24, 1fr)" gridTemplateRows="auto">
-        <LayoutElement elementId="dynamic-text" gridColumn="1 / 25" gridRow="1 / 4"/>
-      </GridContainer>
-      <GridContainer elementId="sales-repeater" type="grid" gridColumn="1 / 13" gridRow="14 / 24" gridTemplateColumns="repeat(12, 1fr)" gridTemplateRows="auto">
-        <LayoutElement elementId="repeater-text" gridColumn="1 / 13" gridRow="1 / 4"/>
-      </GridContainer>
-      <TabbedContainer elementId="details-tabs" type="tabbed-container" gridColumn="13 / 25" gridRow="14 / 24">
-        <Tab gridTemplateColumns="repeat(24, 1fr)" gridTemplateRows="auto">
-          <LayoutElement elementId="tab-summary" gridColumn="1 / 25" gridRow="1 / 5"/>
-        </Tab>
-        <Tab gridTemplateColumns="repeat(24, 1fr)" gridTemplateRows="auto">
-          <LayoutElement elementId="tab-detail" gridColumn="1 / 25" gridRow="1 / 5"/>
-        </Tab>
-      </TabbedContainer>
-      <LayoutElement elementId="page-nav" gridColumn="1 / 13" gridRow="24 / 28"/>
-      <LayoutElement elementId="progress-ring" gridColumn="13 / 25" gridRow="24 / 30"/>
-      <LayoutElement elementId="print-break" gridColumn="1 / 25" gridRow="30 / 31"/>
-    </Page>
-  XML
+def layout(element_ids = elements.map { |element| element.fetch('id') })
+  ids = element_ids.to_h { |id| [id, true] }
+  placed = {}
+  rows = 1
+  xml = [
+    '<?xml version="1.0" encoding="utf-8"?>',
+    '<Page type="grid" gridTemplateColumns="repeat(24, 1fr)" gridTemplateRows="auto" id="page-main">'
+  ]
+
+  if ids['header-container']
+    xml << %(  <Container elementId="header-container" type="grid" gridColumn="1 / 25" gridRow="#{rows} / #{rows + 4}" gridTemplateColumns="repeat(24, 1fr)" gridTemplateRows="auto">)
+    if ids['dynamic-text']
+      xml << '    <Element elementId="dynamic-text" gridColumn="1 / 25" gridRow="1 / 4"/>'
+      placed['dynamic-text'] = true
+    end
+    xml << '  </Container>'
+    placed['header-container'] = true
+    rows += 4
+  end
+
+  if ids['sales-repeater']
+    xml << %(  <Container elementId="sales-repeater" type="grid" gridColumn="1 / 25" gridRow="#{rows} / #{rows + 10}" gridTemplateColumns="repeat(12, 1fr)" gridTemplateRows="auto">)
+    if ids['repeater-text']
+      xml << '    <Element elementId="repeater-text" gridColumn="1 / 13" gridRow="1 / 4"/>'
+      placed['repeater-text'] = true
+    end
+    xml << '  </Container>'
+    placed['sales-repeater'] = true
+    rows += 10
+  end
+
+  if ids['details-tabs']
+    xml << %(  <TabbedContainer elementId="details-tabs" type="tabbed-container" gridColumn="1 / 25" gridRow="#{rows} / #{rows + 10}">)
+    %w[tab-summary tab-detail].each do |tab_id|
+      xml << '    <Tab gridTemplateColumns="repeat(24, 1fr)" gridTemplateRows="auto">'
+      if ids[tab_id]
+        xml << %(      <Element elementId="#{tab_id}" gridColumn="1 / 25" gridRow="1 / 5"/>)
+        placed[tab_id] = true
+      end
+      xml << '    </Tab>'
+    end
+    xml << '  </TabbedContainer>'
+    placed['details-tabs'] = true
+    rows += 10
+  end
+
+  element_ids.each do |element_id|
+    next if placed[element_id]
+
+    height = element_id == 'print-break' ? 1 : 4
+    xml << %(  <Element elementId="#{element_id}" gridColumn="1 / 25" gridRow="#{rows} / #{rows + height}"/>)
+    rows += height
+  end
+  xml << '</Page>'
+  "#{xml.join("\n")}\n"
 end
 
-def elements
+def elements(repeater_binding: false)
   [
     {
       'id' => 'probe-number', 'kind' => 'control', 'controlId' => 'ProbeNumber',
@@ -99,7 +133,7 @@ def elements
       'value' => 7
     },
     {
-      'id' => 'warehouse-table', 'kind' => 'table', 'name' => 'Sales Source',
+      'id' => 'warehouse-table', 'kind' => 'table', 'name' => 'F_POINT_OF_SALE',
       'source' => {
         'kind' => 'warehouse-table', 'connectionId' => CONNECTION_ID,
         'path' => TABLE_PATH
@@ -126,7 +160,7 @@ def elements
     },
     {
       'id' => 'header-container', 'kind' => 'container',
-      'style' => { 'backgroundColor' => '#EEF2F7', 'padding' => 'small' },
+      'style' => { 'backgroundColor' => '#EEF2F7' },
       'elementGap' => 'shown', 'spacing' => 'small'
     },
     {
@@ -134,13 +168,30 @@ def elements
       'body' => 'Control value: {{[ProbeNumber]}}'
     },
     {
+      'id' => 'repeater-source', 'kind' => 'table', 'name' => 'Star Events',
+      'source' => {
+        'kind' => 'data-model', 'dataModelId' => REPEATER_DATA_MODEL_ID,
+        'elementId' => REPEATER_ELEMENT_ID
+      },
+      'columns' => [
+        {
+          'id' => 'repo-name', 'name' => 'Repo Name',
+          'formula' => '[GITHUB_STAR_EVENTS/Repo Name]'
+        }
+      ]
+    },
+    {
       'id' => 'sales-repeater', 'kind' => 'repeated-container',
-      'source' => { 'kind' => 'table', 'elementId' => 'warehouse-table' },
+      'source' => { 'kind' => 'table', 'elementId' => 'repeater-source' },
       'arrangement' => 'list', 'cardSize' => 'small'
     },
     {
       'id' => 'repeater-text', 'kind' => 'text',
-      'body' => '{{[Sales Source repeated container/Sales Amount]}}'
+      # The plain child keeps the main release probe green while the strict
+      # virtual-binding regression check below exercises the real derived name.
+      'body' => repeater_binding ?
+        '{{[Star Events repeated container/Repo Name]}}' :
+        'Repeated row'
     },
     {
       'id' => 'details-tabs', 'kind' => 'tabbed-container',
@@ -166,7 +217,10 @@ def elements
   ]
 end
 
-def create_spec(folder_id, probe_elements: elements, probe_layout: layout)
+def create_spec(folder_id, probe_elements: elements, probe_layout: :auto)
+  if probe_layout == :auto
+    probe_layout = layout(probe_elements.map { |element| element.fetch('id') })
+  end
   {
     'name' => "WAC release probe #{Time.now.utc.iso8601}",
     'folderId' => folder_id,
@@ -192,6 +246,26 @@ def check!(description)
   puts "PASS — #{description}"
 end
 
+def check_response!(description, code, result)
+  return puts("PASS — #{description}") if yield
+
+  raise "FAIL — #{description} (HTTP #{code}): #{JSON.generate(result)}"
+end
+
+def dependency_not_found?(result, target)
+  JSON.generate(result).match?(
+    /Dependency not found[^"]*#{Regexp.escape(target)}/i
+  )
+end
+
+def expected_regression!(description, code, result)
+  unless yield
+    raise "FAIL — #{description} did not reproduce (HTTP #{code}): #{JSON.generate(result)}"
+  end
+
+  puts "EXPECTED REGRESSION — #{description} (HTTP #{code})"
+end
+
 folder_id = home_folder_id
 abort 'could not resolve a home folder id' unless folder_id
 
@@ -201,15 +275,87 @@ unplaced = create_spec(
   probe_layout: nil
 )
 code, result = json_request(:post, '/v2/workbooks/spec/verify', unplaced)
-check!('verify rejects a non-empty document without layout placement') do
+check_response!(
+  'verify rejects a non-empty document without layout placement', code, result
+) do
   !code.between?(200, 299) || result['valid'] == false
 end
 
-spec = create_spec(folder_id)
-code, result = json_request(:post, '/v2/workbooks/spec/verify', spec)
-check!('released layout, repeater, control refs, and new elements verify') do
-  code.between?(200, 299) && result['valid'] == true
+legacy_layout = create_spec(
+  folder_id,
+  probe_elements: [{ 'id' => 'legacy-leaf', 'kind' => 'text', 'body' => 'legacy' }]
+)
+legacy_layout['document']['layout'] =
+  legacy_layout.dig('document', 'layout').sub('<Element ', '<LayoutElement ')
+code, result = json_request(:post, '/v2/workbooks/spec/verify', legacy_layout)
+check_response!('verify rejects legacy <LayoutElement> with HTTP 400', code, result) do
+  code == 400
 end
+
+all_elements = elements(repeater_binding: false)
+by_id = all_elements.to_h { |element| [element.fetch('id'), element] }
+scenarios = {
+  'number control' => %w[probe-number],
+  'raw warehouse formula' => %w[warehouse-table],
+  'Custom SQL control reference' => %w[probe-number sql-table],
+  'dynamic-text control reference' => %w[probe-number header-container dynamic-text],
+  'repeated container with an unbound child' => %w[repeater-source sales-repeater repeater-text],
+  'tabbed container layout' => %w[details-tabs tab-summary tab-detail],
+  'manual navigation' => %w[page-nav],
+  'progress ring' => %w[progress-ring],
+  'page break' => %w[print-break],
+  'combined release contract' => all_elements.map { |element| element.fetch('id') }
+}
+failed_scenarios = []
+scenarios.each do |description, ids|
+  scenario_elements = ids.map { |id| by_id.fetch(id) }
+  scenario_spec = create_spec(folder_id, probe_elements: scenario_elements)
+  code, result = json_request(:post, '/v2/workbooks/spec/verify', scenario_spec)
+  valid = code.between?(200, 299) && result['valid'] == true
+  if valid
+    puts "PASS — #{description} verifies"
+  else
+    warn "FAIL — #{description} verify response (HTTP #{code}): #{JSON.generate(result)}"
+    failed_scenarios << description
+  end
+end
+raise "release verify scenarios failed: #{failed_scenarios.join(', ')}" unless failed_scenarios.empty?
+
+# A correct binding exists in GET readbacks, but both verify and create reject
+# the synthesized target as of 2026-08-08. Keep this strict and separate: the
+# main create/readback must exercise the rest of the release contract.
+binding_target = 'Star Events repeated container/Repo Name'
+strict_ids = %w[repeater-source sales-repeater repeater-text]
+strict_elements = elements(repeater_binding: true)
+  .select { |element| strict_ids.include?(element.fetch('id')) }
+strict_spec = create_spec(folder_id, probe_elements: strict_elements)
+code, result = json_request(:post, '/v2/workbooks/spec/verify', strict_spec)
+expected_regression!(
+  "verify rejects correct repeater virtual binding #{binding_target.inspect}",
+  code,
+  result
+) do
+  result['valid'] == false && dependency_not_found?(result, binding_target)
+end
+
+strict_workbook_id = nil
+begin
+  code, result = json_request(:post, '/v2/workbooks/spec', strict_spec)
+  strict_workbook_id = result['workbookId'] if code.between?(200, 299)
+  expected_regression!(
+    "create rejects correct repeater virtual binding #{binding_target.inspect}",
+    code,
+    result
+  ) do
+    !code.between?(200, 299) && dependency_not_found?(result, binding_target)
+  end
+ensure
+  if strict_workbook_id
+    json_request(:delete, "/v2/workbooks/#{strict_workbook_id}")
+  end
+end
+
+spec = create_spec(folder_id, probe_elements: all_elements)
 
 workbook_id = nil
 begin
@@ -225,16 +371,18 @@ begin
   document = readback.fetch('document')
   readback_elements = document.fetch('elements')
   by_id = readback_elements.to_h { |element| [element['id'], element] }
-  expected_ids = elements.map { |element| element.fetch('id') }.sort
+  expected_ids = all_elements.map { |element| element.fetch('id') }.sort
 
   check!('readback keeps elements flat and pages metadata-only') do
     readback_elements.map { |element| element['id'] }.sort == expected_ids &&
       document.fetch('pages').none? { |page| page.key?('elements') }
   end
-  check!('layout preserves grid, tab, and page placement tags') do
-    %w[GridContainer TabbedContainer Tab LayoutElement].all? do |tag|
-      document.fetch('layout').include?("<#{tag}")
-    end
+  check!('layout readback preserves canonical grid, tab, and leaf tags only') do
+    readback_layout = document.fetch('layout')
+    ['<Container ', '<Element ', '<TabbedContainer ', '<Tab '].all? do |tag|
+      readback_layout.include?(tag)
+    end &&
+      !readback_layout.match?(/<(?:GridContainer|LayoutElement)\b/)
   end
   check!('dynamic text uses controlId and survives readback') do
     by_id.dig('dynamic-text', 'body')&.include?('[ProbeNumber]')
@@ -242,13 +390,19 @@ begin
   check!('custom SQL uses controlId and survives readback') do
     by_id.dig('sql-table', 'source', 'statement')&.include?('{{ProbeNumber}}')
   end
-  check!('raw warehouse column formula is accepted and canonicalized/read back') do
+  check!('raw warehouse column formula is accepted and read back (optionally canonicalized)') do
     !by_id.dig('warehouse-table', 'columns', 0, 'formula').to_s.empty?
   end
-  check!('repeater binding uses the derived source-name target') do
-    by_id.dig('repeater-text', 'body')&.include?(
-      'Sales Source repeated container/Sales Amount'
-    )
+  check!('main probe keeps the repeated-container child intentionally unbound') do
+    by_id.dig('repeater-text', 'body') == 'Repeated row'
+  end
+  check!('container padding is omitted rather than emitting an invalid value') do
+    !by_id.dig('header-container', 'style').to_h.key?('padding')
+  end
+  check!('page-break readback placement spans exactly one row') do
+    tag = document.fetch('layout')[/<Element\b[^>]*elementId="print-break"[^>]*>/]
+    row = tag&.match(/gridRow="\s*(\d+)\s*\/\s*(\d+)"/)
+    row && row[2].to_i - row[1].to_i == 1
   end
 
   %w[warehouse-table sql-table].each do |element_id|

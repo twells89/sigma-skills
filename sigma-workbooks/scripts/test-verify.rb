@@ -88,7 +88,7 @@ def spec_with(total_sales_formula)
       'kind' => 'workbook',
       'elements' => [table_element(total_sales_formula)],
       'pages' => [{ 'id' => 'page1', 'name' => 'Page 1' }],
-      'layout' => %(<?xml version="1.0" encoding="utf-8"?>\n<Page type="grid" gridTemplateColumns="repeat(24, 1fr)" gridTemplateRows="auto" id="page1">\n  <LayoutElement elementId="tbl1" gridColumn="1 / 25" gridRow="1 / 20"/>\n</Page>\n)
+      'layout' => %(<?xml version="1.0" encoding="utf-8"?>\n<Page type="grid" gridTemplateColumns="repeat(24, 1fr)" gridTemplateRows="auto" id="page1">\n  <Element elementId="tbl1" gridColumn="1 / 25" gridRow="1 / 20"/>\n</Page>\n)
     }
   }
 end
@@ -106,11 +106,13 @@ def run_verify(spec)
 end
 
 out, code = run_verify(BAD_SPEC)
+warn out unless out.include?('valid: false')
 check('verify: bad column reference -> "valid: false" on stdout') { out.include?('valid: false') }
 check('verify: bad column reference -> prints the error') { out =~ /fake_col|Dependency not found/i }
 check('verify: bad column reference -> non-zero exit') { code != 0 }
 
 out, code = run_verify(GOOD_SPEC)
+warn out unless out.include?('valid: true')
 check('verify: known-good spec (wrapped) -> "valid: true" on stdout') { out.include?('valid: true') }
 check('verify: known-good spec (wrapped) -> zero exit') { code.zero? }
 

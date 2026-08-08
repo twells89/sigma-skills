@@ -25,15 +25,15 @@ end
 layout = <<~XML
   <?xml version="1.0" encoding="utf-8"?>
   <Page type="grid" gridTemplateColumns="repeat(24, 1fr)" gridTemplateRows="auto" id="page-main">
-    <GridContainer elementId="container" type="grid" gridColumn="1 / 25" gridRow="1 / 5" gridTemplateColumns="repeat(24, 1fr)" gridTemplateRows="auto">
-      <LayoutElement elementId="title" gridColumn="1 / 25" gridRow="1 / 5"/>
-    </GridContainer>
+    <Container elementId="container" type="grid" gridColumn="1 / 25" gridRow="1 / 5" gridTemplateColumns="repeat(24, 1fr)" gridTemplateRows="auto">
+      <Element elementId="title" gridColumn="1 / 25" gridRow="1 / 5"/>
+    </Container>
   </Page>
   <Page type="grid" gridTemplateColumns="repeat(24, 1fr)" gridTemplateRows="auto" id="overlay-detail">
-    <LayoutElement elementId="detail" gridColumn="1 / 25" gridRow="1 / 8"/>
+    <Element elementId="detail" gridColumn="1 / 25" gridRow="1 / 8"/>
   </Page>
   <Page type="grid" gridTemplateColumns="repeat(24, 1fr)" gridTemplateRows="auto" id="panel-filter">
-    <LayoutElement elementId="filter-copy" gridColumn="1 / 25" gridRow="1 / 4"/>
+    <Element elementId="filter-copy" gridColumn="1 / 25" gridRow="1 / 4"/>
   </Page>
 XML
 
@@ -103,7 +103,7 @@ Dir.mktmpdir('wb-rep-roundtrip') do |tmp|
   invalid['document']['pages'][0]['elements'] = [{ 'id' => 'nested', 'kind' => 'text' }]
   invalid['document']['layout'] = invalid['document']['layout'].sub(
     '</Page>',
-    '  <LayoutElement elementId="title" gridColumn="1 / 25" gridRow="5 / 8"/>' \
+    '  <Element elementId="title" gridColumn="1 / 25" gridRow="5 / 8"/>' \
     "\n</Page>"
   )
   invalid_path = File.join(tmp, 'invalid.yaml')
@@ -115,6 +115,32 @@ Dir.mktmpdir('wb-rep-roundtrip') do |tmp|
   warn invalid_out unless invalid_ok
   check(failures, 'validator rejects nested elements and duplicate placement') do
     invalid_ok
+  end
+
+  contract_invalid = Marshal.load(Marshal.dump(spec))
+  contract_invalid['document']['elements'][0]['style'] = { 'padding' => 'small' }
+  contract_invalid['document']['elements'] << {
+    'id' => 'bad-break', 'kind' => 'page-break'
+  }
+  contract_invalid['document']['layout'] = contract_invalid['document']['layout']
+    .sub('<Element elementId="detail"', '<LayoutElement elementId="detail"')
+    .sub(
+      '</Page>',
+      '  <Element elementId="bad-break" gridColumn="1 / 25" gridRow="5 / 7"/>' \
+      "\n</Page>"
+    )
+  contract_invalid_path = File.join(tmp, 'contract-invalid.yaml')
+  File.write(contract_invalid_path, YAML.dump(contract_invalid))
+  contract_out, contract_status = Open3.capture2e(
+    'bash', VALIDATOR, contract_invalid_path
+  )
+  contract_ok = !contract_status.success? &&
+                contract_out.include?('emit <Element>') &&
+                contract_out.include?('style.padding must be none or omitted') &&
+                contract_out.include?('must span exactly one grid row')
+  warn contract_out unless contract_ok
+  check(failures, 'validator rejects legacy emission, bad container padding, and tall page breaks') do
+    contract_ok
   end
 end
 

@@ -66,6 +66,25 @@ filters:                 # the TARGETS it filters — one entry per element+colu
 
 > **A control cannot bind to a map element** (`point-map` / `region-map` / `geography-map`). Pointing a list control's `source` (value list) or a `filters[]` target at a map element fails the POST with `Dependency not found: '<mapElementId>'` (live-verified 2026-06-26). Back the control with a real `table` element (e.g. a small dimension/directory table on the same column) for both the value list and the filter target. To also scope the map, filter it indirectly (e.g. drive the map's source element off the same filtered table, or apply the predicate in the data model) rather than targeting the map element directly.
 
+## Legend
+
+`controlType: legend` is a released control variant in the live workbook
+OpenAPI (confirmed 2026-08-08). It is a canvas control, distinct from a chart
+element's `legend` presentation object:
+
+```yaml
+kind: control
+id: ctrl-legend
+controlId: LegendFilter
+controlType: legend
+```
+
+Do not substitute a `list` control merely because both can filter categories.
+The legend variant's source/category fields are schema- and chart-dependent;
+copy them from a live GET readback or extract the current `legend` control
+variant before authoring. The discriminator above documents support but is not
+a complete binding recipe by itself.
+
 ## Hierarchy
 
 `hierarchy` filters a multi-level path (e.g. Region > State > City) selected in a drill-down tree widget. Like `date-range`/`number-range`, **no `source` is needed** — the column comes from `filters` — and `values` holds the selected **paths**: an array of variable-depth string arrays, root to leaf (`[["East"], ["West", "California"]]` — a one-level and a two-level path together are valid).

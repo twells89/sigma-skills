@@ -163,6 +163,10 @@ Write the spec YAML to disk (e.g., `/tmp/workbook-spec.yaml`). YAML is preferred
 - Follow the formula reference rules in `reference/specification/formulas.md` exactly — most spec errors happen here.
 - **Write explicit `document.layout` XML whenever elements are non-empty.** It
   is the source of truth for page/container/tab organization.
+- Emit `<Element>` for layout leaves and `<Container>` for nested grids,
+  including repeated-container elements. `<TabbedContainer>` / `<Tab>` remain
+  valid. Never emit the legacy `<LayoutElement>` / `<GridContainer>` aliases;
+  live verification rejects `<LayoutElement>` with HTTP 400.
 - Start with 1–2 pages. Add more later via update.
 
 For **create**, include outer `name`/`folderId` and `document` with required
@@ -259,7 +263,7 @@ The reference is feature-sliced — don't read every file up-front. The index ha
 | `reference/specification/charts.md` | Chart, graph, visualization, line / bar / column / stacked / grouped / combo / donut / pie / scatter / waterfall / share-of / breakdown. Cartesian axes, color, trellis, legend, trendlines, reference marks. Box chart is unsupported/pending because it is absent from the live OpenAPI. |
 | `reference/specification/maps.md` | Map visualizations — `geography-map` (GeoJSON shapes), `point-map` (lat/long bubbles), `region-map` (states / counties / countries). |
 | `reference/specification/kpis.md` | KPI, stat, big number, single value, metric card — including layout / value styling, the comparison Δ badge (`comparisonColumn` + `comparison:{display:"delta"}` — spec-authorable and readback-stable; the house default), and the trend/sparkline block (still UI-bound). |
-| `reference/specification/controls.md` | Filter, dropdown, picker, multi-select, date range, date picker, text filter, number range, slider, segmented, hierarchy, and drill controls. Also entry controls and formula handles. |
+| `reference/specification/controls.md` | Filter, dropdown, picker, multi-select, date range, date picker, text filter, number range, slider, segmented, hierarchy, legend, and drill controls. Also entry controls and formula handles. |
 | `reference/specification/content-elements.md` | The non-data elements — `text` (Markdown + inline styling), `image`, `divider`, `embed` (external URLs), `page-break` (PDF/print pagination), `form`, `progress`, `navigation`, `plugin`. Titles, callouts, logos, rules, embedded content. |
 | `reference/specification/input-tables.md` | Operational supplement for `input-table` (spec shape lives in `tables.md`): write-connection requirement, the publish gate, reading data back via warehouse views, element endpoints for auditing, and migration patterns (Excel/planning models). |
 | `reference/specification/styling.md` | **Load when building a dashboard from scratch.** Design recipe library — vetted color palette, hero header strip, gradient header/KPI cards + composite sparkline, KPI card row, section headers, divider rhythm, categorical chart colors. Turns a default-arrange workbook into a designed-looking one without UI editing. |
@@ -356,7 +360,7 @@ The most common spec issue. A bare `[column_name]` was used where `[TABLE/column
 
 ### "Unknown column" errors
 
-The column name in the formula doesn't match what the warehouse actually has. Re-confirm the column names via `GET /v2/connections/tables/{inodeId}/columns` (raw warehouse names) and the readback (`GET /v2/workbooks/<id>/spec`, which shows Sigma's normalized friendly names). Use those names verbatim.
+The column name in the formula doesn't match what the warehouse actually has. Re-confirm the column names via `GET /v2/connections/tables/{inodeId}/columns` (raw warehouse names) and the readback (`GET /v2/workbooks/<id>/spec`, which may preserve the raw spelling or show Sigma's canonicalized friendly form). Raw names are accepted authoring input; use the returned readback form for later edits.
 
 ### `jq` or `yq` not installed
 

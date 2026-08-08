@@ -39,7 +39,7 @@ NESTED_RESPONSE = {
     'pages' => [{ 'id' => 'p1', 'name' => 'Page 1' }],
     'overlays' => [{ 'id' => 'o1', 'name' => 'Details', 'type' => 'modal' }],
     'panels' => [{ 'id' => 'panel1', 'name' => 'Filters' }],
-    'layout' => '<Page id="p1"><LayoutElement elementId="e1"/></Page>',
+    'layout' => '<Page id="p1"><Element elementId="e1"/></Page>',
     'settings' => { 'theme' => { 'name' => 'Dark', 'overrides' => { 'hasCards' => 'shown' } },
                     'navigation' => { 'pageHeader' => 'enabled' } },
     'agents' => [{ 'id' => 'a1', 'instructions' => 'help' }]
@@ -115,6 +115,36 @@ check('page membership is derived from layout, not nested page elements') do
   element, page = Sigma::CodeRep.workbook_elements_with_pages(NESTED_RESPONSE).first
   element['id'] == 'e1' && page['id'] == 'p1' &&
     !Sigma::CodeRep.document(NESTED_RESPONSE)['pages'].first.key?('elements')
+end
+
+check('ownership parser reads canonical Element/Container/TabbedContainer nodes') do
+  spec = Marshal.load(Marshal.dump(NESTED_RESPONSE))
+  spec['document']['layout'] = <<~XML
+    <Page id="p1">
+      <Container elementId="container"><Element elementId="child"/></Container>
+      <TabbedContainer elementId="tabs"><Tab><Element elementId="tab-child"/></Tab></TabbedContainer>
+    </Page>
+  XML
+  Sigma::CodeRep.workbook_page_element_ids(spec) == {
+    'p1' => %w[container child tabs tab-child]
+  }
+end
+
+check('ownership parser accepts legacy layout aliases for old snapshots only') do
+  spec = Marshal.load(Marshal.dump(NESTED_RESPONSE))
+  spec['document']['layout'] =
+    '<Page id="p1"><GridContainer elementId="old-container">' \
+    '<LayoutElement elementId="old-child"/></GridContainer></Page>'
+  Sigma::CodeRep.workbook_page_element_ids(spec) == {
+    'p1' => %w[old-container old-child]
+  }
+end
+
+check('ownership parser ignores unknown tags with elementId attributes') do
+  spec = Marshal.load(Marshal.dump(NESTED_RESPONSE))
+  spec['document']['layout'] =
+    '<Page id="p1"><Unknown elementId="not-owned"/><Element elementId="owned"/></Page>'
+  Sigma::CodeRep.workbook_page_element_ids(spec) == { 'p1' => ['owned'] }
 end
 
 check('wrap migrates legacy page-nested elements to the current API shape') do

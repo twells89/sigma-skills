@@ -63,8 +63,9 @@ For every formula:
 - Every literal element appears once in `document.elements`.
 - Every element is placed in `document.layout`.
 - Layout references only declared elements and known page/overlay/panel IDs.
-- Container children use `<GridContainer>` / `<LayoutElement>`; tabbed
+- Container children use canonical `<Container>` / `<Element>` tags; tabbed
   containers use `<TabbedContainer>` / `<Tab>`.
+- Never emit legacy `<GridContainer>` / `<LayoutElement>` aliases.
 - A `page-break` spans exactly one layout row.
 - Preserve `settings`, `agents`, `overlays`, and `panels on full-replacement PUT.
 - Box charts remain unsupported/pending: no box-chart element kind exists in
@@ -75,7 +76,8 @@ For every formula:
 POST success does not prove semantic or visual correctness. Immediately GET the
 spec and compare it with the submitted document:
 
-- use canonicalized warehouse names from readback for future edits;
+- use the warehouse formula form returned by readback for future edits (Sigma
+  may canonicalize a raw name or preserve it);
 - confirm optional fields survived instead of being silently stripped;
 - confirm dynamic text and control references were normalized/resolved;
 - confirm layout, theme, navigation, overlays, and panels survived.

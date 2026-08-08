@@ -61,20 +61,21 @@ This bites when **hand-authoring from scratch** (vs. round-tripping a GET'd spec
 ## ⚠️ READ SECOND: Raw warehouse names are valid input
 
 For a `warehouse-table` source, use the raw names returned by discovery.
-Sigma accepts raw warehouse identifiers on POST and canonicalizes formula
-references in the saved document (for example, underscore/case normalization).
+Sigma accepts raw warehouse identifiers on POST and may canonicalize formula
+references in the saved document (for example, underscore/case normalization);
+it may also preserve the raw spelling.
 That means both statements below are important:
 
 - raw names are valid authoring input; do not preemptively reject them or invent
   a friendly conversion;
-- the canonical readback is the stable form for later edits, comparison, and
-  verification.
+- the GET readback—whether normalized or unchanged—is the stable form for later
+  edits, comparison, and verification.
 
 Workflow:
 
 1. Build from the exact raw names returned by the table-columns endpoint.
 2. POST, then immediately GET `/v2/workbooks/{id}/spec`.
-3. Compare formulas and use the canonicalized readback in future PUTs.
+3. Compare formulas and use the returned readback form in future PUTs.
 4. Run compile verification; normalization does not prove semantic parity.
 
 Names containing formula delimiters still need care. Never guess how a slash,

@@ -104,6 +104,9 @@ SHAPE_ISSUES=$(printf '%s' "$SPEC_JSON" | jq -r '
       "Overlay \(.id // "(unnamed)") contains forbidden nested elements; move them to document.elements"),
     ($d.panels[]? | select(has("elements")) |
       "Panel \(.id // "(unnamed)") contains forbidden nested elements; move them to document.elements"),
+    ($d.elements[]? |
+      select(.kind == "container" and .style.padding? != null and .style.padding != "none") |
+      "Container \(.id // "(unnamed)") style.padding must be none or omitted"),
     (select(($d.elements | type) == "array" and ($d.elements | length) > 0 and
       (($d.layout // "") | length) == 0) |
       "document.layout is required by skill policy when document.elements is non-empty")
@@ -138,6 +141,19 @@ LAYOUT_ISSUES=$(printf '%s' "$SPEC_JSON" | jq -r '
   ([($d.pages // [])[], ($d.overlays // [])[], ($d.panels // [])[]] |
     map(.id) | map(select(. != null)) | unique) as $declared_regions |
   ([($d.layout // "") | scan("<Page[^>]*\\bid=\"([^\"]+)\"") | .[0]] | unique) as $placed_regions |
+  (($d.elements // []) | map(select(.kind == "page-break") | .id)) as $page_break_ids |
+  ([($d.layout // "") |
+    scan("<(?:Element|LayoutElement)\\b[^>]*\\belementId=\"([^\"]+)\"[^>]*\\bgridRow=\"\\s*([0-9]+)\\s*/\\s*([0-9]+)\"")]) as $leaf_rows |
+  (($d.layout // "") |
+    select(test("<LayoutElement\\b")) |
+    "Legacy layout tag <LayoutElement> is forbidden for authoring; emit <Element>"),
+  (($d.layout // "") |
+    select(test("<GridContainer\\b")) |
+    "Legacy layout tag <GridContainer> is forbidden for authoring; emit <Container>"),
+  ($leaf_rows[]? as $row |
+    select(($page_break_ids | index($row[0])) != null and
+      (($row[2] | tonumber) - ($row[1] | tonumber) != 1)) |
+    "Page break \($row[0]) must span exactly one grid row (got \($row[1]) / \($row[2]))"),
   ($declared_all | group_by(.)[] | select(length > 1) | .[0] |
     "Duplicate document.elements id: \(.)"),
   ($placed_all | group_by(.)[] | select(length > 1) | .[0] |
