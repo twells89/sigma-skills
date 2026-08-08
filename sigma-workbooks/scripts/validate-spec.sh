@@ -116,6 +116,7 @@ SHAPE_ISSUES=$(printf '%s' "$SPEC_JSON" | jq -r '
 FORMULA_ISSUES=$(printf '%s' "$SPEC_JSON" | jq -r '
   .document.elements[]? |
     . as $element |
+    select($element.source.kind != "warehouse-table") |
     (.columns // []) as $cols |
     ($cols | map(.name // "")) as $named |
     ($cols | map(
@@ -167,10 +168,11 @@ LAYOUT_ISSUES=$(printf '%s' "$SPEC_JSON" | jq -r '
 if [ -z "$SHAPE_ISSUES" ] && [ -z "$FORMULA_ISSUES" ] && [ -z "$LAYOUT_ISSUES" ]; then
   echo "OK: no obvious formula qualification errors."
   echo ""
-  echo "Note: this validator only catches bare bracketed refs ([col] without a '/') that"
-  echo "don't match a declared sibling column. It also checks the wrapped flat-document"
-  echo "shape and layout coverage. Qualified refs ([Source/col]) require server readback"
-  echo "and compile verification because Sigma may canonicalize warehouse names on POST."
+  echo "Note: bare refs on warehouse-table sources are accepted as raw warehouse columns."
+  echo "For other sources, this validator flags bare refs ([col] without a '/') that don't"
+  echo "match a declared sibling column. It also checks the wrapped flat-document shape and"
+  echo "layout coverage. Qualified refs require server readback and compile verification"
+  echo "because Sigma may canonicalize warehouse names on POST."
   exit 0
 fi
 
@@ -192,8 +194,8 @@ if [ -n "$FORMULA_ISSUES" ]; then
   echo "Likely formula qualification errors:"
   echo ""
   echo "$FORMULA_ISSUES"
-  echo "Fix: a bare bracketed ref ([col] with no '/') must match a declared column"
-  echo "in the SAME element. Otherwise add the source prefix."
+  echo "Fix: outside a warehouse-table source, a bare bracketed ref ([col] with no '/')"
+  echo "must match a declared column in the SAME element. Otherwise add the source prefix."
   echo ""
   echo "  Wrong:  Count([Question ID])"
   echo "  Right:  Count([AI Usage Data/Question ID])"

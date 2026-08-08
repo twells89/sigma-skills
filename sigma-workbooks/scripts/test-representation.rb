@@ -99,6 +99,41 @@ Dir.mktmpdir('wb-rep-roundtrip') do |tmp|
     validate_status.success? && validate_out.include?('OK:')
   end
 
+  raw_warehouse = Marshal.load(Marshal.dump(spec))
+  raw_warehouse['document']['elements'] << {
+    'id' => 'warehouse', 'kind' => 'table',
+    'source' => {
+      'kind' => 'warehouse-table', 'connectionId' => 'connection-test',
+      'path' => %w[DB SCHEMA ORDERS]
+    },
+    'columns' => [
+      { 'id' => 'warehouse-amount', 'name' => 'Sales Amount',
+        'formula' => '[SALES_AMOUNT]' }
+    ]
+  }
+  raw_warehouse['document']['layout'] = raw_warehouse['document']['layout'].sub(
+    '</Page>',
+    '  <Element elementId="warehouse" gridColumn="1 / 25" gridRow="5 / 15"/>' \
+    "\n</Page>"
+  )
+  raw_warehouse_path = File.join(tmp, 'raw-warehouse.yaml')
+  File.write(raw_warehouse_path, YAML.dump(raw_warehouse))
+  raw_out, raw_status = Open3.capture2e('bash', VALIDATOR, raw_warehouse_path)
+  check(failures, 'validator accepts raw bare columns on warehouse-table sources') do
+    raw_status.success? && raw_out.include?('OK:')
+  end
+
+  derived_bare = Marshal.load(Marshal.dump(raw_warehouse))
+  derived_bare['document']['elements'].last['source'] = {
+    'kind' => 'table', 'elementId' => 'detail'
+  }
+  derived_bare_path = File.join(tmp, 'derived-bare.yaml')
+  File.write(derived_bare_path, YAML.dump(derived_bare))
+  derived_out, derived_status = Open3.capture2e('bash', VALIDATOR, derived_bare_path)
+  check(failures, 'validator still rejects unresolved bare refs on derived sources') do
+    !derived_status.success? && derived_out.include?('Unresolved bare refs: SALES_AMOUNT')
+  end
+
   invalid = Marshal.load(Marshal.dump(spec))
   invalid['document']['pages'][0]['elements'] = [{ 'id' => 'nested', 'kind' => 'text' }]
   invalid['document']['layout'] = invalid['document']['layout'].sub(
