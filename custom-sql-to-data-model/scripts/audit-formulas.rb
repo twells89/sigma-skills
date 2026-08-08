@@ -25,6 +25,7 @@ BASE_URL = ENV.fetch('SIGMA_BASE_URL')
 $LOAD_PATH.unshift File.expand_path('lib', __dir__)
 require 'sigma_rest'
 require 'code_rep'
+require 'formula_audit'
 
 # Audit loops over every dedup candidate's workbook + PUTs corrections;
 # Sigma.request auto-refreshes on 401 mid-run.
@@ -35,52 +36,19 @@ end
 
 def audit_one(wb_id)
   raw = http_req(:get, "/v2/workbooks/#{wb_id}/spec")
-  # Unwrap the live GET's nested {document: {...}} shape (the workbook code-rep wire
-  # format Sigma now requires) back to flat, so spec['pages'] below still works. This
-  # method mutates spec['pages'] in place and PUTs the whole thing back, so unlike a
-  # read-only scan the flat shape has to persist through to the wrap-for-wire step below.
-  # canonical document() narrows; this reader wants the flat shape (spec['name'] etc)
   j = JSON.parse(raw)
-  spec = Sigma::CodeRep.metadata(j).merge(Sigma::CodeRep.document(j))
+  doc = Sigma::CodeRep.document(j)
+  abort "GET returned no flat document.elements array for #{wb_id}" unless doc['elements'].is_a?(Array)
 
-  fixed_count = 0
-  spec['pages'].each do |page|
-    (page['elements'] || []).each do |el|
-      next unless el['columns'].is_a?(Array)
-      # Map: column id (often the SQL alias) → display name
-      alias_to_display = el['columns'].to_h { |c| [c['id'], c['name']] }
-
-      el['columns'].each do |col|
-        next unless col['formula']
-        new_formula = col['formula'].gsub(/\[([^\/\]]+)\/([A-Z0-9_]+)\]/) do
-          prefix, snake = $1, $2
-          display = alias_to_display[snake]
-          # Only rewrite when display differs (i.e. there's a real Title-Cased name available)
-          if display && display != snake
-            fixed_count += 1
-            "[#{prefix}/#{display}]"
-          else
-            $~[0]
-          end
-        end
-        col['formula'] = new_formula
-      end
-    end
-  end
+  fixed_count = Sigma::FormulaAudit.repair!(doc)
 
   return [wb_id, 0] if fixed_count.zero?
 
-  # Strip response-only top-level fields before PUT
-  %w[workbookId url ownerId createdBy updatedBy createdAt updatedAt latestDocumentVersion documentVersion].each { |k| spec.delete(k) }
-
-  # On-disk/in-memory spec stays flat throughout this method (mutated via spec['pages']
-  # above); wrap_for_wire nests it under "document" only right here, at the wire boundary,
-  # matching the PUT /v2/workbooks/{id}/spec shape ({document: {...}}, no name/folderId).
-  # PUT takes `document` and nothing else; narrow before wrapping.
+  # PUT accepts exactly one top-level field: the complete replacement document.
   resp = http_req(:put, "/v2/workbooks/#{wb_id}/spec",
-                  JSON.pretty_generate(Sigma::CodeRep.wrap(Sigma::CodeRep.document(spec))))
-  # workbookId is METADATA under the canonical split, not a document field.
-  ok = Sigma::CodeRep.metadata(JSON.parse(resp))['workbookId'] rescue nil
+                  JSON.pretty_generate(Sigma::CodeRep.wrap(doc)))
+  parsed = JSON.parse(resp)
+  ok = parsed['success'] || Sigma::CodeRep.metadata(parsed)['workbookId']
   abort "PUT failed for #{wb_id}: #{resp}" unless ok
   [wb_id, fixed_count]
 end

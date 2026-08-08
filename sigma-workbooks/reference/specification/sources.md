@@ -69,6 +69,24 @@ joins:
 
 Each entry in a join's top-level `columns[]` is a join-key pair (`left`/`right`, with an optional `op` for non-equi joins) — a different shape from an element's `columns[]` (see below). Pull `joinType` values and the column-pair shape from the spec via the recipe at the top.
 
+### Join groupings
+
+A join leg that references another workbook table can pin one of that table's
+groupings with `groupingId`:
+
+```yaml
+left:
+  kind: table
+  elementId: orders-summary
+  groupingId: by-customer
+```
+
+The grouping changes the rows/columns exposed by that leg, so join keys and
+downstream formulas must resolve against the grouped output, not the table's
+ungrouped base columns. Preserve `groupingId` on readback and verify the
+compiled join SQL; a structurally valid grouping does not prove the join
+cardinality is correct.
+
 **Column formula prefixes with joins** — see `formulas.md` for the full rules:
 - Primary-source columns use the **join's top-level `name`**: `[Sales Star/Order Number]`
 - Joined-table columns use the **join leg's `name`**: `[Sales/Cust Key]`
@@ -77,6 +95,15 @@ Each entry in a join's top-level `columns[]` is a join-key pair (`left`/`right`,
 ## sql
 
 A custom SQL query against a connection — `kind: sql` with `connectionId` + `statement`. Pull the shape from the spec via the recipe.
+
+Column formulas use the literal prefix `Custom SQL` and the query's exact
+output alias: `[Custom SQL/order_month]`. Do not apply warehouse friendly-name
+canonicalization to SQL aliases.
+
+Custom SQL statements can bind workbook controls with
+`{{<controlId>}}`. `controlId` is the control's formula handle, not its element
+`id`. Read back and query the element after POST: template text can survive
+serialization even when the runtime binding or SQL type is wrong.
 
 ## csv-table
 

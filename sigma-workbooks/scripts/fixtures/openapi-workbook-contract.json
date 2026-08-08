@@ -1,0 +1,152 @@
+{
+  "source": {
+    "openapiVersion": "3.1.0",
+    "apiVersion": "2.0.0",
+    "capturedAt": "2026-08-08"
+  },
+  "schemas": {
+    "CreateWorkbookSpec": {
+      "required": ["document", "folderId", "name"],
+      "properties": ["description", "document", "folderId", "name"]
+    },
+    "CreateWorkbookSpec.document": {
+      "required": ["elements", "kind", "pages", "schemaVersion"],
+      "properties": [
+        "agents",
+        "elements",
+        "kind",
+        "layout",
+        "overlays",
+        "pages",
+        "panels",
+        "schemaVersion",
+        "settings"
+      ]
+    },
+    "UpdateWorkbookSpec": {
+      "required": ["document"],
+      "properties": ["document"]
+    },
+    "UpdateWorkbookSpec.document": {
+      "required": ["elements", "kind", "pages", "schemaVersion"],
+      "properties": [
+        "agents",
+        "elements",
+        "kind",
+        "layout",
+        "overlays",
+        "pages",
+        "panels",
+        "schemaVersion",
+        "settings"
+      ]
+    },
+    "WorkbookSpec": {
+      "required": [
+        "createdAt",
+        "createdBy",
+        "document",
+        "documentVersion",
+        "folderId",
+        "latestDocumentVersion",
+        "name",
+        "ownerId",
+        "updatedAt",
+        "updatedBy",
+        "url",
+        "workbookId"
+      ],
+      "properties": [
+        "createdAt",
+        "createdBy",
+        "description",
+        "document",
+        "documentVersion",
+        "folderId",
+        "latestDocumentVersion",
+        "name",
+        "ownerId",
+        "updatedAt",
+        "updatedBy",
+        "url",
+        "workbookId"
+      ]
+    },
+    "WorkbookSpec.document": {
+      "required": ["elements", "kind", "layout", "pages", "schemaVersion"],
+      "properties": [
+        "agents",
+        "elements",
+        "kind",
+        "layout",
+        "overlays",
+        "pages",
+        "panels",
+        "schemaVersion",
+        "settings"
+      ]
+    },
+    "WorkbookPage": {
+      "required": ["id", "name"],
+      "properties": [
+        "backgroundColor",
+        "backgroundImage",
+        "id",
+        "name",
+        "pageWidth",
+        "type",
+        "visibility"
+      ]
+    }
+  },
+  "releasedVariants": {
+    "elements": [
+      {"title": "Area Chart", "kind": "area-chart"},
+      {"title": "Bar Chart", "kind": "bar-chart"},
+      {"title": "Button", "kind": "button"},
+      {"title": "Chat", "kind": "chat"},
+      {"title": "Combo Chart", "kind": "combo-chart"},
+      {"title": "Container", "kind": "container"},
+      {"title": "Checkbox", "kind": "control"},
+      {"title": "Divider", "kind": "divider"},
+      {"title": "Embed", "kind": "embed"},
+      {"title": "Form", "kind": "form"},
+      {"title": "Geography Map", "kind": "geography-map"},
+      {"title": "Image", "kind": "image"},
+      {"title": "Input Table", "kind": "input-table"},
+      {"title": "KPI", "kind": "kpi-chart"},
+      {"title": "Line Chart", "kind": "line-chart"},
+      {"title": "Manual navigation", "kind": "navigation"},
+      {"title": "Page break", "kind": "page-break"},
+      {"title": "Pivot Table", "kind": "pivot-table"},
+      {"title": "Plugin", "kind": "plugin"},
+      {"title": "Point Map", "kind": "point-map"},
+      {"title": "Progress", "kind": "progress"},
+      {"title": "Region Map", "kind": "region-map"},
+      {"title": "Repeated container", "kind": "repeated-container"},
+      {"title": "Scatter Chart", "kind": "scatter-chart"},
+      {"title": "Tabbed container", "kind": "tabbed-container"},
+      {"title": "Table", "kind": "table"},
+      {"title": "Text", "kind": "text"},
+      {"title": "Waterfall Chart", "kind": "waterfall-chart"}
+    ],
+    "controls": [
+      {"title": "Checkbox", "controlType": "checkbox"},
+      {"title": "Date", "controlType": "date"},
+      {"title": "Date Range", "controlType": "date-range"},
+      {"title": "Drill down", "controlType": "drill"},
+      {"title": "Hierarchy", "controlType": "hierarchy"},
+      {"title": "Legend", "controlType": "legend"},
+      {"title": "Number", "controlType": "number"},
+      {"title": "Number Range", "controlType": "number-range"},
+      {"title": "Range Slider", "controlType": "range-slider"},
+      {"title": "Segmented Control", "controlType": "segmented"},
+      {"title": "Slider", "controlType": "slider"},
+      {"title": "Switch", "controlType": "switch"},
+      {"title": "Synced", "controlType": "synced"},
+      {"title": "Text", "controlType": "text"},
+      {"title": "Text Area", "controlType": "text-area"},
+      {"title": "Top N", "controlType": "top-n"}
+    ]
+  }
+}

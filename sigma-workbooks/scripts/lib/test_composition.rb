@@ -116,7 +116,7 @@ check('overview: full-stack compose(pattern: :overview) matches golden') do
 end
 check('overview: unused bands are skipped, not emitted empty') do
   out = Composition.compose([{ id: 'tr', role: :trend }], pattern: :overview)
-  out.strip == '<LayoutElement elementId="tr" gridColumn="1 / 25" gridRow="1 / 13"/>'
+  out.strip == '<Element elementId="tr" gridColumn="1 / 25" gridRow="1 / 13"/>'
 end
 check(':master passed to :overview raises (role not consumed by pattern)') do
   begin
@@ -142,8 +142,8 @@ check('regression: :master_detail golden still matches after adding :overview') 
 end
 
 # tabbed_container — labels-only element; <Tab> children map to tabs[] by
-# position; bare <LayoutElement> children only inside a <Tab> (a nested
-# GridContainer scrambles tab render order).
+# position; bare <Element> children only inside a <Tab> (a nested
+# Container scrambles tab render order).
 require 'json'
 tabbed_golden = JSON.parse(File.read(File.join(__dir__, 'testdata', 'composition_tabbed_golden.json')))
 tabbed_tabs = [
@@ -173,6 +173,18 @@ check('tabbed_container: layout has exactly 2 ordered <Tab> blocks, each wrappin
       '<TabbedContainer elementId="tc" type="tabbed-container" gridColumn="1 / 25" gridRow="7 / 60">'
     ) &&
     out[:layout].end_with?('</TabbedContainer>')
+end
+check('all composition emitters use canonical leaves and no legacy layout tags') do
+  outputs = [
+    Composition.compose(els, pattern: :exec),
+    Composition.compose(md_els, pattern: :master_detail),
+    Composition.compose(overview_els, pattern: :overview),
+    Composition.tabbed_container(
+      id: 'tc', tabs: tabbed_tabs, grid_column: '1 / 25', grid_row: '7 / 60'
+    )[:layout]
+  ].join("\n")
+  outputs.include?('<Element ') &&
+    !outputs.match?(/<(?:LayoutElement|GridContainer)\b/)
 end
 check('tabbed_container: empty id raises ArgumentError') do
   begin

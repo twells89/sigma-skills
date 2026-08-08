@@ -25,19 +25,10 @@
 # tableau-to-sigma's probe-control-formula.rb) — never hardcode one org's
 # real folder id here.
 #
-# Envelope (2026-08-04): /v2/workbooks/spec/verify now requires the request
-# wrapped as { name, folderId, document: { schemaVersion, kind, pages,
-# layout } } — see wb-rep.rb's wrap_for_wire comment for the full story
-# (this helper used to be named wrap_for_verify and cover only this one
-# endpoint; it's now shared by every write path in wb-rep.rb, including
-# push's create/update calls, via lib/code_rep.rb).
-# GOOD_SPEC/BAD_SPEC below are written in that wrapped shape directly (they
-# exercise cmd_verify's already-wrapped passthrough branch). GOOD_SPEC_FLAT
-# is deliberately the OLD flat shape — the shape every rep file on disk
-# (workbook.yaml, pages/*) still uses, and what `validate.md` §1 tells a
-# human to hand `wb-rep.rb verify` — to pin that cmd_verify's
-# auto-wrap-at-the-boundary keeps that documented usage working without the
-# caller having to know about the envelope at all.
+# Envelope (2026-08): /v2/workbooks/spec/verify requires the canonical
+# { name, folderId, document: { schemaVersion, kind, elements, pages, layout } }
+# shape. Elements are flat; pages contain metadata only and layout assigns
+# elements to pages.
 
 require 'json'
 require 'net/http'
@@ -95,26 +86,15 @@ def spec_with(total_sales_formula)
     'document' => {
       'schemaVersion' => 1,
       'kind' => 'workbook',
-      'pages' => [{ 'id' => 'page1', 'name' => 'Page 1', 'elements' => [table_element(total_sales_formula)] }]
+      'elements' => [table_element(total_sales_formula)],
+      'pages' => [{ 'id' => 'page1', 'name' => 'Page 1' }],
+      'layout' => %(<?xml version="1.0" encoding="utf-8"?>\n<Page type="grid" gridTemplateColumns="repeat(24, 1fr)" gridTemplateRows="auto" id="page1">\n  <Element elementId="tbl1" gridColumn="1 / 25" gridRow="1 / 20"/>\n</Page>\n)
     }
   }
 end
 
-# Flat shape — what a human/agent actually has on disk per validate.md §1 and every other
-# wb-rep.rb command (push/pull/import/assemble). Only used to prove cmd_verify's auto-wrap
-# keeps that documented, unwrapped usage working.
-def flat_spec_with(total_sales_formula)
-  {
-    'name' => 'wb-rep verify test fixture (flat)',
-    'folderId' => FOLDER_ID,
-    'schemaVersion' => 1,
-    'pages' => [{ 'id' => 'page1', 'name' => 'Page 1', 'elements' => [table_element(total_sales_formula)] }]
-  }
-end
-
-GOOD_SPEC = spec_with('Sum([SALES_AMOUNT])')
+GOOD_SPEC = spec_with('Sum([F_POINT_OF_SALE/SALES_AMOUNT])')
 BAD_SPEC = spec_with('Sum([NoSuchTable/fake_col])')
-GOOD_SPEC_FLAT = flat_spec_with('Sum([SALES_AMOUNT])')
 
 def run_verify(spec)
   Tempfile.create(['wb-rep-verify-test', '.json']) do |f|
@@ -126,16 +106,14 @@ def run_verify(spec)
 end
 
 out, code = run_verify(BAD_SPEC)
+warn out unless out.include?('valid: false')
 check('verify: bad column reference -> "valid: false" on stdout') { out.include?('valid: false') }
 check('verify: bad column reference -> prints the error') { out =~ /fake_col|Dependency not found/i }
 check('verify: bad column reference -> non-zero exit') { code != 0 }
 
 out, code = run_verify(GOOD_SPEC)
+warn out unless out.include?('valid: true')
 check('verify: known-good spec (wrapped) -> "valid: true" on stdout') { out.include?('valid: true') }
 check('verify: known-good spec (wrapped) -> zero exit') { code.zero? }
-
-out, code = run_verify(GOOD_SPEC_FLAT)
-check('verify: known-good spec (flat, on-disk shape) -> auto-wrapped -> "valid: true"') { out.include?('valid: true') }
-check('verify: known-good spec (flat, on-disk shape) -> zero exit') { code.zero? }
 
 exit($failures.zero? ? 0 : 1)

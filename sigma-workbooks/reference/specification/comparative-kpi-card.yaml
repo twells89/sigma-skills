@@ -1,81 +1,63 @@
-# Comparative KPI card — clone-able exemplar.
-#
-# A minimal two-element spec: a source table exposing a current-period and a
-# prior-period numeric column, and a `kpi-chart` bound to both via `value` +
-# `comparisonColumn` + `comparison:{display:"delta"}` — the verified,
-# readback-stable shape (live-verified 2026-07-27; see kpis.md's `layout`,
-# `comparison`, and `trend` blocks section for the full write-up and
-# gotchas). This is the house default for any headline number on a
-# dashboard — reach for a second column/second KPI only when the two
-# numbers being compared don't share the same underlying scope (e.g.
-# genuinely different sources) and can't be expressed as one value + one
-# comparison column.
-#
-# Required top-level fields for POST /v2/workbooks/spec are name, folderId
-# (outer level) plus document.schemaVersion, document.pages (see
-# reference/specification/schema.md and reference/workflows/crud.md — the
-# body is wrapped under a top-level `document` key, verified live 2026-08).
-# Swap `folderId` and the source's `connectionId` / `path` for your own
-# before posting — the element shapes below can be cloned as-is.
-
+---
 name: Comparative KPI card example
-folderId: <your-folder-id>
+folderId: "<your-folder-id>"
 document:
   schemaVersion: 1
+  kind: workbook
+  elements:
+  - id: kpi-source
+    kind: table
+    source:
+      kind: warehouse-table
+      connectionId: "<your-connection-id>"
+      path:
+      - YOUR_DB
+      - YOUR_SCHEMA
+      - REVENUE_BY_PERIOD
+    columns:
+    - id: rev_current
+      formula: "[Current Revenue]"
+      name: Current Revenue
+      format:
+        kind: number
+        formatString: "$.3~s"
+    - id: rev_prior
+      formula: "[Prior Revenue]"
+      name: Prior Revenue
+      format:
+        kind: number
+        formatString: "$.3~s"
+    name: KPI Source
+  - id: kpi-revenue
+    kind: kpi-chart
+    name: Revenue
+    source:
+      kind: table
+      elementId: kpi-source
+    columns:
+    - id: rev_current
+      formula: "[KPI Source/Current Revenue]"
+      name: Current Revenue
+      format:
+        kind: number
+        formatString: "$.3~s"
+    - id: rev_prior
+      formula: "[KPI Source/Prior Revenue]"
+      name: Prior Revenue
+    value:
+      columnId: rev_current
+    comparisonColumn:
+      columnId: rev_prior
+    comparison:
+      display: delta
+      colorGood: "#1a7f37"
+      colorBad: "#cf222e"
   pages:
-    - id: page-kpi-example
-      name: KPI example
-      elements:
-        - id: kpi-source
-          kind: table
-          source:
-            kind: warehouse-table
-            connectionId: <your-connection-id>
-            path:
-              - YOUR_DB
-              - YOUR_SCHEMA
-              - REVENUE_BY_PERIOD
-          columns:
-            - id: rev_current
-              formula: '[Current Revenue]'
-              name: Current Revenue
-              format:
-                kind: number
-                formatString: '$.3~s'
-            - id: rev_prior
-              formula: '[Prior Revenue]'
-              name: Prior Revenue
-              format:
-                kind: number
-                formatString: '$.3~s'
-          name: KPI Source
-        - id: kpi-revenue
-          kind: kpi-chart
-          name: Revenue
-          source:
-            kind: table
-            elementId: kpi-source
-          columns:
-            - id: rev_current
-              formula: '[KPI Source/Current Revenue]'
-              name: Current Revenue
-              format:
-                kind: number
-                formatString: '$.3~s'
-            - id: rev_prior
-              formula: '[KPI Source/Prior Revenue]'
-              name: Prior Revenue
-          value:
-            columnId: rev_current      # value.columnId, NOT value.id
-          comparisonColumn:
-            columnId: rev_prior
-          comparison:
-            display: delta
-            colorGood: '#1a7f37'
-            colorBad: '#cf222e'
+  - id: page-kpi-example
+    name: KPI example
   layout: |
     <?xml version="1.0" encoding="utf-8"?>
     <Page type="grid" gridTemplateColumns="repeat(24, 1fr)" gridTemplateRows="auto" id="page-kpi-example">
-      <LayoutElement elementId="kpi-revenue" gridColumn="1 / 9" gridRow="1 / 8"/>
-      <LayoutElement elementId="kpi-source" gridColumn="1 / 25" gridRow="8 / 20"/>
+      <Element elementId="kpi-revenue" gridColumn="1 / 9" gridRow="1 / 8"/>
+      <Element elementId="kpi-source" gridColumn="1 / 25" gridRow="8 / 20"/>
     </Page>

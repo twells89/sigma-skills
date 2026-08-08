@@ -1,138 +1,92 @@
 # Element-Level Workbook Rep (`scripts/wb-rep.rb`)
 
-The Sigma spec API is whole-workbook only: GET and PUT move the entire spec. On a
-5-page, 40-element workbook that means every small edit drags the full document
-through your context, and parallel work on two elements is a merge hazard. The
-**rep** fixes this by making the *element* the unit of work: the spec is exploded
-into a directory of small YAML files, edited with ordinary file tools, and
-reassembled on push.
+The spec API replaces a whole workbook document. The rep makes one flat
+`document.elements[]` entry the editing unit while preserving metadata and
+layout separately.
 
-Load this file when: a workbook has grown past ~1 page / ~10 elements, multiple
-elements need editing in one session, you want to parallelize element work across
-sub-agents, or the user wants workbook changes reviewable as diffs.
+## File representation
 
-## Layout
-
-```
+```text
 <rep>/
-  workbook.yaml              top-level fields (name, folderId, schemaVersion, description)
+  workbook.yaml                 outer metadata + remaining document fields
+  elements/
+    010-revenue-kpi.yaml        one flat document.elements entry per file
+    020-sales-by-region.yaml
   pages/
-    010-overview/            numeric prefix = page order (×10 so you can insert between)
-      _page.yaml             page id / name / visibility — everything except elements
-      _layout.xml            this page's <Page> block of the layout XML (omit = auto-arrange)
-      010-revenue-kpi.yaml   one element per file; prefix = element order, rest is a slug
-      020-sales-by-region.yaml
-  renders/                   PNGs written by `render`
-  .sigma/                    plumbing — never hand-edit
-    manifest.yaml            workbookId, url, pulledAt/pushedAt
-    snapshot.yaml            the full spec as last synced with the server
-    layout-preamble.xml      XML prolog preserved for byte-exact reassembly
+    010-overview/
+      _page.yaml                page metadata only
+      _layout.xml               matching <Page id="overview"> layout block
+  overlays/
+    010-detail/
+      _overlay.yaml             modal/drawer metadata
+      _layout.xml
+  panels/
+    010-sidebar/
+      _panel.yaml               panel metadata
+      _layout.xml
+  renders/
+  .sigma/
+    manifest.yaml
+    snapshot.yaml               canonical wrapped GET shape
+    layout-preamble.xml
 ```
 
-Nothing is a new format: every file is a verbatim slice of the spec, so all the
-per-element reference files in this skill (charts.md, kpis.md, tables.md, …)
-apply unchanged to a single element file.
+`workbook.yaml` mirrors the API wrapper:
 
-> **On-disk stays flat; the wire is wrapped.** `workbook.yaml` and the exploded
-> page/element files intentionally keep the pre-2026-08 flat shape
-> (`schemaVersion`/`pages`/`layout` as plain top-level fields) — this is the
-> rep's own format, not the raw API body. `GET`/`POST`/`PUT` against
-> `/v2/workbooks/spec` nest those same fields under a `document` key on the
-> wire (verified live 2026-08; see `reference/specification/schema.md`).
-> `pull`/`push`/`import`/`assemble` are meant to wrap and unwrap at that
-> boundary so this stays invisible day to day — if you call the raw endpoints
-> yourself instead of going through `wb-rep.rb`, use the wrapped shape.
+```yaml
+name: Sales
+folderId: <folder-id>
+document:
+  schemaVersion: 1
+  kind: workbook
+  settings: { ... }
+  agents: [...]
+```
+
+The split collections and layout are inserted beneath that `document` during
+assembly. Elements never live beneath a page directory. Layout is the source of
+truth for page/container/tab membership, so moving an element means editing
+`_layout.xml`, not moving its YAML file.
 
 ## Commands
 
-All commands need `SIGMA_BASE_URL` / `SIGMA_API_TOKEN` (sigma-api skill) except
-`status` and `assemble`, which are offline.
-
 ```bash
-# Tip: with admin credentials, GET /v2/workbooks?skipPermissionCheck=true lists workbooks
-# beyond your grants (same flag as /v2/dataModels) — useful for finding a workbook id to pull.
-scripts/wb-rep.rb summarize <id|dir>           # zoom level 0: pages, element kinds, sources — no spec in context
-scripts/wb-rep.rb pull <workbook-id> <dir>     # GET + explode (refuses to clobber local edits; --force to discard)
-scripts/wb-rep.rb status <dir>                 # element-level diff: files vs last-synced snapshot
-scripts/wb-rep.rb push <dir>                   # reassemble → remote-drift check → validate-spec.sh → PUT → readback
-scripts/wb-rep.rb render <dir>                 # export every page as PNG into <dir>/renders/ — then LOOK at them
-scripts/wb-rep.rb render <dir> --page Overview # one page (id, name, or slug); --element <id> for one element
-scripts/wb-rep.rb import <spec.yaml> <dir>     # explode a local spec; push will POST a new workbook (create mode)
-scripts/wb-rep.rb assemble <dir> -o out.yaml   # reassembled spec without pushing (debugging)
-scripts/wb-rep.rb capabilities                 # every authorable kind, distilled live from the OpenAPI
-scripts/wb-rep.rb capabilities --kind bar-chart [--field color]   # fields of a kind / schema of one field
-```
-
-The read side is a zoom: `summarize` (whole workbook, one screen) → `ls pages/<page>/`
-(one page, file listing) → `Read <element>.yaml` (one element, full detail) →
-`capabilities --kind <kind> [--field <f>]` (what's authorable there). No step loads the
-whole spec into context.
-
-Safety built into `push`:
-
-1. **Drift check** — if the server spec changed since your pull (someone edited in
-   the UI), push aborts and shows exactly what you'd overwrite. Re-pull and
-   re-apply, or `--force`.
-2. **Diff preview** — prints the added/removed/changed elements it is about to push.
-3. **Validation** — runs `validate-spec.sh` on the assembled spec; aborts on issues
-   (`--no-validate` to override a false positive).
-4. **Layout lint** — warns about elements not referenced in their page's `_layout.xml`.
-5. **Readback** — refreshes the snapshot from the server and reports any fields the
-   server normalized.
-
-`push` is still a full-spec PUT under the hood (the API has no element PATCH), but
-you never see that: the rep gives you element-level GET/POST/PATCH semantics at
-the file layer.
-
-## The build loop: Plan → Build → See
-
-**Plan.** Decide pages and elements first (use `workflows/composition.md`). Express
-the plan as the file tree itself: create page dirs and *stub* element files (id,
-kind, name, source — no styling). The tree is the plan document.
-
-**Build — fan out sub-agents, one per element file.** Element files are
-independent, so parallel sub-agents cannot conflict: give each agent one file
-path, the relevant reference file (e.g. `charts.md` for a bar chart), the source
-element/column list it may reference, and the formula rules. No agent ever needs
-the whole workbook in context. The orchestrator keeps only the plan and the
-shared facts (source names, column lists, palette).
-
-Things that span elements stay with the orchestrator: `_layout.xml`, control
-targets, cross-element `[Element Name/Column]` refs, and the id namespace
-(hand out unique element/column ids in the plan so agents never collide).
-
-**Push, verify, see.**
-
-```bash
+scripts/wb-rep.rb summarize <id|dir>
+scripts/wb-rep.rb pull <workbook-id> <dir>
+scripts/wb-rep.rb status <dir>
 scripts/wb-rep.rb push <dir>
-scripts/verify-workbook.sh <workbook-id>    # compile check — formulas resolve?
-scripts/wb-rep.rb render <dir>              # then Read the PNGs
+scripts/wb-rep.rb render <dir>
+scripts/wb-rep.rb render <dir> --page Overview
+scripts/wb-rep.rb import <spec.yaml> <dir>
+scripts/wb-rep.rb assemble <dir> -o out.yaml
+scripts/wb-rep.rb verify <spec.yaml>
+scripts/wb-rep.rb capabilities --kind bar-chart
 ```
 
-Look at every render. Compare against the plan (or the user's target image —
-see `workflows/from-image.md`): wrong chart type, unreadable axis, dead space,
-truncated labels, default-blue-everything. Fix the specific element files and
-repeat. Stop when a render passes inspection, not when the API returns 200 —
-a clean POST proves the spec parsed, only the pixels prove the dashboard is good.
+`pull` and `import` accept the wrapped API shape. A legacy flat artifact can be
+read and is normalized immediately to the wrapped representation.
+
+`push`:
+
+1. reassembles the wrapped spec;
+2. checks remote drift;
+3. previews metadata, layout, and element changes;
+4. validates flat-element formulas and layout coverage;
+5. POSTs the full create body or PUTs exactly `{document: {...}}`;
+6. saves the canonical readback, including server normalization.
 
 ## Editing rules
 
-- **Order = filename prefix.** Reorder elements/pages by renaming. New element
-  between `010-` and `020-` → name it `015-`. Slugs after the prefix are cosmetic.
-- **Add an element** = add a file (unique `id` inside) + reference it in
-  `_layout.xml`. **Delete** = delete the file + its layout reference.
-- **IDs are stable.** The server preserves element/column ids on PUT and CREATE,
-  so file identity survives round-trips. Never reuse a deleted element's id.
-- Cross-element formula refs use the *element name*: renaming an element breaks
-  `[Old Name/Column]` refs in other files — grep the rep before renaming.
-- `_layout.xml` holds exactly one `<Page …>…</Page>` block whose `id` matches
-  `_page.yaml`. A page with no `_layout.xml` auto-arranges (fine for single-element
-  pages only — see `specification/layout.md`).
-- `.sigma/` is plumbing. To resync files from the server: `pull <id> <dir> --force`.
+- Add/delete an element in `elements/` and add/delete every corresponding
+  `elementId` placement in layout.
+- Reorder pages/overlays/panels by filename prefix. Element filename order is
+  useful for review but does not establish page ownership.
+- `_page.yaml`, `_overlay.yaml`, and `_panel.yaml` are metadata only.
+- Every non-empty workbook must have explicit layout under this skill policy.
+- Keep IDs stable. Cross-element formulas use element names, so update dependent
+  formulas when renaming.
+- PUT is full document replacement. Never remove `settings`, `agents`,
+  `overlays`, or `panels` merely because the current edit does not touch them.
 
-## Git
-
-A rep directory is designed to be committed: one element per file means PRs show
-"changed: revenue-kpi.yaml" instead of a 2,000-line spec diff. Commit the rep
-including `.sigma/snapshot.yaml` (it's the merge base); add `renders/` to
-`.gitignore` if PNG churn is unwanted.
+After a push, run compile verification and inspect rendered pages. A successful
+write proves shape validity, not formula parity or visual correctness.

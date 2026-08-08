@@ -41,6 +41,9 @@ Inside a `join` source, warehouse path segments are **not** used as prefixes —
 
 ## Common Pitfalls
 
-- **Column names with special characters** — `/`, `-`, `.`, brackets, leading/trailing whitespace all get normalized by Sigma. Never hand-transform a raw warehouse name; ask the user for the exact name Sigma uses. See `formulas.md` > Special Characters.
+- **Column names with special characters** — Sigma accepts discovered raw names
+  and may normalize them on readback. Never hand-transform one before POST;
+  use the exact discovered name, then use the returned GET-spec form for later
+  edits. See `formulas.md` > Raw warehouse names.
 - **Inventing column names** — don't. Only reference columns the user has supplied or confirmed.
 - **Wrong path depth** — a warehouse table's path must be exactly the depth its warehouse uses (e.g., Snowflake is always 3; Postgres is always 2). Use `/v2/connection/<id>/lookup` to resolve ambiguity.

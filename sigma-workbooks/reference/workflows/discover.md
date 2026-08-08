@@ -20,7 +20,12 @@ A column named `TRANSACTION_TYPE` rarely contains exactly `"sale"` and `"return"
 
 The principle is verification, not any specific tool. Pick the cheapest path your environment supports.
 
-**Raw warehouse column names work directly in Sigma spec formulas.** `[F_SALES/TRANSACTION_TYPE]` is accepted by the spec API and compiles to the same column reference as `[F_SALES/Transaction Type]`. Use whatever form your verification source returns — no transformation step required.
+**Raw warehouse column names work directly in Sigma spec formulas.**
+`[F_SALES/TRANSACTION_TYPE]` is accepted authoring input. Use the exact form
+discovery returns—no pre-write transformation is required. After POST, GET the
+saved spec: Sigma may canonicalize the reference to a friendly form such as
+`[F_SALES/Transaction Type]`, or may preserve the raw spelling. Either readback
+is valid; use the returned form for later edits and still compile-check it.
 
 ### If you're using the Sigma MCP server
 

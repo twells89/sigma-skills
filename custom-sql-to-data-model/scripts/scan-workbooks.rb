@@ -17,7 +17,7 @@ require 'tmpdir'
 BASE_URL = ENV.fetch('SIGMA_BASE_URL') { abort 'SIGMA_BASE_URL not set — run: eval "$(bash scripts/get-token.sh)"' }
 $LOAD_PATH.unshift File.expand_path('lib', __dir__)
 require 'sigma_rest'
-require 'code_rep'
+require 'workbook_sql'
 
 # Full-site workbook scans paginate over hundreds of items and can take >1
 # hour on large customer orgs; Sigma.request auto-refreshes on 401.
@@ -48,36 +48,15 @@ workbooks.each do |wb|
 
   begin
     raw  = get("/v2/workbooks/#{wid}/spec")
-    # Read-only scan: unwrap the live GET's nested {document: {...}} shape (the workbook
-    # code-rep wire format Sigma now requires) back to flat so spec['pages'] below still works.
     y = YAML.safe_load(raw, permitted_classes: [Date, Time])
-    # canonical document() narrows; recombine for the flat shape this scanner reads
-    spec = Sigma::CodeRep.metadata(y).merge(Sigma::CodeRep.document(y))
-    next unless spec.is_a?(Hash) && spec['pages']
-
-    folder_id = spec['folderId']
-
-    spec['pages'].each do |page|
-      (page['elements'] || []).each do |el|
-        src = el['source']
-        next unless src.is_a?(Hash) && src['kind'] == 'sql'
-
-        # Use element name if set, otherwise fall back to workbook name
-        el_name = (el['name'] && !el['name'].strip.empty?) ? el['name'] : "#{name} SQL"
-
-        findings << {
-          workbook_id:   wid,
-          workbook_name: name,
-          folder_id:     folder_id,
-          element_id:    el['id'],
-          element_name:  el_name,
-          connection_id: src['connectionId'],
-          sql:           src['statement'],
-          column_count:  (el['columns'] || []).size
-        }
-        puts "  [FOUND] #{name} / #{el_name}"
-        puts "          SQL: #{src['statement'][0..100]}#{'...' if src['statement'].length > 100}"
-      end
+    workbook_findings = Sigma::WorkbookSql.findings(
+      y, workbook_id: wid, workbook_name: name
+    )
+    findings.concat(workbook_findings)
+    workbook_findings.each do |finding|
+      puts "  [FOUND] #{name} / #{finding[:element_name]}"
+      sql = finding[:sql].to_s
+      puts "          SQL: #{sql[0..100]}#{'...' if sql.length > 100}"
     end
   rescue => e
     $stderr.puts "  [ERROR] #{name}: #{e.message}"

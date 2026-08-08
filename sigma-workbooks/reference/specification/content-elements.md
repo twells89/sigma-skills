@@ -7,7 +7,7 @@ jq --arg k text 'first(.. | objects | select((.allOf? and any(.allOf[]?; .proper
 # swap k for image / divider / embed / form / progress / navigation
 ```
 
-These position in the page grid via `<LayoutElement>` like any other element — see `layout.md`.
+These are flat `document.elements[]` entries and are assigned by layout.
 
 ## text
 
@@ -27,6 +27,11 @@ body: |
 ### `body`: Markdown + inline styling
 
 `body` is Markdown plus a small set of inline HTML for styling. Standard Markdown: paragraphs, `**bold**`, `*italic*`, headings (`#`, `##`, `###`), bullet / ordered lists, `[links](https://example.com)`, and `{{formula}}` / `{{ast | fmt}}` segments (same syntax as element titles, e.g. `{{Count() | ,.0f}}`).
+
+A control value uses its `controlId`: `{{[RegionFilter]}}`. The element `id`
+is not the formula handle. Dynamic-text references can serialize without
+resolving, so GET the spec back and render the element; readback normalization
+and visible output are the binding checks.
 
 Inline styling via HTML — all round-trip through the spec and render:
 
@@ -74,7 +79,7 @@ kind: page-break
 
 **Live-verified 2026-08-05** (create + readback round-trip; present and intact in the GET-back).
 
-> **Height is fixed at 1 grid row.** A multi-row `gridRow` in the layout XML is rejected: `page-break 'pb' must span exactly one grid row (got height 2). Page breaks are fixed at height 1; set gridRow to a one-row span (e.g. "1 / 2")`. So `<LayoutElement elementId="pb" gridColumn="1 / 25" gridRow="24 / 25"/>` — always a one-row span.
+> **Height is fixed at 1 grid row.** A multi-row `gridRow` in the layout XML is rejected: `page-break 'pb' must span exactly one grid row (got height 2). Page breaks are fixed at height 1; set gridRow to a one-row span (e.g. "1 / 2")`. So `<Element elementId="pb" gridColumn="1 / 25" gridRow="24 / 25"/>` — always a one-row span.
 
 ## embed
 

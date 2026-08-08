@@ -21,6 +21,7 @@ See [Installation](#installation) below for the install helper.
 
 | Skill | Purpose |
 |-------|---------|
+| [`sigma-api`](sigma-api/) | Configure Sigma API credentials and mint short-lived bearer tokens with client credentials or interactive browser OAuth. Prerequisite for skills that call the REST API. |
 | [`sigma-data-models`](sigma-data-models/) | Author Sigma data models from existing warehouse tables — sources, columns, metrics, relationships, filters, calc columns, CLS. Covers spec shape, discovery, CRUD, validation, and authoring judgment calls. **Out of scope: converting from another BI tool's format** (use the converter MCP / browser tool). |
 | [`sigma-workbooks`](sigma-workbooks/) | Build, edit, and iterate on Sigma workbook specs — pages, layout, controls, charts (line/bar/area/combo/donut), KPIs, tables, pivot tables, formulas, sources. Canonical reference for the workbook spec; other skills cross-link here for spec shape. |
 | [`sigma-plugin-authoring`](sigma-plugin-authoring/) | Recreate a source viz that has no native Sigma equivalent — a radial gauge, custom heatmap, sankey — as a bespoke `@sigmacomputing/plugin`: build, register, host, embed, bind, verify. Includes a worked gauge example. |
@@ -32,6 +33,7 @@ See [Installation](#installation) below for the install helper.
 
 | User asks for… | Load |
 |---|---|
+| "Authenticate to Sigma / get or refresh an API token" | `sigma-api` |
 | "Build me a Sigma data model from the `ORDERS` table in Snowflake" | `sigma-data-models` |
 | "Add a metric / relationship / column to my existing data model" | `sigma-data-models` |
 | "Convert this dbt / LookML / Tableau / Power BI / Alteryx model to Sigma" | The **converter MCP** or the **browser converter tool** — *not* a skill. The skills cover authoring, not source-format parsing. |
@@ -53,19 +55,16 @@ custom-sql-to-data-model    ─── orchestrator: SQL extraction + DM creation
 
 ## Auth
 
-All skills assume Sigma API credentials are already configured. Set the standard env vars before invoking any skill:
+Use the `sigma-api` skill to configure credentials and mint a token. For the
+client-credentials flow:
 
 ```bash
 export SIGMA_BASE_URL="https://api.sigmacomputing.com"
 export SIGMA_CLIENT_ID="..."
 export SIGMA_CLIENT_SECRET="..."
 
-# Exchange for an access token
-SIGMA_API_TOKEN=$(curl -s -X POST "$SIGMA_BASE_URL/v2/auth/token" \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "grant_type=client_credentials&client_id=$SIGMA_CLIENT_ID&client_secret=$SIGMA_CLIENT_SECRET" \
-  | jq -r .access_token)
-export SIGMA_API_TOKEN
+# Exchange for an access token using HTTP Basic authentication.
+eval "$(bash ~/sigma-skills/sigma-api/scripts/get-token.sh)"
 ```
 
 Sigma client credentials are issued from **Administration → Developer Access** in your Sigma org.

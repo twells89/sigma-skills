@@ -39,7 +39,7 @@ Before publishing, run `./scripts/validate-spec.sh <spec.yaml>` — it catches t
 On **any** element sourced from a data model, warehouse table, or another element, **each entry in `columns[]` must carry a `formula`.** A column with only `name` (display label) and/or `columnId` is rejected:
 
 ```
-400  pages[0].elements[N].columns[0].formula: Invalid string: undefined
+400  document.elements[N].columns[0].formula: Invalid string: undefined
 ```
 
 ```yaml
@@ -58,36 +58,36 @@ This bites when **hand-authoring from scratch** (vs. round-tripping a GET'd spec
 
 ---
 
-## ⚠️ READ SECOND: Raw vs. Friendly Column Names
+## ⚠️ READ SECOND: Raw warehouse names are valid input
 
-Sigma's formula DSL references columns by their **friendly name**, not their raw warehouse name. The two diverge in two ways:
+For a `warehouse-table` source, use the raw names returned by discovery.
+Sigma accepts raw warehouse identifiers on POST and may canonicalize formula
+references in the saved document (for example, underscore/case normalization);
+it may also preserve the raw spelling.
+That means both statements below are important:
 
-1. **Special characters** — `/`, `-`, `.`, `[`, `]`, and leading/trailing whitespace are stripped or replaced.
-2. **Casing and word boundaries** — `ALL_CAPS_WITH_UNDERSCORES` is title-cased and underscores become spaces; `camelCase` is split on case boundaries.
+- raw names are valid authoring input; do not preemptively reject them or invent
+  a friendly conversion;
+- the GET readback—whether normalized or unchanged—is the stable form for later
+  edits, comparison, and verification.
 
-Examples observed on real Sigma instances:
+Workflow:
 
-| Raw warehouse name | Friendly name used in formulas |
-|---|---|
-| `DATE` | `Date` |
-| `UNIT PRICE` | `Unit Price` |
-| `ORDER_ID` | `Order ID` |
-| `V userId` | `V User Id` |
-| `Net/Gross` | `Net Gross` |
+1. Build from the exact raw names returned by the table-columns endpoint.
+2. POST, then immediately GET `/v2/workbooks/{id}/spec`.
+3. Compare formulas and use the returned readback form in future PUTs.
+4. Run compile verification; normalization does not prove semantic parity.
 
-The trap: `GET /v2/connections/tables/{inodeId}/columns` returns **raw warehouse names** (`DATE`, `V userId`). Formulas written against those raw names will silently fail to resolve — Sigma is permissive at POST time and even auto-normalizes some simple cases (`[ORDERS/DATE]` → `[ORDERS/Date]`), but the auto-fix does **not** cover everything. The reliable workflow:
+Names containing formula delimiters still need care. Never guess how a slash,
+bracket, or other syntax-significant character will be represented; use a
+probe/readback when the raw identifier cannot be expressed unambiguously.
 
-1. POST your spec using your best guess (often the raw name works for ALL_CAPS columns).
-2. Run `./scripts/verify-workbook.sh <workbookId>` — if any element compiles to `'Unknown column "[X]"'` SQL, the friendly name doesn't match.
-3. Fix the affected formulas in your spec. To learn the canonical friendly name, GET the workbook spec back (`GET /v2/workbooks/<id>/spec`) — Sigma's readback shows the names it actually resolved against. Use those for the PUT.
+Two source types do **not** follow the general warehouse canonicalization rule:
 
-**Don't guess the normalization rules** — Sigma's are more aggressive than they look. When verify fails, ask the readback.
-
-Wrong: `[ORDERS/Net/Gross Revenue]` (slash inside a column name; unparseable)
-Wrong: `[ORDERS/Order-ID]` (raw warehouse name with a dash)
-Wrong: `[ORDERS/ORDER_ID]` (raw underscore form; usually needs `Order ID`)
-Right: `[ORDERS/Net Gross Revenue]` (friendly name)
-Right: `[ORDERS/Order ID]` (friendly name)
+- **Custom SQL:** reference the exact SQL output alias with the literal prefix
+  `Custom SQL`, e.g. `[Custom SQL/order_month]`.
+- **Join keys:** use the exact source-column form accepted by the join schema;
+  a bad left/right key rejects the write. Do not friendly-case keys by analogy.
 
 ---
 
@@ -111,11 +111,25 @@ The prefix depends on the source type:
   - Join leg with `name: "Sales"` → `[Sales/Cust Key]` for that joined table's columns.
   - Warehouse path segments do **not** become the prefix inside a join — use the join leg's `name` instead.
 
+- **Custom SQL source**: prefix is the literal `Custom SQL`; column is the
+  query's exact output alias.
+
+- **Data-model source**: prefix is the data-model element's own `name`.
+
 - **Union source**: `SourceName` = the union's `name` field. References resolve against the union's `matches[].outputColumnName` values, not the underlying tables' columns.
   - Union with `name: "All Sales"` → `[All Sales/Order Number]`.
   - If you omit `name`, Sigma assigns `"Union of N Sources"`; **a bare reference like `[Order Number]` to a column the consuming element also defines named `Order Number` is a circular reference and the SQL won't compile.** Set the `name` explicitly to avoid this.
 
 - Column names must match exactly what the describe endpoint returns. **Never invent column names.**
+
+## Control references
+
+`controlId` is the formula handle (distinct from the element `id`). Reference a
+control value as `[<controlId>]` in a formula and as
+`{{[<controlId>]}}` in dynamic text. Custom SQL parameter templates use the
+control handle in `{{<controlId>}}` form. Preserve the exact spelling and
+read the document back: unresolved dynamic-text or SQL-control templates can
+survive a write without proving that the control bound at query time.
 
 ### Inside the same element — use `[column_name]` (no prefix)
 

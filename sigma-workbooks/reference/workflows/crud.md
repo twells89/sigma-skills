@@ -12,7 +12,10 @@ Every call includes `-H "Authorization: Bearer $SIGMA_API_TOKEN"`. Auth comes fr
 
 ## The body is wrapped under `document`
 
-**Verified live 2026-08-04/05.** `schemaVersion`, `kind`, `pages`, `layout`, `settings`, and `agents` nest under a top-level `document` key; `name`, `folderId`, `description`, and the response-only fields stay outside it. A flat pre-2026-08 body gets HTTP 400. Full shape + field lists: `reference/specification/schema.md`. This affects CREATE, GET, and UPDATE identically — every example below already reflects it.
+`schemaVersion`, `kind`, flat `elements`, metadata-only `pages`, `overlays`,
+`panels`, `layout`, `settings`, and `agents` nest under `document`; `name`,
+`folderId`, `description`, and response metadata stay outside it. A flat body
+gets HTTP 400.
 
 ## Endpoints
 
@@ -50,9 +53,13 @@ The POST body must include:
 - `name` (string) — outer level
 - `folderId` (string — usually the user's `homeFolderId`) — outer level
 - `document.schemaVersion` (number — use the value returned by `GET /v2/workbooks/<reference-workbook-id>/spec`, do NOT hardcode it)
-- `document.pages` (array — at least one page with at least one element)
+- `document.kind: workbook`
+- `document.elements` (flat array; required even when empty)
+- `document.pages` (metadata array; no nested elements)
 
-Optional: `description` (outer level); `document.layout` (top-level layout XML, nested inside `document`).
+Optional in OpenAPI: `description` (outer), `document.overlays`,
+`document.panels`, `document.settings`, `document.agents`, and
+`document.layout`. This skill requires layout whenever elements is non-empty.
 
 ```yaml
 name: Sales Dashboard
@@ -60,7 +67,12 @@ folderId: <homeFolderId>
 description: Sales overview dashboard
 document:
   schemaVersion: 1
+  kind: workbook
+  elements: [...]
   pages: [...]
+  layout: |
+    <?xml version="1.0" encoding="utf-8"?>
+    ...
 ```
 
 The server rejects a spec whose `schemaVersion` doesn't match what the current API expects, hence the rule against hardcoding it — always read it back from a recent reference GET.
@@ -96,7 +108,8 @@ Report **both** the workbook URL **and** the saved spec path.
 The PUT endpoint replaces the entire `document` — partial updates are not supported. Always:
 
 1. GET the current spec first.
-2. Edit the file on disk (inside `document` — `pages`, `layout`, `schemaVersion`, `kind`, `settings`, `agents`).
+2. Edit inside `document` — preserving `elements`, `pages`, `overlays`,
+   `panels`, `layout`, `settings`, and `agents`.
 3. PUT the **full** `document` object back — just `{document: {...}}`, not the outer `name`/`folderId`/response-only fields the GET also returned.
 
 If you skip the GET and submit a partial `document`, anything you didn't include is gone.
@@ -113,7 +126,8 @@ The `id` values you send in `POST /v2/workbooks/spec` — for pages, elements, a
 
 ```bash
 # Get current spec (YAML by default) — full response shape:
-# {name, folderId, ..., document: {schemaVersion, kind, pages, layout, settings, agents}}
+# {name, folderId, ..., document: {schemaVersion, kind, elements, pages,
+# overlays, panels, layout, settings, agents}}
 curl -s -H "Authorization: Bearer $SIGMA_API_TOKEN" \
   "$SIGMA_BASE_URL/v2/workbooks/<workbook-id>/spec" \
   > /tmp/current-spec.yaml

@@ -282,10 +282,29 @@ Each of these is a top-level key on cartesian charts; one-liner here, full sub-f
 
 - `orientation: horizontal` on `bar-chart` — horizontal bars. Omit for the default vertical bars.
 - `trellis: { rowsBy | columnsBy: [{ columnId }] }` — **native small multiples / faceting, authorable from spec** (see the "Trellis / small multiples" section below). This is the `rowsBy`/`columnsBy` form. Do NOT confuse it with the legacy `trellis: { column, row, share?, tileSize? }` *styling* object, which only styles a UI-configured trellis and whose facet `columnId`/`id` binding is silently stripped — use `rowsBy`/`columnsBy` to bind the facet from spec.
-- `legend: { visibility, position, ... }` — legend placement and styling.
+- `legend` — legend placement and styling (details below).
 - `tooltip: { columnNames?, multiSeries?, valueFormat? }` — hover-tooltip content. Support is config-dependent (live-verified 2026-06-11): `columnNames` round-trips broadly; `multiSeries` round-trips on line charts but is silently stripped on bar-with-color; `valueFormat` is rejected or stripped in most configurations. Verify the readback after setting anything beyond `columnNames`.
 
 (Trendlines and `refMarks` are covered above.)
+
+### Legend controls
+
+The legend has two branches. Hide it with exactly
+`legend: {visibility: hidden}`. Otherwise configure `position`
+(`auto`, edges, or corners), `color`, and `fontSize`; optionally hide the color
+legend, size legend, or header independently:
+
+```yaml
+legend:
+  position: bottom
+  fontSize: 12
+  color: "#475569"
+  colorLegend: hidden
+  sizeLegend: hidden
+  header: hidden
+```
+
+Do not combine `visibility: hidden` with fields from the configured branch.
 
 ## Scatter
 
@@ -391,5 +410,28 @@ Per the OpenAPI, these are all valid `kind` values; documented examples for the 
 - `pie-chart` — like `donut-chart` (`value` + `color`), but without the donut-only `hole` / `holeValue` / `innerRadius` / `trellis` keys.
 - `pivot-table` — uses `values` instead of `yAxis`; useful for cross-tab analysis. See `tables.md`.
 - `waterfall-chart` — same `source`/`columns`/`xAxis`/`yAxis` skeleton as `bar-chart`, plus running-total fields (`startPoint`, `splitBy`, `grouping`, `waterfallColors`, `waterfallShape`). **Gotcha (live-verified 2026-08-03, re-confirmed 2026-08-04 against the corrected `document`-wrapped request body):** `waterfallShape.subtotal`/`endTotal` reject with a 400 unless the chart has `splitBy` or 2+ `yAxis.columnIds` — reproduces exactly as documented; `visibility: shown`/`hidden` are not the issue (both 400 identically without the escape hatch, both pass with it).
+
+### Waterfall
+
+`waterfall-chart` is a first-class OpenAPI element kind. Its shared chart
+surface includes `source`, `columns`, axes, legend, tooltip, labels, filters,
+style, and reference marks. Waterfall-specific fields are:
+
+- `startPoint` — starting bar/anchor configuration;
+- `splitBy` — separates the running series;
+- `grouping` — subtotal grouping behavior;
+- `waterfallColors` — increase/decrease/total colors;
+- `waterfallShape` — subtotal/end-total visibility and shape;
+- `color` — waterfall color channel.
+
+Pull the live sub-schemas before authoring because these are tagged/nested
+objects, not free-form styling. Preserve the existing restriction:
+`waterfallShape.subtotal`/`endTotal` require `splitBy` or multiple y-series.
+
+### Box charts: unsupported/pending
+
+Do not emit a box plot/box-and-whisker element. The live workbook OpenAPI has
+no `box-chart` element kind. Keep requests for one pending or use an explicitly
+approved alternative; do not infer support from UI concepts or stale docs.
 
 For element-level reference of `kind: "text"` (free-form Markdown blocks), see `content-elements.md`.

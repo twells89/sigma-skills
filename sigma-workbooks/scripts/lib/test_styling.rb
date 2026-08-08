@@ -132,32 +132,32 @@ check('format_for: NO-GO format_string -> {}') do
   Styling.format_for(:currency, surfaces: Styling::SURFACES.merge(format_string: false)) == {}
 end
 
-check('header: container-style GO emits a container + title text element and a rows-1/3 GridContainer') do
+check('header: container-style GO emits a container + title text element and a rows-1/3 Container') do
   h = Styling.header(id: 'hdr', title: 'Dashboard', theme: Styling::DEFAULT_THEME)
   h[:element].length == 2 &&
     h[:element][0] == { 'id' => 'hdr-bg', 'kind' => 'container', 'style' => Styling::DEFAULT_THEME[:header] } &&
     h[:element][1]['kind'] == 'text' &&
-    h[:layout].include?('<GridContainer') && h[:layout].include?('gridRow="1 / 3"') &&
+    h[:layout].include?('<Container') && h[:layout].include?('gridRow="1 / 3"') &&
     h[:layout].include?('elementId="hdr-title"')
 end
 check('header: NO-GO container_style emits a bare text element, no container') do
   h = Styling.header(id: 'hdr', title: 'Dashboard', theme: Styling::DEFAULT_THEME,
                       surfaces: Styling::SURFACES.merge(container_style: false))
-  h[:element].length == 1 && h[:element][0]['kind'] == 'text' && !h[:layout].include?('GridContainer')
+  h[:element].length == 1 && h[:element][0]['kind'] == 'text' && !h[:layout].include?('Container')
 end
 
-check('section_card: container-style GO wraps band ids in a themed card GridContainer') do
+check('section_card: container-style GO wraps band ids in a themed card Container') do
   band = { role: :kpi, ids: %w[k1 k2 k3], r0: 7, r1: 13 }
   sc = Styling.section_card(id: 'card-1', band: band, theme: Styling::DEFAULT_THEME)
   sc[:element] == { 'id' => 'card-1', 'kind' => 'container', 'style' => Styling::DEFAULT_THEME[:card] } &&
-    sc[:wrap].include?('<GridContainer elementId="card-1"') && sc[:wrap].include?('gridRow="7 / 13"') &&
-    sc[:wrap].scan('<LayoutElement').length == 3
+    sc[:wrap].include?('<Container elementId="card-1"') && sc[:wrap].include?('gridRow="7 / 13"') &&
+    sc[:wrap].scan('<Element').length == 3
 end
 check('section_card: NO-GO container_style returns bare band render, no container element') do
   band = { role: :kpi, ids: %w[k1 k2], r0: 1, r1: 7 }
   sc = Styling.section_card(id: 'card-1', band: band, theme: Styling::DEFAULT_THEME,
                              surfaces: Styling::SURFACES.merge(container_style: false))
-  sc[:element].nil? && !sc[:wrap].include?('GridContainer') && sc[:wrap].scan('<LayoutElement').length == 2
+  sc[:element].nil? && !sc[:wrap].include?('Container') && sc[:wrap].scan('<Element').length == 2
 end
 
 # --- Styling::MOTIFS + Styling.gradient_header ---
@@ -182,14 +182,14 @@ check('MOTIFS: :none returns an empty string') do
   Styling::MOTIFS[:none].call == ''
 end
 
-check('gradient_header (default :glow, :right): container has data-URI SVG backgroundImage + title element + GridContainer layout') do
+check('gradient_header (default :glow, :right): container has data-URI SVG backgroundImage + title element + Container layout') do
   h = Styling.gradient_header(id: 'ghdr', title: 'Command Center')
   bg = h[:element][0]
   bg['kind'] == 'container' && bg['style'] == { 'borderRadius' => 'round' } &&
     bg['backgroundImage']['url'].start_with?('data:image/svg+xml;base64,') &&
     bg['backgroundImage']['style'] == { 'fit' => 'cover' } &&
     h[:element].any? { |e| e['kind'] == 'text' && e['id'] == 'ghdr-title' } &&
-    h[:layout].include?('<GridContainer') && h[:layout].include?('elementId="ghdr-title"')
+    h[:layout].include?('<Container') && h[:layout].include?('elementId="ghdr-title"')
 end
 
 check('gradient_header: decoded SVG carries the linearGradient + the requested motif group') do
@@ -279,7 +279,7 @@ check('gradient_header motif_side: :center translates the motif group to x=800 a
   svg = Base64.decode64(h[:element][0]['backgroundImage']['url'].sub('data:image/svg+xml;base64,', ''))
   svg.include?('translate(800,86)') &&
     h[:element].any? { |e| e['kind'] == 'text' && e['id'] == 'ghdr-title' } &&
-    h[:layout].include?('<GridContainer') && h[:layout].include?('elementId="ghdr-title"')
+    h[:layout].include?('<Container') && h[:layout].include?('elementId="ghdr-title"')
 end
 
 check('gradient_header: unrecognized motif symbol raises ArgumentError') do
@@ -303,7 +303,7 @@ check('gradient_card: GO returns a gradient container + child_layout positioning
     gc[:element][0]['style'] == { 'borderRadius' => 'round' } &&
     gc[:element][0]['backgroundImage']['url'].start_with?('data:image/svg+xml;base64,') &&
     gc[:element][0]['backgroundImage']['style'] == { 'fit' => 'cover' } &&
-    gc[:child_layout] == '<LayoutElement elementId="kpi-rev" gridColumn="1 / 25" gridRow="1 / 7"/>' &&
+    gc[:child_layout] == '<Element elementId="kpi-rev" gridColumn="1 / 25" gridRow="1 / 7"/>' &&
     gc[:patch] == { 'value' => { 'color' => '#FFFFFF' }, 'name' => { 'color' => '#FFFFFF' },
                     'style' => { 'backgroundColor' => 'transparent', 'padding' => 'none' } }
 end
@@ -346,7 +346,7 @@ end
 
 check('gradient_card: respects a custom page_cols in child_layout gridColumn span') do
   gc = Styling.gradient_card(id: 'card-1', kpi_element: GC_KPI_EL, gradient: %w[#0F172A #2563EB], page_cols: 12)
-  gc[:child_layout] == '<LayoutElement elementId="kpi-rev" gridColumn="1 / 13" gridRow="1 / 7"/>'
+  gc[:child_layout] == '<Element elementId="kpi-rev" gridColumn="1 / 13" gridRow="1 / 7"/>'
 end
 
 check('gradient_card: NO-GO gradient_card surface -> empty element/child_layout/patch, no crash') do

@@ -7,13 +7,16 @@
 # directory of small files, and reassembling them on push:
 #
 #   <rep>/
-#     workbook.yaml              top-level fields (name, folderId, schemaVersion, ...)
+#     workbook.yaml              outer metadata + document fields other than collections/layout
+#     elements/
+#       010-revenue-kpi.yaml     flat document.elements entries (one element per file)
+#       020-sales-by-region.yaml
 #     pages/
 #       010-overview/
-#         _page.yaml             page fields minus elements (id, name, visibility)
-#         _layout.xml            this page's <Page> block from the top-level layout XML
-#         010-revenue-kpi.yaml   one element per file (filename prefix = order)
-#         020-sales-by-region.yaml
+#         _page.yaml             page metadata (id, name, visibility/background)
+#         _layout.xml            this page's <Page> block from document.layout
+#     overlays/                  same pattern: _overlay.yaml + _layout.xml
+#     panels/                    same pattern: _panel.yaml + _layout.xml
 #     .sigma/                    plumbing — do not hand-edit
 #       manifest.yaml            workbookId, url, baseUrl, pulledAt
 #       snapshot.yaml            full spec as last synced with the server
@@ -53,6 +56,12 @@ require_relative 'lib/code_rep'
 
 RESPONSE_ONLY = %w[workbookId url documentVersion latestDocumentVersion ownerId
                    createdBy updatedBy createdAt updatedAt].freeze
+CREATE_METADATA = %w[name folderId description].freeze
+COLLECTIONS = {
+  'pages' => '_page.yaml',
+  'overlays' => '_overlay.yaml',
+  'panels' => '_panel.yaml'
+}.freeze
 XML_PROLOG = %(<?xml version="1.0" encoding="utf-8"?>\n).freeze
 
 def die(msg, code = 2)
@@ -91,6 +100,16 @@ def strip_response_only(spec)
   spec.reject { |k, _| RESPONSE_ONLY.include?(k) }
 end
 
+# Canonical on-disk form mirrors the API: outer metadata plus one wrapped
+# document. Legacy flat artifacts are accepted on import and normalized here.
+def canonical_spec(spec)
+  Sigma::CodeRep.metadata(spec).merge('document' => Sigma::CodeRep.document(spec))
+end
+
+def document(spec)
+  Sigma::CodeRep.document(spec)
+end
+
 # Split the top-level layout XML into [preamble, { page_id => chunk }].
 # Chunks are verbatim byte slices so an untouched rep reassembles identically.
 def split_layout(layout)
@@ -110,44 +129,48 @@ def split_layout(layout)
 end
 
 def explode(spec, dir, raw_yaml:, manifest_extra: {})
-  spec = spec.dup
-  pages = spec.delete('pages') || []
-  layout = spec.delete('layout')
+  spec = canonical_spec(spec)
+  doc = document(spec).dup
+  elements = doc.delete('elements') || []
+  collections = COLLECTIONS.keys.to_h { |key| [key, doc.delete(key) || []] }
+  layout = doc.delete('layout')
   preamble, layout_chunks = split_layout(layout)
-  top = strip_response_only(spec)
+  top = strip_response_only(spec).merge('document' => doc)
 
-  FileUtils.rm_rf(File.join(dir, 'pages'))
-  FileUtils.mkdir_p(File.join(dir, 'pages'))
+  (COLLECTIONS.keys + ['elements']).each { |name| FileUtils.rm_rf(File.join(dir, name)) }
+  FileUtils.mkdir_p(File.join(dir, 'elements'))
   FileUtils.mkdir_p(File.join(dir, '.sigma'))
   File.write(File.join(dir, 'workbook.yaml'), YAML.dump(top))
   File.write(File.join(dir, '.sigma', 'layout-preamble.xml'), preamble)
 
-  used_page_dirs = {}
-  pages.each_with_index do |page, pi|
-    page = page.dup
-    elements = page.delete('elements') || []
-    base = slug(page['name']) || slug(page['id']) || "page-#{pi + 1}"
-    base += "-#{page['id']}"[0, 20] if used_page_dirs[base]
-    used_page_dirs[base] = true
-    pdir = File.join(dir, 'pages', format('%03d-%s', (pi + 1) * 10, base))
-    FileUtils.mkdir_p(pdir)
-    File.write(File.join(pdir, '_page.yaml'), YAML.dump(page))
-    if (chunk = layout_chunks.delete(page['id']))
-      File.write(File.join(pdir, '_layout.xml'), chunk)
+  collections.each do |collection, entries|
+    FileUtils.mkdir_p(File.join(dir, collection))
+    used_dirs = {}
+    entries.each_with_index do |entry, index|
+      base = slug(entry['name']) || slug(entry['id']) || "#{collection.sub(/s\z/, '')}-#{index + 1}"
+      base += "-#{entry['id']}"[0, 20] if used_dirs[base]
+      used_dirs[base] = true
+      entry_dir = File.join(dir, collection, format('%03d-%s', (index + 1) * 10, base))
+      FileUtils.mkdir_p(entry_dir)
+      File.write(File.join(entry_dir, COLLECTIONS.fetch(collection)), YAML.dump(entry))
+      if (chunk = layout_chunks.delete(entry['id']))
+        File.write(File.join(entry_dir, '_layout.xml'), chunk)
+      end
     end
-    used = {}
-    elements.each_with_index do |el, ei|
-      ebase = slug(el['name']) || slug(el['kind']) || 'element'
-      ebase += "-#{slug(el['id']) || ei}" if used[ebase]
-      used[ebase] = true
-      File.write(File.join(pdir, format('%03d-%s.yaml', (ei + 1) * 10, ebase)), YAML.dump(el))
-    end
-  end
-  layout_chunks.each_key do |k|
-    warn "wb-rep: warning — layout <Page id=\"#{k}\"> matches no page in the spec; chunk dropped"
   end
 
-  File.write(File.join(dir, '.sigma', 'snapshot.yaml'), raw_yaml)
+  used = {}
+  elements.each_with_index do |el, index|
+    base = slug(el['name']) || slug(el['kind']) || 'element'
+    base += "-#{slug(el['id']) || index}" if used[base]
+    used[base] = true
+    File.write(File.join(dir, 'elements', format('%03d-%s.yaml', (index + 1) * 10, base)), YAML.dump(el))
+  end
+  layout_chunks.each_key do |k|
+    warn "wb-rep: warning — layout <Page id=\"#{k}\"> matches no page, overlay, or panel; chunk dropped"
+  end
+
+  File.write(File.join(dir, '.sigma', 'snapshot.yaml'), YAML.dump(canonical_spec(YAML.load(raw_yaml))))
   File.write(File.join(dir, '.sigma', 'manifest.yaml'),
              YAML.dump({ 'baseUrl' => ENV['SIGMA_BASE_URL'], 'pulledAt' => Time.now.utc.iso8601 }.merge(manifest_extra)))
 end
@@ -161,27 +184,26 @@ end
 def assemble(dir)
   wb_path = File.join(dir, 'workbook.yaml')
   die "no workbook.yaml in #{dir} — not a rep directory (run pull/import first)" unless File.exist?(wb_path)
-  spec = load_yaml_file(wb_path)
+  spec = canonical_spec(load_yaml_file(wb_path))
+  doc = document(spec).dup
   preamble_path = File.join(dir, '.sigma', 'layout-preamble.xml')
   preamble = File.exist?(preamble_path) ? File.read(preamble_path) : XML_PROLOG
 
-  pages = []
   layout_parts = []
-  Dir[File.join(dir, 'pages', '*/')].sort.each do |pdir|
-    ppath = File.join(pdir, '_page.yaml')
-    die "missing _page.yaml in #{pdir}" unless File.exist?(ppath)
-    page = load_yaml_file(ppath)
-    elements = Dir[File.join(pdir, '*.yaml')].sort
-                                             .reject { |f| File.basename(f) == '_page.yaml' }
-                                             .map { |f| load_yaml_file(f) }
-    page['elements'] = elements
-    pages << page
-    lpath = File.join(pdir, '_layout.xml')
-    layout_parts << File.read(lpath) if File.exist?(lpath)
+  COLLECTIONS.each do |collection, metadata_file|
+    entries = []
+    Dir[File.join(dir, collection, '*/')].sort.each do |entry_dir|
+      metadata_path = File.join(entry_dir, metadata_file)
+      die "missing #{metadata_file} in #{entry_dir}" unless File.exist?(metadata_path)
+      entries << load_yaml_file(metadata_path)
+      layout_path = File.join(entry_dir, '_layout.xml')
+      layout_parts << File.read(layout_path) if File.exist?(layout_path)
+    end
+    doc[collection] = entries
   end
-  spec['pages'] = pages
-  spec['layout'] = preamble + layout_parts.join unless layout_parts.empty?
-  spec
+  doc['elements'] = Dir[File.join(dir, 'elements', '*.yaml')].sort.map { |f| load_yaml_file(f) }
+  doc['layout'] = preamble + layout_parts.join unless layout_parts.empty?
+  spec.merge('document' => doc)
 end
 
 # ---- diffing -------------------------------------------------------------
@@ -195,46 +217,61 @@ def changed_keys(a, b)
 end
 
 def diff_specs(old_spec, new_spec)
+  old_spec = canonical_spec(old_spec)
+  new_spec = canonical_spec(new_spec)
   lines = []
-  ot = strip_response_only(old_spec).reject { |k, _| %w[pages layout].include?(k) }
-  nt = strip_response_only(new_spec).reject { |k, _| %w[pages layout].include?(k) }
+  ot = strip_response_only(old_spec).reject { |k, _| k == 'document' }
+  nt = strip_response_only(new_spec).reject { |k, _| k == 'document' }
   changed_keys(ot, nt).each { |k| lines << "~ workbook.#{k}" }
 
-  old_pages = index_by_id(old_spec['pages'])
-  new_pages = index_by_id(new_spec['pages'])
-  _, old_layout = split_layout(old_spec['layout'])
-  _, new_layout = split_layout(new_spec['layout'])
+  old_doc = document(old_spec)
+  new_doc = document(new_spec)
+  old_doc_meta = old_doc.reject { |k, _| COLLECTIONS.key?(k) || %w[elements layout].include?(k) }
+  new_doc_meta = new_doc.reject { |k, _| COLLECTIONS.key?(k) || %w[elements layout].include?(k) }
+  changed_keys(old_doc_meta, new_doc_meta).each { |k| lines << "~ document.#{k}" }
 
-  (old_pages.keys | new_pages.keys).each do |pid|
-    op = old_pages[pid]
-    np = new_pages[pid]
-    pname = (np || op)['name'] || pid
-    if op.nil? then lines << "+ page \"#{pname}\" (#{(np['elements'] || []).size} elements)"; next end
-    if np.nil? then lines << "- page \"#{pname}\""; next end
-    meta = changed_keys(op.reject { |k, _| k == 'elements' }, np.reject { |k, _| k == 'elements' })
-    lines << "~ page \"#{pname}\" [#{meta.join(', ')}]" unless meta.empty?
-    lines << "~ page \"#{pname}\" layout" if old_layout[pid] != new_layout[pid]
-    oe = index_by_id(op['elements'])
-    ne = index_by_id(np['elements'])
-    el_lines = []
-    (oe.keys | ne.keys).each do |eid|
-      o = oe[eid]
-      n = ne[eid]
-      ename = (n || o)['name'] || (n || o)['kind'] || eid
-      if o.nil? then el_lines << "  + element \"#{ename}\" (#{eid})"
-      elsif n.nil? then el_lines << "  - element \"#{ename}\" (#{eid})"
-      elsif o != n then el_lines << "  ~ element \"#{ename}\" (#{eid}) [#{changed_keys(o, n).join(', ')}]"
+  _, old_layout = split_layout(old_doc['layout'])
+  _, new_layout = split_layout(new_doc['layout'])
+  COLLECTIONS.each_key do |collection|
+    old_entries = index_by_id(old_doc[collection])
+    new_entries = index_by_id(new_doc[collection])
+    (old_entries.keys | new_entries.keys).each do |id|
+      old_entry = old_entries[id]
+      new_entry = new_entries[id]
+      label = (new_entry || old_entry)['name'] || id
+      singular = collection.sub(/s\z/, '')
+      if old_entry.nil?
+        lines << "+ #{singular} \"#{label}\""
+      elsif new_entry.nil?
+        lines << "- #{singular} \"#{label}\""
+      else
+        meta = changed_keys(old_entry, new_entry)
+        lines << "~ #{singular} \"#{label}\" [#{meta.join(', ')}]" unless meta.empty?
+        lines << "~ #{singular} \"#{label}\" layout" if old_layout[id] != new_layout[id]
       end
     end
-    lines << "  page \"#{pname}\":" unless el_lines.empty?
-    lines.concat(el_lines)
+  end
+
+  old_elements = index_by_id(old_doc['elements'])
+  new_elements = index_by_id(new_doc['elements'])
+  (old_elements.keys | new_elements.keys).each do |id|
+    old_element = old_elements[id]
+    new_element = new_elements[id]
+    label = (new_element || old_element)['name'] || (new_element || old_element)['kind'] || id
+    if old_element.nil?
+      lines << "+ element \"#{label}\" (#{id})"
+    elsif new_element.nil?
+      lines << "- element \"#{label}\" (#{id})"
+    elsif old_element != new_element
+      lines << "~ element \"#{label}\" (#{id}) [#{changed_keys(old_element, new_element).join(', ')}]"
+    end
   end
   lines
 end
 
 def snapshot_spec(dir)
   path = File.join(dir, '.sigma', 'snapshot.yaml')
-  File.exist?(path) ? YAML.load(File.read(path)) : nil
+  File.exist?(path) ? canonical_spec(YAML.load(File.read(path))) : nil
 end
 
 def manifest(dir)
@@ -249,14 +286,38 @@ def rep_dirty?(dir)
 end
 
 def lint_layout_coverage(spec)
-  _, chunks = split_layout(spec['layout'])
-  (spec['pages'] || []).each do |page|
-    chunk = chunks[page['id']] or next # no layout block = auto-arrange, nothing to check
-    (page['elements'] || []).each do |el|
-      next if chunk.include?(%(elementId="#{el['id']}"))
-      warn "wb-rep: warning — element \"#{el['name'] || el['id']}\" (page \"#{page['name']}\") is not referenced in the page's _layout.xml"
-    end
+  doc = document(spec)
+  layout = doc['layout'].to_s
+  elements = Array(doc['elements'])
+  declared = index_by_id(elements)
+  referenced_all = layout.scan(/\belementId="([^"]+)"/).flatten
+  referenced = referenced_all.uniq
+  regions = COLLECTIONS.keys.flat_map { |collection| Array(doc[collection]) }
+  declared_region_ids = regions.filter_map { |region| region['id'] }.uniq
+  referenced_region_ids = layout.scan(/<Page\b[^>]*\bid="([^"]+)"/).flatten.uniq
+  issues = []
+
+  elements.group_by { |element| element['id'] }.each do |id, grouped|
+    issues << "duplicate document.elements id #{id.inspect}" if id && grouped.length > 1
   end
+  referenced_all.tally.each do |id, count|
+    issues << "element #{id.inspect} is placed #{count} times" if count > 1
+  end
+  declared.each do |id, element|
+    next if referenced.include?(id)
+    issues << "element \"#{element['name'] || id}\" is not placed"
+  end
+  (referenced - declared.keys).each do |id|
+    issues << "layout references undeclared elementId #{id.inspect}"
+  end
+  (referenced_region_ids - declared_region_ids).each do |id|
+    issues << "layout references undeclared page/overlay/panel id #{id.inspect}"
+  end
+  (declared_region_ids - referenced_region_ids).each do |id|
+    issues << "page/overlay/panel #{id.inspect} is missing from layout"
+  end
+
+  die "layout validation failed:\n  - #{issues.join("\n  - ")}", 1 unless issues.empty?
 end
 
 # ---- commands ------------------------------------------------------------
@@ -268,12 +329,11 @@ def cmd_pull(args, force:)
     die "rep at #{dir} has local changes (see `status`) — pull would overwrite them; use --force to discard", 1
   end
   raw = api(:get, "/v2/workbooks/#{wb_id}/spec")
-  spec = flatten_spec(YAML.load(raw)) # unwrap the live nested response to flat
-  flat_yaml = YAML.dump(spec) # rep files + snapshot.yaml stay flat — see wrap_for_wire's comment
-  explode(spec, dir, raw_yaml: flat_yaml,
+  spec = canonical_spec(YAML.load(raw))
+  explode(spec, dir, raw_yaml: YAML.dump(spec),
                      manifest_extra: { 'workbookId' => wb_id, 'url' => spec['url'] })
-  n_el = (spec['pages'] || []).sum { |p| (p['elements'] || []).size }
-  puts "pulled \"#{spec['name']}\" -> #{dir} (#{(spec['pages'] || []).size} pages, #{n_el} elements)"
+  doc = document(spec)
+  puts "pulled \"#{spec['name']}\" -> #{dir} (#{(doc['pages'] || []).size} pages, #{(doc['elements'] || []).size} elements)"
 end
 
 def cmd_import(args)
@@ -284,50 +344,24 @@ def cmd_import(args)
   puts "imported #{src} -> #{dir} (create mode: push will POST a new workbook)"
 end
 
-# Root-cause correction (2026-08-04): an earlier version of this comment blamed a lone
-# "/verify Beta drift" — that diagnosis was wrong. Live A/B testing showed the REAL create
-# endpoint (POST /v2/workbooks/spec) 400s identically on the flat shape, with the exact same
-# fix. Both endpoints — plus PUT /v2/workbooks/{id}/spec and every GET of the same
-# resource — moved to the nested wire shape { name, folderId, document: { schemaVersion,
-# kind: "workbook", pages, layout } } (PUT sends/GETs return just { document: {...} } —
-# no name/folderId), not the flat { name, folderId, schemaVersion, pages, layout } shape
-# the OpenAPI text still documents. See reference/workflows/validate.md section 1 for the
-# full story.
-#
-# UPDATE (this commit): this used to be named `wrap_for_verify` and cover ONLY verify's
-# outbound request, leaving push/pull/import/assemble and their create/update calls on the
-# same 400 live. It's now the one wrapper every write path in this file uses (verify, push
-# create, push update), delegating to Sigma::CodeRep (lib/code_rep.rb) so there's a single
-# implementation instead of a second parallel one. Reads go through
-# Sigma::CodeRep.document right after the GET, for the same reason.
-#
-# On-disk format decision: rep files (workbook.yaml, pages/*), .sigma/snapshot.yaml, and
-# every spec this file loads from or writes to disk stay FLAT. Users already have specs on
-# disk in the flat shape, and silently migrating that format would break every existing one
-# for no benefit — wrapping/unwrapping happens only at the API boundary, right before a
-# POST/PUT body goes over the wire and right after a GET response comes back.
-# Canonical Sigma::CodeRep.wrap takes an ALREADY-BUILT document hash and does not
-# narrow, so narrow here with document() before wrapping. Passing a raw flat spec
-# straight to wrap() would nest metadata (name/folderId/url/workbookId) INSIDE
-# `document`, which no endpoint accepts.
-def wrap_for_wire(spec, extra: {})
-  doc = Sigma::CodeRep.document(spec)
+def create_body(spec)
+  clean = strip_response_only(canonical_spec(spec))
+  metadata = clean.select { |key, _| CREATE_METADATA.include?(key) }
+  doc = document(clean)
   doc = doc.merge('kind' => 'workbook') unless doc['kind']
-  Sigma::CodeRep.wrap(doc, extra: extra)
+  Sigma::CodeRep.wrap(doc, extra: metadata)
 end
 
-# Canonical document() NARROWS to the six document keys; this file's readers want
-# the flat on-disk shape (they read spec['name'], spec['url'], ...), so recombine.
-def flatten_spec(resp)
-  Sigma::CodeRep.metadata(resp).merge(Sigma::CodeRep.document(resp))
+def put_body(spec)
+  doc = document(spec)
+  doc = doc.merge('kind' => 'workbook') unless doc['kind']
+  Sigma::CodeRep.wrap(doc)
 end
 
 def cmd_verify(args)
   path = args.shift or die 'usage: wb-rep.rb verify <spec-file>'
   die "no such file: #{path}" unless File.exist?(path)
-  clean = strip_response_only(load_yaml_file(path))
-  spec = wrap_for_wire(clean, extra: Sigma::CodeRep.metadata(clean))
-  result = YAML.load(api(:post, '/v2/workbooks/spec/verify', YAML.dump(spec)))
+  result = YAML.load(api(:post, '/v2/workbooks/spec/verify', YAML.dump(create_body(load_yaml_file(path)))))
   if result['valid']
     puts 'valid: true'
   else
@@ -342,8 +376,8 @@ def cmd_status(args)
   snap = snapshot_spec(dir)
   unless snap
     spec = assemble(dir)
-    n_el = (spec['pages'] || []).sum { |p| (p['elements'] || []).size }
-    puts "create mode — never pushed (#{(spec['pages'] || []).size} pages, #{n_el} elements staged)"
+    doc = document(spec)
+    puts "create mode — never pushed (#{(doc['pages'] || []).size} pages, #{(doc['elements'] || []).size} elements staged)"
     return
   end
   lines = diff_specs(snap, assemble(dir))
@@ -383,7 +417,7 @@ def cmd_push(args, force:, validate: true)
   puts(lines.empty? ? '  (initial create)' : lines.map { |l| "  #{l}" })
 
   if wb_id && !force
-    remote = flatten_spec(YAML.load(api(:get, "/v2/workbooks/#{wb_id}/spec")))
+    remote = canonical_spec(YAML.load(api(:get, "/v2/workbooks/#{wb_id}/spec")))
     drift = diff_specs(snap, remote)
     unless drift.empty?
       warn 'wb-rep: remote workbook changed since last pull — pushing would overwrite:'
@@ -394,13 +428,11 @@ def cmd_push(args, force:, validate: true)
 
   lint_layout_coverage(spec)
 
-  # flat_body is what stays on disk / feeds validate-spec.sh (which expects flat .pages);
-  # it's wrapped via wrap_for_wire only in the api() calls below, right at the wire boundary.
-  flat_body = strip_response_only(spec)
+  clean_body = strip_response_only(spec)
   if validate
     require 'tempfile'
     Tempfile.create(['wb-rep-spec', '.yaml']) do |f|
-      f.write(YAML.dump(flat_body))
+      f.write(YAML.dump(clean_body))
       f.flush
       validator = File.expand_path('validate-spec.sh', __dir__)
       if File.exist?(validator)
@@ -411,16 +443,15 @@ def cmd_push(args, force:, validate: true)
   end
 
   if wb_id
-    api(:put, "/v2/workbooks/#{wb_id}/spec", YAML.dump(wrap_for_wire(flat_body)))
+    api(:put, "/v2/workbooks/#{wb_id}/spec", YAML.dump(put_body(clean_body)))
   else
-    die 'create mode: workbook.yaml must include folderId' unless flat_body['folderId']
-    wire = wrap_for_wire(flat_body, extra: Sigma::CodeRep.metadata(flat_body))
-    res = flatten_spec(YAML.load(api(:post, '/v2/workbooks/spec', YAML.dump(wire))))
+    die 'create mode: workbook.yaml must include folderId' unless clean_body['folderId']
+    res = canonical_spec(YAML.load(api(:post, '/v2/workbooks/spec', YAML.dump(create_body(clean_body)))))
     wb_id = res['workbookId'] or die "create response had no workbookId:\n#{res.inspect}"
     mf['workbookId'] = wb_id
   end
 
-  readback = flatten_spec(YAML.load(api(:get, "/v2/workbooks/#{wb_id}/spec")))
+  readback = canonical_spec(YAML.load(api(:get, "/v2/workbooks/#{wb_id}/spec")))
   FileUtils.mkdir_p(File.join(dir, '.sigma'))
   File.write(File.join(dir, '.sigma', 'snapshot.yaml'), YAML.dump(readback))
   mf['url'] = readback['url']
@@ -449,19 +480,26 @@ def cmd_summarize(args)
   spec = if File.directory?(target)
            snapshot_spec(target) || assemble(target)
          else
-           flatten_spec(YAML.load(api(:get, "/v2/workbooks/#{target}/spec")))
+           canonical_spec(YAML.load(api(:get, "/v2/workbooks/#{target}/spec")))
          end
-  puts "#{spec['name']}  (schemaVersion #{spec['schemaVersion']})"
+  doc = document(spec)
+  puts "#{spec['name']}  (schemaVersion #{doc['schemaVersion']})"
+  elements = doc['elements'] || []
+  by_id = index_by_id(elements)
+  _, layout_chunks = split_layout(doc['layout'])
   sources = []
-  (spec['pages'] || []).each do |p|
-    els = p['elements'] || []
-    kinds = els.group_by { |e| e['kind'] }.map { |k, v| "#{k}×#{v.size}" }.join(', ')
-    vis = p['visibility'] == 'hidden' ? ' [hidden]' : ''
-    puts "  page \"#{p['name']}\"#{vis}: #{els.size} elements (#{kinds})"
-    els.each do |e|
-      s = e['source'] or next
-      sources << (s['path'] ? s['path'].join('.') : s['kind'] == 'data-model' ? "data-model #{s['dataModelId']}" : nil)
+  COLLECTIONS.each_key do |collection|
+    (doc[collection] || []).each do |entry|
+      ids = layout_chunks.fetch(entry['id'], '').scan(/\belementId="([^"]+)"/).flatten
+      placed = ids.filter_map { |id| by_id[id] }
+      kinds = placed.group_by { |element| element['kind'] }.map { |kind, grouped| "#{kind}×#{grouped.size}" }.join(', ')
+      vis = entry['visibility'] == 'hidden' ? ' [hidden]' : ''
+      puts "  #{collection.sub(/s\z/, '')} \"#{entry['name']}\"#{vis}: #{placed.size} elements (#{kinds})"
     end
+  end
+  elements.each do |element|
+    source = element['source'] or next
+    sources << (source['path'] ? source['path'].join('.') : source['kind'] == 'data-model' ? "data-model #{source['dataModelId']}" : nil)
   end
   puts "  sources: #{sources.compact.uniq.join(', ')}" unless sources.compact.empty?
 end
@@ -626,7 +664,7 @@ def cmd_render(args)
   end
 
   spec = snapshot_spec(dir) or die "no snapshot in #{dir}/.sigma — run pull or import first"
-  pages = spec['pages'] || []
+  pages = document(spec)['pages'] || []
   pages = pages.select { |p| [p['id'], p['name'], slug(p['name'])].compact.include?(page_sel) } if page_sel
   die "no page matches #{page_sel.inspect}" if pages.empty?
   pages.each do |p|

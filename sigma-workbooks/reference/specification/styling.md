@@ -172,11 +172,11 @@ elements:
 ```
 
 ```xml
-<GridContainer elementId="hero" type="grid"
+<Container elementId="hero" type="grid"
                gridColumn="1 / 25" gridRow="1 / 5"
                gridTemplateColumns="repeat(24, 1fr)" gridTemplateRows="auto">
-  <LayoutElement elementId="title" gridColumn="1 / 25" gridRow="1 / 5"/>
-</GridContainer>
+  <Element elementId="title" gridColumn="1 / 25" gridRow="1 / 5"/>
+</Container>
 ```
 
 Notes:
@@ -219,12 +219,12 @@ elements:
 ```
 
 ```xml
-<GridContainer elementId="kpi-net-box" type="grid"
+<Container elementId="kpi-net-box" type="grid"
                gridColumn="1 / 9" gridRow="5 / 12"
                gridTemplateColumns="repeat(24, 1fr)" gridTemplateRows="auto">
-  <LayoutElement elementId="kpi-net-label" gridColumn="1 / 25" gridRow="1 / 3"/>
-  <LayoutElement elementId="kpi-net"       gridColumn="1 / 25" gridRow="3 / 8"/>
-</GridContainer>
+  <Element elementId="kpi-net-label" gridColumn="1 / 25" gridRow="1 / 3"/>
+  <Element elementId="kpi-net"       gridColumn="1 / 25" gridRow="3 / 8"/>
+</Container>
 ```
 
 Repeat the container + label + KPI triple for each metric, switching the label color (green for growth, purple for averages, amber for trailing-indicator metrics). Three across at columns `1/9`, `9/17`, `17/25` is the standard layout.
@@ -245,7 +245,7 @@ A heading row between groups of elements. Tighter than a hero, looser than a cha
 ```
 
 ```xml
-<LayoutElement elementId="section-charts" gridColumn="1 / 25" gridRow="12 / 14"/>
+<Element elementId="section-charts" gridColumn="1 / 25" gridRow="12 / 14"/>
 ```
 
 Use these between (a) KPI row and chart row, (b) chart row and detail table, (c) any two thematically distinct chunks. Two per dashboard is usually enough — more than that and the page reads as fragmented.
@@ -262,7 +262,7 @@ Between the high-level charts and the "drill down to raw rows" table, a horizont
 ```
 
 ```xml
-<LayoutElement elementId="divider-1" gridColumn="1 / 25" gridRow="26 / 27"/>
+<Element elementId="divider-1" gridColumn="1 / 25" gridRow="26 / 27"/>
 ```
 
 A 1-row span. The `divider` element is a first-class kind, not a hack — see `content-elements.md`.
@@ -350,27 +350,27 @@ XML:
 <?xml version="1.0" encoding="utf-8"?>
 <Page type="grid" gridTemplateColumns="repeat(24, 1fr)" gridTemplateRows="auto" id="page-1">
 
-  <GridContainer elementId="hero" type="grid"
+  <Container elementId="hero" type="grid"
                  gridColumn="1 / 25" gridRow="1 / 5"
                  gridTemplateColumns="repeat(24, 1fr)" gridTemplateRows="auto">
-    <LayoutElement elementId="title" gridColumn="1 / 25" gridRow="1 / 5"/>
-  </GridContainer>
+    <Element elementId="title" gridColumn="1 / 25" gridRow="1 / 5"/>
+  </Container>
 
-  <GridContainer elementId="kpi-net-box" type="grid"
+  <Container elementId="kpi-net-box" type="grid"
                  gridColumn="1 / 9" gridRow="5 / 12"
                  gridTemplateColumns="repeat(24, 1fr)" gridTemplateRows="auto">
-    <LayoutElement elementId="kpi-net-label" gridColumn="1 / 25" gridRow="1 / 3"/>
-    <LayoutElement elementId="kpi-net"       gridColumn="1 / 25" gridRow="3 / 8"/>
-  </GridContainer>
+    <Element elementId="kpi-net-label" gridColumn="1 / 25" gridRow="1 / 3"/>
+    <Element elementId="kpi-net"       gridColumn="1 / 25" gridRow="3 / 8"/>
+  </Container>
   <!-- two more KPI containers at 9/17 and 17/25 -->
 
-  <LayoutElement elementId="section-charts"   gridColumn="1 / 25"  gridRow="12 / 14"/>
-  <LayoutElement elementId="chart-by-channel" gridColumn="1 / 13"  gridRow="14 / 26"/>
-  <LayoutElement elementId="chart-by-status"  gridColumn="13 / 25" gridRow="14 / 26"/>
+  <Element elementId="section-charts"   gridColumn="1 / 25"  gridRow="12 / 14"/>
+  <Element elementId="chart-by-channel" gridColumn="1 / 13"  gridRow="14 / 26"/>
+  <Element elementId="chart-by-status"  gridColumn="13 / 25" gridRow="14 / 26"/>
 
-  <LayoutElement elementId="divider-1"      gridColumn="1 / 25" gridRow="26 / 27"/>
-  <LayoutElement elementId="section-detail" gridColumn="1 / 25" gridRow="27 / 29"/>
-  <LayoutElement elementId="master"         gridColumn="1 / 25" gridRow="29 / 37"/>
+  <Element elementId="divider-1"      gridColumn="1 / 25" gridRow="26 / 27"/>
+  <Element elementId="section-detail" gridColumn="1 / 25" gridRow="27 / 29"/>
+  <Element elementId="master"         gridColumn="1 / 25" gridRow="29 / 37"/>
 </Page>
 ```
 
@@ -441,7 +441,7 @@ layout: { anchor: middle }            # also: verticalAnchor: start|middle, titl
 
 **KPI strip inside a dark hero** ✓ — the strongest "designed" move observed (KPIs live in the
 hero band, not below it): one dark container spans the full band; the title text, accent-colored
-labels, and the KPIs all lay out inside its `GridContainer`; each KPI pops with
+labels, and the KPIs all lay out inside its `Container`; each KPI pops with
 `value: {columnId: …, fontSize: 32, color: "#FFFFFF"}`. Use light accent tints for the labels on
 dark (`#93C5FD` blue, `#67E8F9` cyan, `#6EE7B7` green, `#C4B5FD` purple).
 
@@ -595,7 +595,7 @@ output rather than hand-writing the container + child XML per dashboard:
 - `header` emits a `kind: container` styled `theme[:header]`
   (`{backgroundColor:"#0F172A", borderRadius:"round"}`) plus a separate `kind: text` title child —
   a container has no field of its own that renders visible text, see `layout.md`'s Container
-  elements section — and the wrapping `<GridContainer>`/`<LayoutElement>` XML fragment.
+  elements section — and the wrapping `<Container>`/`<Element>` XML fragment.
 - `section_card` wraps one `Composition.bands()` band (`{role:, ids:, r0:, r1:}`) in a
   `kind: container` styled `theme[:card]`
   (`{backgroundColor:"#FFFFFF", borderColor:"#E2E8F0", borderWidth:1, borderRadius:"round"}`),
@@ -603,9 +603,10 @@ output rather than hand-writing the container + child XML per dashboard:
   `Composition.band` would use unwrapped.
 - Both container `style` shapes use the field name **`borderRadius`** (`square|round|pill`) —
   never the guessed `cornerRadius`, which is silently dropped on readback (the *container-style*
-  row of the GO/NO-GO surface map above). And **never combine `padding` with `borderColor`/`borderWidth`**
-  on the same container — POST 400s ("padding is 'none' but border fields... require default
-  padding"); omit `padding` (its default) whenever a border is set.
+  row of the GO/NO-GO surface map above). Container `style.padding` accepts
+  only `none` or omission; values such as `small` are rejected. Also never
+  combine `padding: none` with `borderColor`/`borderWidth` on the same
+  container—border fields require default (omitted) padding.
 
 ### `gradient_header(id:, title:, subtitle:, gradient:, motif:, motif_side:, logo_url:, page_cols: 24)` — sleek header via a data-URI SVG
 
@@ -671,7 +672,7 @@ value legible on **any** gradient, bright or dark — not just a dark one — wh
 the brand gradient still reads through in the lower half (never fully blacked
 out). It never mutates `kpi_element` or `kpi_card.rb` — it returns
 `{ element:, child_layout:, patch: }`: the container element to add, the inner
-`<LayoutElement>` fragment positioning the KPI inside it, and a `patch` Hash
+`<Element>` fragment positioning the KPI inside it, and a `patch` Hash
 the caller merges onto their own copy of the KPI's `value`/`name`/`style` objects:
 
 ```yaml

@@ -2,8 +2,7 @@
 
 Buttons wire a user click to one or more **effects** — insert rows into an
 input table, reset a control, set a control's value, or open/close a modal.
-They live in `elements[]` like any other element, not nested inside another
-element.
+They live in flat `document.elements[]`; layout places them.
 
 ## Button shape
 
@@ -90,27 +89,32 @@ one-click shortcut into a known filter state.
 
 ## Overlays: `open-overlay` / `close-overlay` (modal **and** drawer)
 
-A workbook page can be marked `type: modal` **or `type: drawer`** — a page that
-renders as an overlay rather than a navigable tab. `drawer` slides in from the
-edge; `modal` centers. Both are targeted by the same `open-overlay` effect and
-the same `overlayId` field, so everything below applies to either. A button's
-effect opens/closes it:
+Modal and drawer metadata lives in `document.overlays`, not
+`document.pages`. Drawer overlays slide from an edge and modals center. Their
+content elements remain in flat `document.elements` and layout assigns them.
+Both use the same effects:
 
 ```yaml
-pages:
-  - id: pg
-    name: Main
-    elements: [ ... , btn-open ]
-  - id: modal-detail
-    type: modal
-    name: Detail
-    elements: [ ... ]
+document:
+  elements:
+    - { id: btn-open, kind: button, text: Open detail }
+    - { id: modal-body, kind: text, body: Detail }
+  pages:
+    - id: pg
+      name: Main
+  overlays:
+    - id: modal-detail
+      type: modal
+      name: Detail
+      modal:
+        width: medium
+        header: { title: Detail }
 ```
 
 ```yaml
 # on the trigger button (lives on the main page)
 effect: open-overlay
-overlayId: modal-detail    # the modal PAGE's `id`, not an element id
+overlayId: modal-detail    # overlay metadata id, not an element id
 
 # on a close button (typically inside the modal itself)
 effect: close-overlay
@@ -119,16 +123,11 @@ effect: close-overlay
 `open-overlay` requires `overlayId`; `close-overlay` takes no other fields (it
 closes whatever overlay is open).
 
-**Live-verified 2026-08-05** (superseding this section's earlier "not part of the
-live-render probe" caveat): a workbook carrying both a `type: modal` and a
-`type: drawer` page, each opened by its own button, passed `/verify`, created via
-`POST /v2/workbooks/spec`, and round-tripped through `GET .../spec` with both
-`type` values and both `open-overlay` effects intact. Per the OpenAPI, `overlayId`
-"must reference a modal or drawer page" — pointing it at an ordinary `type: page`
-is not a valid overlay target.
+Per the OpenAPI, `overlayId` must reference an entry in `document.overlays`;
+pointing it at an ordinary page or element is invalid.
 
-> **Layout gotcha for overlay pages:** an overlay page needs its **own** `<Page>`
-> block in the workbook-level `layout` XML, same as a normal page. When you build
+> **Layout gotcha:** an overlay needs its own `<Page>`
+> block in `document.layout`, with the overlay id. When you build
 > the layout by string-appending, append the overlay `<Page>` *after* you finish
 > splicing elements into the main page — a naive `layout.replace("</Page>", …)`
 > with no count limit hits **every** `</Page>`, which surfaces as the confusing
@@ -322,8 +321,8 @@ listed cause **first** before assuming the element kind itself is unsupported.
 | `document.pages[0]: Invalid type: "page"` | An invalid entry in some element's `columns[]` — e.g. trying to author a row-action `kind: button` as an input-table column. The mismatch is reported against the **page** schema, not the offending column. | Check the `columns[]` you last touched, not the page `type`. Row-scoped action hosts aren't spec-authorable (see `delete-rows` / `current-row` above). |
 | `Duplicate layout element id '<id>'` | The layout **XML string**, not the elements — usually an unbounded `replace("</Page>", …)` that spliced the same element into every `<Page>`. | Bound the replacement (`count=1`) or append overlay pages after all element splicing. See the overlay layout gotcha above. |
 | `page-break 'X' must span exactly one grid row (got height N)` | A `page-break` given a multi-row `gridRow`. | Page breaks are fixed at height 1 — use a one-row span, e.g. `gridRow="24 / 25"`. |
-| `An error has occurred. Please try again later (incident-id=…)` from `/verify` **or** create | An **unrecognized tag in the layout XML** (e.g. `<RepeatedContainer>`, `<Container>`). Reads like a Sigma outage; it's your XML. | The only container tag is `<GridContainer>` (plus `<TabbedContainer>`/`<Tab>`). If a create suddenly 500s after a layout edit, revert the tag name first. |
-| `Dependency not found: '<x>/<col>'` (lowercased in the message) | A `{{[…]}}` reference whose **left-hand side** doesn't resolve — usually an element `id` used where the element **`name`** is required, or a wrong derived name. | Check the referenced element's `name`. For repeated containers the form is `[<source element name> repeated container/<Column name>]` — see `layout.md`. |
+| Layout fails after a tag edit | A noncanonical layout node such as `<RepeatedContainer>`, `<GridContainer>`, or `<LayoutElement>`. `<LayoutElement>` returns HTTP 400. | Emit `<Container>` for nested grids/repeaters and `<Element>` for leaves. `<TabbedContainer>`/`<Tab>` remain valid. |
+| `Dependency not found: '<x>/<col>'` (lowercased in the message) | A `{{[…]}}` reference whose **left-hand side** doesn't resolve—usually an element `id` used where the element **`name`** is required. A correct repeated-container virtual target is also affected by the current API regression. | Check the referenced element's `name`. For repeated containers the GET-readback form is `[<source element name> repeated container/<Column name>]`, but verify and POST reject that correct form as of 2026-08-08; keep it gated. See `layout.md`. |
 
 ## Cross-links
 

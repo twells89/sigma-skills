@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 # composition.rb — pure composition engine: arrange elements (by role) into a
-# polished layout XML fragment for a single <Page>. Sibling-<LayoutElement>
-# form (no GridContainer). Ruby 2.6+, stdlib only. Golden-tested output lives
+# polished layout XML fragment for a single <Page>. Sibling-<Element>
+# form (no Container). Ruby 2.6+, stdlib only. Golden-tested output lives
 # in scripts/lib/testdata/composition_*_golden.txt (see test_composition.rb).
 module Composition
   ROLES = %i[control kpi insight hero supporting table master detail header kpi2 trend pivot base].freeze
@@ -25,7 +25,7 @@ module Composition
   end
 
   def self.le(id, c0, c1, r0, r1)
-    "  <LayoutElement elementId=\"#{id}\" gridColumn=\"#{c0} / #{c1}\" gridRow=\"#{r0} / #{r1}\"/>"
+    "  <Element elementId=\"#{id}\" gridColumn=\"#{c0} / #{c1}\" gridRow=\"#{r0} / #{r1}\"/>"
   end
 
   def self.band(elements, r0, r1, page_cols)
@@ -139,11 +139,11 @@ module Composition
   # JSON element are LABELS ONLY (no children); the <Tab> children in the
   # layout map to tabs[] BY POSITION (1st <Tab> = 1st label).
   #
-  # GOTCHA (verified): inside a <Tab>, callers pass BARE <LayoutElement>
-  # children only -- a nested <GridContainer> inside a <Tab> scrambles tab
+  # GOTCHA (verified): inside a <Tab>, callers pass BARE <Element>
+  # children only -- a nested <Container> inside a <Tab> scrambles tab
   # render order. The <Tab> is itself a mini-grid (gridTemplateColumns /
   # gridTemplateRows), so elements position directly within it; no inner
-  # GridContainer is needed.
+  # Container is needed.
   def self.tabbed_container(id:, tabs:, grid_column:, grid_row:, tab_bar_alignment: 'start')
     raise ArgumentError, 'tabbed_container: id required' if id.to_s.empty?
     raise ArgumentError, 'tabbed_container: tabs required' if tabs.nil? || tabs.empty?
@@ -170,7 +170,7 @@ module Composition
 
   # indent: prepend one indent level (2 spaces, this file's per-level unit)
   # to every line of a multi-line XML fragment -- used to nest a tab's bare
-  # <LayoutElement> lines (already 2-space indented by le()) one level
+  # <Element> lines (already 2-space indented by le()) one level
   # deeper inside a <Tab> (-> 4 spaces total, matching the verified shape).
   def self.indent(text)
     text.to_s.split("\n").map { |line| "  #{line}" }.join("\n")

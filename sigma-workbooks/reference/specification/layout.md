@@ -1,53 +1,66 @@
 # Layout
 
-Recipe book for the top-level `layout` XML — when to write it, the two-tag grammar, and the silent-failure traps to watch for. **Default to writing explicit `layout` XML for multi-element workbooks.**
+Recipe book for `document.layout` XML. Layout is required by this skill whenever
+`document.elements` is non-empty because it is the sole source of truth for
+page, overlay, panel, container, repeated-container, and tab organization.
 
-> ⚠️ **`layout` is a sibling of `pages` — NOT a property nested under a page.** Its value is one XML string containing one `<Page id="…">` block per page (the `id` ties each block to a `pages[].id`). Putting `layout:` *inside* a `pages[]` entry is **silently ignored**: POST/PUT still returns `success: true`, but Sigma discards it and auto-arranges every page into a single stacked column. Verified 2026-06-16 — when correctly placed alongside `pages` it applies on both `POST` (create) and `PUT`; when nested under a page it's dropped on both. The failure is invisible until you render the page or GET the spec back: a readback that shows self-closing `<GridContainer .../>` tags with the children hoisted out as stacked siblings (and every element spanning `1 / 13`) means your authored layout was discarded. **Where `pages`/`layout` live has moved (2026-08-04 correction):** live create/verify now nests both inside a `document` wrapper (`document: {schemaVersion, kind, pages, layout}`), with only `name`/`folderId` staying outside it — not flat top-level siblings of `name`/`folderId` as this note previously said. See `reference/workflows/validate.md` §1 for the full story. See `schema.md` for the top-level object shape.
+> ⚠️ **`layout` is a sibling of `pages` — NOT a property nested under a page.** Its value is one XML string containing one `<Page id="…">` block per page (the `id` ties each block to a `pages[].id`). Putting `layout:` *inside* a `pages[]` entry is **silently ignored**: POST/PUT still returns `success: true`, but Sigma discards it and auto-arranges every page into a single stacked column. Verified 2026-06-16 — when correctly placed alongside `pages` it applies on both `POST` (create) and `PUT`; when nested under a page it's dropped on both. The failure is invisible until you render the page or GET the spec back: a readback that shows self-closing `<Container .../>` tags with the children hoisted out as stacked siblings (and every element spanning `1 / 13`) means your authored layout was discarded. **Where `pages`/`layout` live has moved (2026-08-04 correction):** live create/verify now nests both inside a `document` wrapper (`document: {schemaVersion, kind, pages, layout}`), with only `name`/`folderId` staying outside it — not flat top-level siblings of `name`/`folderId` as this note previously said. See `reference/workflows/validate.md` §1 for the full story. See `schema.md` for the top-level object shape.
 
-Container *elements* (the `kind: "container"` JSON placeholders that pair with `<GridContainer>` in this XML) are covered in **Container elements** below.
+Container *elements* (the `kind: "container"` JSON placeholders that pair with `<Container>` in this XML) are covered in **Container elements** below.
 
-## When to write layout vs. let Sigma auto-arrange
+## Layout policy
 
-Write explicit `layout` when **any** of these apply:
+Always write explicit layout for authored workbooks. In particular:
 
 - The page has **mixed element kinds** (charts + KPIs, controls + charts, text/image/divider polish). Auto-arrange treats them as a vertical stack and gives every element the same height — KPIs end up the size of charts, dividers get huge gutters around them.
 - The user asked for specific positioning ("logo on left, title on right", "KPIs across the top", side-by-side charts).
-- There's a `kind: "container"` element on the page. Containers without a matching `<GridContainer>` are functionally no-ops.
+- There's a `kind: "container"` element on the page. Containers without a matching `<Container>` are functionally no-ops.
 - The workbook has more than ~4 elements on a page. Auto-arrange becomes a long scroll.
 
-Auto-arrange (omit `layout`) is fine when:
-
-- The page has a single element.
-- The page is a uniform stack of tables — auto-arrange produces a reasonable list view.
-- The user explicitly says default layout is fine.
-
-If unsure, write the layout. Writing one is cheap (the patterns below are copy-paste); a visually broken dashboard is expensive.
+Although the OpenAPI marks the string optional, the current API rejects a flat
+element that has no placement. Do not rely on auto-arrange, and do not derive
+membership from the order of `document.elements`.
 
 ## Two-tag grammar
+
+Live GET specs and `/verify` use `<Element>` for leaves and `<Container>` for
+nested grids (confirmed 2026-08-08). Emit those exact names.
+`<LayoutElement>` is not a synonym on the wire—it causes HTTP 400.
+`<GridContainer>` is likewise a legacy captured-artifact alias, not authoring
+syntax. Local parsers may read those aliases only to migrate old snapshots.
 
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
 <Page type="grid" gridTemplateColumns="repeat(24, 1fr)" gridTemplateRows="auto" id="<pageId>">
-  <GridContainer elementId="<containerId>" type="grid" gridColumn="1 / 25" gridRow="1 / 4"
+  <Container elementId="<containerId>" type="grid" gridColumn="1 / 25" gridRow="1 / 4"
                  gridTemplateColumns="repeat(24, 1fr)" gridTemplateRows="auto">
-    <LayoutElement elementId="<childId>" gridColumn="1 / 13" gridRow="1 / 4"/>
-  </GridContainer>
-  <LayoutElement elementId="<elementId>" gridColumn="1 / 25" gridRow="4 / 16"/>
+    <Element elementId="<childId>" gridColumn="1 / 13" gridRow="1 / 4"/>
+  </Container>
+  <Element elementId="<elementId>" gridColumn="1 / 25" gridRow="4 / 16"/>
 </Page>
 ```
 
-Each `<Page id>` matches a `pages[].id`. Each `elementId` matches an element on that page. `gridColumn` / `gridRow` use standard CSS grid line syntax (`start / end`); the default grid is 24 columns wide. One `<Page>` block per workbook page.
+Each `<Page id>` matches a `document.pages[].id`, `document.overlays[].id`, or
+`document.panels[].id`. Each `elementId` matches a flat
+`document.elements[].id`; placing it beneath a block is what assigns it there.
+`gridColumn` / `gridRow` use CSS grid line syntax and pages use 24 columns.
 
-## `<GridContainer>` vs `<LayoutElement>`
+## `<Container>` vs `<Element>`
 
-- `<LayoutElement elementId="X" .../>` — **leaf**. Positions a single element; no children.
-- `<GridContainer elementId="X" ...>...</GridContainer>` — **container**. Wraps child `<LayoutElement>`s in its own inner grid.
+- `<Element elementId="X" .../>` — **leaf**. Positions a single element; no children.
+- `<Container elementId="X" ...>...</Container>` — **container**. Wraps child `<Element>`s in its own inner grid.
 
-Use `<GridContainer>` for any tag with nested children — a `<LayoutElement>` only renders as a leaf.
+Use `<Container>` for any tag with nested children — a `<Element>` only renders as a leaf.
 
 ## Container elements
 
-A `kind: "container"` element in `pages[].elements[]` is a grouping placeholder — a labeled section, a branded header strip, a KPI row treated as a unit. It renders **only** when a matching `<GridContainer elementId="…">` positions it; declared without one, it's a no-op. Containers carry optional `style` (background color, border, corner radius, padding), `backgroundImage`, and the child-spacing pair `elementGap` (`shown` / `hidden`) + `spacing` (`small` / `medium` / `large`) — pull the current shape from the spec rather than hardcoding it (the set of container/layout options is growing):
+A `kind: "container"` entry in `document.elements[]` is a grouping placeholder
+— a labeled section, branded background, or KPI row. It renders only through a
+matching `<Container>`. Containers expose `style` (background color, border,
+corner radius, padding), top-level `backgroundImage`, and child spacing:
+`elementGap` (`shown` / `hidden`) plus `spacing`
+(`small` / `medium` / `large`). Pull the current schema before using additional
+fields.
 
 ```bash
 jq --arg k container 'first(.. | objects | select((.allOf? and any(.allOf[]?; .properties?.kind?.enum==[$k])) or .properties?.kind?.enum==[$k]))' /tmp/sigma-api.json
@@ -60,11 +73,21 @@ jq --arg k container 'first(.. | objects | select((.allOf? and any(.allOf[]?; .p
 ```
 
 - **Element on a background image:** to place an element *on top of* a container's `backgroundImage`, make it a **child** of that container in the layout XML — the background spans the container and the child sits on top.
-- **When to skip:** with no shared background or logical grouping, position elements directly with `<LayoutElement>`. A container around a single element is usually overkill.
+- **Background shape:** container/chart backgrounds use their element schema's
+  top-level `backgroundImage: {url: ...}` shape, sibling to `style`. Page
+  backgrounds use `backgroundImage: {source: {kind: url, url: ...}, style: ...}`.
+- **Spacing:** `style.padding` accepts only `none` or omission on a container;
+  values such as `small` are rejected. Use `elementGap`/`spacing` for
+  child-to-child rhythm; do not fake spacing with empty text elements.
+- **When to skip:** with no shared background or logical grouping, position elements directly with `<Element>`. A container around a single element is usually overkill.
 
 ## `repeated-container` — cards that repeat once per source row
 
-A **repeated container** is a first-class element kind: one card (or list row) rendered once per row of a source, with child text/images bound to that row's values. It is **fully spec-authorable and round-trips** — live-verified 2026-08-05 by create → `GET .../spec` → PNG export (cards rendered one per row), and by reading back a UI-built one intact.
+A **repeated container** is a first-class element kind: one card (or list row)
+rendered once per row of a source. The element and its `<Container>` layout are
+spec-authorable; use an unbound/plain child when probing the rest of the
+contract. Dynamic row binding currently has the API regression documented
+below and must stay gated.
 
 ```yaml
 - id: rc
@@ -82,31 +105,49 @@ Required: `id`, `kind`, `source`. `source` takes the usual union — `table` (an
 
 ### Binding children to the row — the derived name
 
-The card's children are ordinary `text` / `image` elements declared in `pages[].elements[]` and placed **inside** the container in the layout XML. They reference the current row through a **derived** name:
+The card's children are ordinary `text` / `image` entries in
+`document.elements[]`, placed inside the container in layout. They reference the
+current row through a **derived** name:
 
 ```
 {{[<source element's `name`> repeated container/<Column name>]}}
 ```
 
-So a source element named `Star Events` yields `{{[Star Events repeated container/Repo Name]}}`. Columns are referenced by their `name`, not their `id`.
+So a source element named `Star Events` yields
+`{{[Star Events repeated container/Repo Name]}}`. Columns are referenced by
+their `name`, not their `id`.
 
-> **That reference target is deliberately not declared anywhere** — it's synthesized from the source element's name. Do **not** "validate" a spec by checking whether an element with that name exists in `pages[].elements[]`; the correct form can never satisfy that test, and treating it as a dangling reference is a false positive. If the name doesn't resolve, the fix is almost always the *source element's* `name`, not the binding.
+> **Known API regression (live 2026-08-08):** that exact, correctly derived
+> target is present in existing GET readbacks, proving it is a real
+> representation. However, both `/v2/workbooks/spec/verify` and
+> `POST /v2/workbooks/spec` currently reject a replay with
+> `Dependency not found: 'Star Events repeated container/Repo Name'`. Do not
+> mark bound repeated-container authoring green until both paths accept it.
+> `scripts/probe-release-contract.rb` keeps a plain child in its main
+> create/readback and runs this binding as a separate strict expected-regression
+> check.
 >
-> Corollary: `[rc/<column>]` (using the container's `id`) does **not** work — it fails with `Dependency not found: 'rc/<column>'`.
+> The virtual target is synthesized and therefore is not declared in
+> `document.elements[]`; local dangling-reference checks must not reject it.
+> Using the repeated-container element id, such as `[rc/<column>]`, is still
+> incorrect.
 
 ### Layout XML
 
-Use a plain `<GridContainer>`; there is **no** `<RepeatedContainer>` tag. Children go inside it as `<LayoutElement>`s:
+Use a plain `<Container>`; there is **no** `<RepeatedContainer>` tag. Children go inside it as `<Element>`s:
 
 ```xml
-<GridContainer elementId="rc" type="grid" gridColumn="1 / 24" gridRow="36 / 54"
+<Container elementId="rc" type="grid" gridColumn="1 / 24" gridRow="36 / 54"
                gridTemplateColumns="repeat(12, 1fr)" gridTemplateRows="auto">
-  <LayoutElement elementId="card-title" gridColumn="1 / 3"  gridRow="1 / 3"/>
-  <LayoutElement elementId="card-sub"   gridColumn="3 / 13" gridRow="1 / 3"/>
-</GridContainer>
+  <Element elementId="card-title" gridColumn="1 / 3"  gridRow="1 / 3"/>
+  <Element elementId="card-sub"   gridColumn="3 / 13" gridRow="1 / 3"/>
+</Container>
 ```
 
-- **An unknown tag is a server error, not a validation error.** `<RepeatedContainer>` or `<Container>` returns an opaque `An error has occurred. Please try again later (incident-id=…)` from both `/verify` and create — it reads like an outage, but it's your XML. Use `<GridContainer>`.
+- **Use `<Container>` for repeated containers too.** There is no
+  `<RepeatedContainer>` node. Legacy `<GridContainer>` / `<LayoutElement>`
+  aliases are read-only compatibility syntax; authored layout uses
+  `<Container>` / `<Element>`.
 - Sigma normalizes the card's inner grid to **12** columns (`gridTemplateColumns="repeat(12, 1fr)"`) and rewrites `type` to `"grid"` on readback, whatever you send.
 - `arrangement: grid` is the default and is **dropped** from the readback; `arrangement: list` persists. Don't read its absence as a lost field.
 
@@ -120,7 +161,7 @@ A `kind: "tabbed-container"` element packs several views into one region — swi
 
 **It IS spec-authorable** — verified working end-to-end via spec `POST`/`PUT`, not the UI-only construct a stale note elsewhere may claim.
 
-**JSON element** (`pages[].elements[]`) — `tabs[]` entries are **labels only**, no children:
+**JSON element** (`document.elements[]`) — `tabs[]` entries are labels only:
 
 ```yaml
 - id: tc
@@ -132,26 +173,27 @@ A `kind: "tabbed-container"` element packs several views into one region — swi
     alignment: start
 ```
 
-The actual content for each tab is ordinary elements declared elsewhere in `pages[].elements[]` — the layout XML below is what places them into a tab.
+The actual content for each tab is ordinary flat elements; layout places them.
 
 **Layout XML** — a `<TabbedContainer>` wraps one `<Tab>` per label. `<Tab>` children map to `tabs[]` **by position** (1st `<Tab>` = 1st label; `<Tab>` carries no `name` attribute):
 
 ```xml
 <TabbedContainer elementId="tc" type="tabbed-container" gridColumn="1 / 25" gridRow="7 / 60">
   <Tab gridTemplateColumns="repeat(24, 1fr)" gridTemplateRows="auto">
-    <LayoutElement elementId="overview-chart" gridColumn="1 / 25" gridRow="1 / 12"/>
+    <Element elementId="overview-chart" gridColumn="1 / 25" gridRow="1 / 12"/>
   </Tab>
   <Tab gridTemplateColumns="repeat(24, 1fr)" gridTemplateRows="auto">
-    <LayoutElement elementId="detail-table" gridColumn="1 / 25" gridRow="1 / 12"/>
+    <Element elementId="detail-table" gridColumn="1 / 25" gridRow="1 / 12"/>
   </Tab>
 </TabbedContainer>
 ```
 
-Two `<Tab>`s, two elements (`overview-chart`, `detail-table`) each declared once in `pages[].elements[]`; `<Tab>` order alone ties them to the "Overview" / "Detail" labels above.
+Two `<Tab>`s, two elements (`overview-chart`, `detail-table`) each declared once
+in `document.elements[]`; `<Tab>` order ties them to the labels above.
 
-- **Gotcha (verified):** inside a `<Tab>`, use **bare `<LayoutElement>` children only** — never nest a `<GridContainer>` inside a `<Tab>`. A `<Tab>` is already a mini-grid (its own `gridTemplateColumns` / `gridTemplateRows`), so elements position directly in it; a nested `<GridContainer>` scrambles tab render order.
+- **Gotcha (verified):** inside a `<Tab>`, use **bare `<Element>` children only** — never nest a `<Container>` inside a `<Tab>`. A `<Tab>` is already a mini-grid (its own `gridTemplateColumns` / `gridTemplateRows`), so elements position directly in it; a nested `<Container>` scrambles tab render order.
 - **When to use it:** several views that are alternates of each other (a summary + a detail table, one view per region/segment) rather than sequential reading — pack them into one region instead of a long scroll or extra pages.
-- **Building it:** hand-authoring the position-mapped `<Tab>` block is error-prone. Use `Composition.tabbed_container(id:, tabs:, grid_column:, grid_row:, tab_bar_alignment: 'start')` in `scripts/lib/composition.rb` — `tabs:` is `[{name:, inner:}]`, where `inner` is the tab's bare-`<LayoutElement>` XML (built with `Composition.band`/`Composition.le` or by hand). It returns `{element:, layout:}`, ready to splice into `pages[].elements[]` and the workbook-level `layout` string.
+- **Building it:** hand-authoring the position-mapped `<Tab>` block is error-prone. Use `Composition.tabbed_container(id:, tabs:, grid_column:, grid_row:, tab_bar_alignment: 'start')` in `scripts/lib/composition.rb` — `tabs:` is `[{name:, inner:}]`, where `inner` is the tab's bare-`<Element>` XML (built with `Composition.band`/`Composition.le` or by hand). It returns `{element:, layout:}`, ready to add to `document.elements[]` and `document.layout`.
 
 ## `gridTemplateRows`: always `"auto"`
 
@@ -164,26 +206,26 @@ Because row tracks collapse to `"auto"`, height comes from children, not from th
 **Side-by-side** — children share the container's row range, differ by `gridColumn`:
 
 ```xml
-<GridContainer elementId="kpi-row" type="grid"
+<Container elementId="kpi-row" type="grid"
                gridColumn="1 / 25" gridRow="1 / 4"
                gridTemplateColumns="repeat(24, 1fr)" gridTemplateRows="auto">
-  <LayoutElement elementId="kpi-1" gridColumn="1 / 9"  gridRow="1 / 4"/>
-  <LayoutElement elementId="kpi-2" gridColumn="9 / 17" gridRow="1 / 4"/>
-  <LayoutElement elementId="kpi-3" gridColumn="17 / 25" gridRow="1 / 4"/>
-</GridContainer>
+  <Element elementId="kpi-1" gridColumn="1 / 9"  gridRow="1 / 4"/>
+  <Element elementId="kpi-2" gridColumn="9 / 17" gridRow="1 / 4"/>
+  <Element elementId="kpi-3" gridColumn="17 / 25" gridRow="1 / 4"/>
+</Container>
 ```
 
 **Stacked rows** — children have disjoint `gridRow` spans within the container's row range:
 
 ```xml
-<GridContainer elementId="header-row" type="grid"
+<Container elementId="header-row" type="grid"
                gridColumn="1 / 25" gridRow="1 / 12"
                gridTemplateColumns="repeat(24, 1fr)" gridTemplateRows="auto">
-  <LayoutElement elementId="title"  gridColumn="1 / 25" gridRow="1 / 4"/>
-  <LayoutElement elementId="kpi-1"  gridColumn="1 / 9"  gridRow="4 / 12"/>
-  <LayoutElement elementId="kpi-2"  gridColumn="9 / 17" gridRow="4 / 12"/>
-  <LayoutElement elementId="kpi-3"  gridColumn="17 / 25" gridRow="4 / 12"/>
-</GridContainer>
+  <Element elementId="title"  gridColumn="1 / 25" gridRow="1 / 4"/>
+  <Element elementId="kpi-1"  gridColumn="1 / 9"  gridRow="4 / 12"/>
+  <Element elementId="kpi-2"  gridColumn="9 / 17" gridRow="4 / 12"/>
+  <Element elementId="kpi-3"  gridColumn="17 / 25" gridRow="4 / 12"/>
+</Container>
 ```
 
 Use stacked rows when you want a section header above a row of charts inside the same container, instead of moving those elements out to the page level.
@@ -199,28 +241,51 @@ A table element's `gridRow` span controls how many data rows are visible before 
 
 Heights are relative grid units (tracks are `auto`), so these are rules of thumb, not pixels — but the asymmetry holds: **tables are the element most often made too short.** If you're unsure, render the page (PNG export) and count visible rows.
 
-## Page-level fields: `visibility` and `backgroundImage`
+## Page backgrounds and width
 
-Besides `id`, `name`, and `elements` — and the workbook-top-level `layout` XML whose `<Page id>` block references this page's elements (see the top of this doc; `layout` is NOT a page field) — a page supports two optional fields:
+Pages contain metadata only. In addition to `id`, `name`, `type`, and
+`visibility`, the live schema exposes `pageWidth`, `backgroundColor`, and
+`backgroundImage`:
 
 - **`visibility`** — set to `hidden` to hide the page from end users. Omit for a visible page.
-- **`backgroundImage`** — a page-wide background image, same shape as a container's `backgroundImage`: a required `url` plus an optional `style` block (`fit`, `horizontalAlign`, `verticalAlign`, `tiling`). `url` supports `{{formula}}` references.
+- **`backgroundImage`** — page images wrap the source as
+  `{source: {kind: url, url}, style: {...}}`; this differs from the current
+  container/chart `{url: ...}` shape.
 
 ```yaml
-pages:
-  - id: overview
-    name: Overview
-    visibility: hidden
-    backgroundImage:
-      url: https://cdn.example.com/bg.jpg
-      style:
-        fit: cover
-        tiling: none
-    elements: [ ... ]
+document:
+  pages:
+    - id: overview
+      name: Overview
+      visibility: hidden
+      backgroundColor: "#F8FAFC"
+      backgroundImage:
+        source:
+          kind: url
+          url: https://cdn.example.com/bg.jpg
+        style:
+          fit: cover
+          tiling: none
 ```
 
 ## Layout `elementId` references
 
-Each layout `elementId` must match an element `id` on that page exactly (case-sensitive). IDs are preserved verbatim on create, so the IDs in your saved spec stay valid for follow-up `PUT`s.
+Each layout `elementId` must match a flat `document.elements[].id` exactly.
+An element is assigned to a page/container solely by where that reference
+appears. Unplaced elements and references to undeclared IDs are validation
+errors.
+
+## Panels, headers, sidebars, and navigation
+
+`document.panels` stores panel metadata; panel content is placed by a
+`<Page id="<panel-id>">` layout block just like overlay content. Preserve panel
+metadata from readback and consult the live `panels` schema for the current
+header/sidebar variants.
+
+Workbook chrome is configured separately under `document.settings.navigation`.
+It controls built-in page headers, page tabs, and sidebar navigation; the
+`kind: navigation` canvas element is an independent in-layout menu. Use
+settings navigation for workbook-wide chrome and a navigation element when the
+menu must occupy a grid region or provide curated destinations.
 
 To study real grid-container idioms, fetch an existing multi-page workbook's spec (`GET /v2/workbooks/{id}/spec`, see SKILL.md Steps 1–2). The OpenAPI doesn't model the `layout` XML string, so a live spec is the way to see production layout.
