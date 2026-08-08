@@ -4,7 +4,7 @@ A single-file, vanilla-JS Sigma custom plugin (`@sigmacomputing/plugin`) that
 renders a radial (semicircle) gauge — a value swept against a target, colored
 red/amber/green (RAG) by how close it is. It exists to recreate source vizzes
 (a QuickSight/Power BI-style gauge, a "% to target" indicator, …) for which
-Sigma has no native chart kind, as part of WS2's `recreate-as-plugin`
+Sigma has no native chart kind, as part of this skill's `recreate-as-plugin`
 disposition.
 
 Clean-room, generic data only — the file has no customer names or data. When
@@ -14,7 +14,7 @@ previews standalone.
 
 ## Editor-panel bindings
 
-This is the contract other WS2 machinery (`shared/lib/plugin_embed`, the
+This is the contract other skill machinery (`shared/lib/plugin_embed`, the
 gap-scan/emitter) binds to — **do not rename these fields**:
 
 | name     | type                          | meaning                              |
