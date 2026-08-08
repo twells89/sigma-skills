@@ -138,10 +138,10 @@ LAYOUT_ISSUES=$(printf '%s' "$SPEC_JSON" | jq -r '
   ([($d.pages // [])[], ($d.overlays // [])[], ($d.panels // [])[]] |
     map(.id) | map(select(. != null)) | unique) as $declared_regions |
   ([($d.layout // "") | scan("<Page[^>]*\\bid=\"([^\"]+)\"") | .[0]] | unique) as $placed_regions |
-  ($declared_all | group_by(.)[] | select(length > 1) | .[0]) as $duplicate_id |
-    "Duplicate document.elements id: \($duplicate_id)",
-  ($placed_all | group_by(.)[] | select(length > 1) | .[0]) as $duplicate_placement |
-    "Element is placed more than once in document.layout: \($duplicate_placement)",
+  ($declared_all | group_by(.)[] | select(length > 1) | .[0] |
+    "Duplicate document.elements id: \(.)"),
+  ($placed_all | group_by(.)[] | select(length > 1) | .[0] |
+    "Element is placed more than once in document.layout: \(.)"),
   ($placed - $declared)[]? | "Layout references undeclared elementId: \(.)",
   ($declared - $placed)[]? | "Element is not placed in document.layout: \(.)",
   ($placed_regions - $declared_regions)[]? | "Layout references undeclared page/overlay/panel id: \(.)",

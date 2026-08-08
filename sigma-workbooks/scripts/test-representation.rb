@@ -109,10 +109,12 @@ Dir.mktmpdir('wb-rep-roundtrip') do |tmp|
   invalid_path = File.join(tmp, 'invalid.yaml')
   File.write(invalid_path, YAML.dump(invalid))
   invalid_out, invalid_status = Open3.capture2e('bash', VALIDATOR, invalid_path)
+  invalid_ok = !invalid_status.success? &&
+               invalid_out.include?('forbidden nested elements') &&
+               invalid_out.include?('placed more than once')
+  warn invalid_out unless invalid_ok
   check(failures, 'validator rejects nested elements and duplicate placement') do
-    !invalid_status.success? &&
-      invalid_out.include?('forbidden nested elements') &&
-      invalid_out.include?('placed more than once')
+    invalid_ok
   end
 end
 
