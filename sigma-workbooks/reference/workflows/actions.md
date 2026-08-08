@@ -30,7 +30,41 @@ actions:
 | `actions` | yes | Array; each entry is `{ id, trigger, effects: [...] }`. `trigger: on-click` is the verified case (the OpenAPI also lists `on-select`/`on-primary-cta-click`/`on-secondary-cta-click`/`on-close` for other element/modal contexts — not exercised here). |
 
 A button typically carries one `actions[]` entry with one or more `effects[]` —
-effects in the same action run together off the same click.
+effects in the same action run together off the same click. On the wire, actions
+are stored at the workbook level but read and written **projected onto their
+host element**, so you author them inline on the element as shown. Every
+sequence entry requires a stable `id` — unique across the workbook's actions,
+preserved verbatim across read and write.
+
+### Hosts and their triggers
+
+Which trigger a host accepts, confirmed 2026-08-08 against the live OpenAPI
+(`CommonElement` variants — grep each element kind for an `actions` property):
+
+| Host | Trigger |
+|---|---|
+| `button` element | `on-click` |
+| `image` element | `on-click` |
+| `table`, `pivot-table`, `kpi-chart`, and every chart/map kind **except `waterfall-chart`** | `on-select` |
+| Modal/drawer overlay (`document.overlays`) | `on-primary-cta-click`, `on-secondary-cta-click`, `on-close` |
+
+> **`waterfall-chart` has no `actions` property in the current OpenAPI** — every
+> other chart and map kind (bar/line/area/scatter/combo/pie/donut charts, point/
+> region/geography maps) does. Don't assume "every chart" is uniform; verify a
+> specific chart kind before building a waterfall drill-down.
+
+Enumerate the live trigger and effect sets yourself rather than trusting any
+static list (including this one) to stay current:
+
+```bash
+# all effect kinds currently modeled:
+jq -c '[.. | objects | select(.properties?.effect?.enum?) | .properties.effect.enum[0]] | unique' /tmp/sigma-api.json
+# element kinds that carry an `actions` array (i.e. can host actions at all) —
+# `kind` and `actions` sit in separate `allOf` segments of the same schema
+# object, so match on a sibling segment rather than the same `properties` dict:
+jq -c '[.. | objects | select(.allOf?) | select(any(.allOf[]?; .properties?.actions?)) |
+  (.allOf[] | select(.properties?.kind?.enum?) | .properties.kind.enum[0])] | unique' /tmp/sigma-api.json
+```
 
 ## Verified effects
 
@@ -49,7 +83,9 @@ values:
   an-tag:  { type: constant, value: { type: text, value: "manual" } }
 ```
 
-`values` is a map of the input table's **own column ids** to a value descriptor:
+`values` is a map of the input table's **own column ids** to a value descriptor
+— see *value sources* below for the two shapes exercised here (`control`,
+`constant`) and the rest of the tagged union the OpenAPI models:
 - `{ type: control, control: <controlId> }` — the current value of a control.
 - `{ type: constant, value: { type: text, value: <literal> } }` — a hard-coded
   literal.
@@ -66,14 +102,18 @@ scope: { type: page, page: pg }
 usePublishedValue: true
 ```
 
-The OpenAPI's `scope` discriminator actually has **three** shapes —
-`{ type: control, control: <controlId> }` (clear one control), `{ type:
-container, container: <containerElementId> }` (clear every control in a
-container), and `{ type: page, page: <pageId> }` (clear every control on a
-page). **Only `page` scope is live-verified here** — an element/container-scoped
-`clear-control` masked-failed the button in live testing (the button silently
-didn't work; no clear error pointed at the cause). Until `control`/`container`
-scope is independently re-verified, build resets around `page` scope only.
+The OpenAPI's `scope` discriminator actually has **four** shapes (re-verified
+2026-08-08 against the live codec — an earlier pass here undercounted this at
+three) — `{ type: control, control: <controlId> }` (clear one control), `{
+type: container, container: <containerElementId> }` (clear every control in a
+container), `{ type: page, page: <pageId> }` (clear every control on a page,
+or the current page when `page` is omitted), and `{ type: workbook }` (clear
+every control in the whole workbook). **Only `page` scope is live-verified
+here** — an element/container-scoped `clear-control` masked-failed the button
+in live testing (the button silently didn't work; no clear error pointed at
+the cause), and `workbook` scope hasn't been exercised live at all. Until
+`control`/`container`/`workbook` scope is independently re-verified, build
+resets around `page` scope only.
 
 ### `set-control-value` — set a control programmatically
 
@@ -225,8 +265,15 @@ table: itbl
 whichRows: { type: formula, formula: '[note] = "x"' }
 ```
 
-`whichRows` has three variants — `{type: formula, formula}`,
-`{type: single-row, primaryKeys}`, and `{type: current-row}`.
+`whichRows` has **four** variants (re-verified 2026-08-08 against the live
+codec — an earlier pass here missed the fourth) — `{type: formula, formula}`,
+`{type: single-row, primaryKeys}`, `{type: current-row}`, and `{type:
+column-match, column, condition, value?}`: a column where-clause, e.g. `{
+type: column-match, column: status, condition: "=", value: {...} }`.
+`condition` is one of `IsNull` / `IsNotNull` (no `value`), `=` / `!=` / `>` /
+`>=` / `<` / `<=` / `Contains` / `NotContains` / `StartsWith` / `EndsWith`
+(`value` required), or `Between` / `NotBetween` (`low`/`high` required instead
+of `value`).
 
 > **`current-row` is not reachable from a page-level button.** It rejects with
 > `current-row selector requires the action host to be within the target input
@@ -254,6 +301,50 @@ resolved against *this* workbook — the spec-authorable way to deep-link into
 another workbook already filtered. `documentType` is required and picks the
 runtime route, so a `report` opened as `workbook` (or vice versa) is a real bug,
 not a cosmetic mismatch.
+
+## `value` sources — the full tagged union (`set-control-value`, `insert-rows`/`update-rows`)
+
+`insert-rows`/`update-rows`'s `values` map and `set-control-value`'s `value`
+share one tagged union. Confirmed 2026-08-08 against the live OpenAPI, the
+top-level `type` is one of **seven**: `constant`, `control`, `formula`,
+`column`, `column-range`, `formula-range`, `agent-input`. This repo has only
+exercised `control` and `constant` live (above) — the other five are
+spec-documented but not independently verified here:
+
+- `{ type: control, control: <controlId> }` — a control's current value.
+- `{ type: constant, value: {...} }` — a hard-coded literal. **`value` here is
+  itself tagged**, not a bare scalar: `{ type: text | number | boolean | date,
+  value: <literal-or-null> }`, or a list variant (`text-list` / `number-list` /
+  `date-list` / `boolean-list`), or a range variant (`number-range` /
+  `date-range` — there is no `boolean-range` or `text-range`).
+- `{ type: formula, formula: <string> }` — a formula string, evaluated live.
+- `{ type: column, ... }` / `{ type: column-range, ... }` — a column value from
+  the current context. Only valid inside an `on-select` action (see *Selection
+  scope* below).
+- `{ type: formula-range, ... }` — a formula-derived range.
+- `{ type: agent-input, inputName }` — reserved for an agent tool's `steps[]`
+  (see `reference/specification/agents.md`); on a regular button or modal
+  action this is rejected.
+
+## Selection scope (`on-select` only)
+
+An `on-select` action (any table/pivot/chart/map host, per *Hosts and their
+triggers* above) can reference the row or mark the user selected: a `column` /
+`column-range` value source, or a `[Selection/<Column>]` formula reference
+inside a value or a URL.
+
+```yaml
+- id: drill-region
+  trigger: on-select
+  effects:
+    - effect: set-control-value
+      control: region
+      value: { type: formula, formula: "[Selection/Region]" }
+```
+
+`[Selection/…]` binds **only** inside an `on-select` action — elsewhere (e.g.
+an `open-url` on a button's `on-click`) it stays unbound rather than erroring,
+so a stray reference silently resolves to nothing instead of failing loudly.
 
 ## The append-only-log pattern
 
