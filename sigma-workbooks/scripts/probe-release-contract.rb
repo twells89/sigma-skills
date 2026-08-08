@@ -107,7 +107,7 @@ def elements
       'columns' => [
         {
           'id' => 'raw-sales-amount', 'name' => 'Sales Amount',
-          'formula' => '[SALES_AMOUNT]'
+          'formula' => '[F_POINT_OF_SALE/SALES_AMOUNT]'
         }
       ]
     },

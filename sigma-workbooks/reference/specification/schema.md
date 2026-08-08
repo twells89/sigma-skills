@@ -1,16 +1,12 @@
 # Workbook Spec — Top-Level Schema
 
-Recipe + reference for the overall shape of the top-level workbook spec object and the `pages` array skeleton. The full schema lives in the OpenAPI:
+The live compiled OpenAPI is authoritative:
 
 ```bash
-jq '.paths."/v2/workbooks/spec".post.requestBody.content."application/json".schema' /tmp/sigma-api.json
+jq '.components.schemas.CreateWorkbookSpec' /tmp/sigma-api.json
 ```
 
-This file covers what the OpenAPI alone won't tell you: which fields are response-only (ignored on write), the page and ID rules, and a minimal working example. See the per-element and per-source reference files for the pieces that go inside `pages[].elements[]`.
-
-## Top-Level Object
-
-The object passed to `POST /v2/workbooks/spec`. **Everything except `name` / `folderId` / `description` lives inside a `document` wrapper:**
+## Canonical wrapped shape
 
 ```yaml
 name: My Workbook
@@ -18,140 +14,178 @@ folderId: <folder-uuid>
 description: Optional description
 document:
   schemaVersion: 1
-  kind: workbook          # informational; ignored on write
-  pages: [...]
-  layout: |
-    <?xml ...?>...
-  agents: [...]           # optional — see agents.md
-  settings:               # optional — theme + navigation
+  kind: workbook
+  elements: [...]  # required flat array
+  pages: [...]     # required metadata only
+  overlays: [...]  # optional modal/drawer metadata
+  panels: [...]    # optional workbook panel metadata
+  layout: |        # required by this skill whenever elements is non-empty
+    <?xml version="1.0" encoding="utf-8"?>
+    ...
+  settings:
     theme: { ... }
     navigation: { ... }
+  agents: [...]
 ```
 
-**Required (outer):** `name`, `folderId`, `document`.
-**Optional (outer):** `description`.
-**Inside `document`:** `schemaVersion` and `pages` are required; `kind`, `layout`, `agents`, `settings` optional.
+POST requires outer `name`, `folderId`, and `document`. The live document
+schema requires `schemaVersion`, `kind`, `elements`, and `pages`. PUT accepts
+exactly `{document: {...}}`; never send `name`, `folderId`, or response metadata
+beside it.
 
-> **The wrapper is now documented in the OpenAPI** (confirmed 2026-08-05 against `assets.sigmacomputing.com/openapi/public-rest-api/…`). Older notes in this repo — and the stale Fern docs asset — described a flat `{name, folderId, schemaVersion, pages, layout}` body and treated the wrapper as an undocumented live-API divergence. That gap is closed: spec and live behavior agree, and the wrapped form is canonical. `PUT /v2/workbooks/{id}/spec` sends just `{document: {...}}`.
+> Elements are not nested in pages, overlays, or panels. `document.elements` is
+> the single literal element array. Placement in `document.layout` is the source
+> of truth for page, overlay, panel, container, repeated-container, and tab
+> membership. The API rejects `pages[].elements` and rejects an unplaced element.
 
-> **`themeName` / `themeOverrides` moved.** They are no longer `document`-level keys; theming now lives under `document.settings.theme` ("a built-in or org theme by name, plus per-field overrides"), alongside `document.settings.navigation` (page headers, sidebars, tabs). See `styling.md`.
+### Settings
 
-Use the `schemaVersion` returned by `GET /v2/workbooks/<reference-workbook-id>/spec` in Step 2 of the workflow — don't hardcode it. The server will reject a spec whose `schemaVersion` doesn't match what the API expects.
+`document.settings.theme` replaces the removed `themeName` /
+`themeOverrides` pair:
 
-## Response-Only Fields
+```yaml
+settings:
+  theme:
+    name: Dark
+    overrides:
+      categoricalScheme: ["#2563EB", "#F97316", "#10B981"]
+  navigation:
+    position: side
+    pageHeader:
+      visibility: shown
+```
 
-`GET /v2/workbooks/<id>/spec` also returns these server-managed fields. They're **ignored** on write (POST/PUT), so you don't have to strip them before re-submitting a GET response — though it's cleaner to:
-
-- `workbookId`
-- `url`
-- `documentVersion`
-- `latestDocumentVersion`
-- `ownerId`
-- `createdBy`
-- `updatedBy`
-- `createdAt`
-- `updatedAt`
+Theme and navigation sub-fields evolve; inspect `CreateWorkbookSpec` before
+using an unfamiliar option. See `styling.md` for the richer theme recipes and
+`layout.md` for navigation/header/sidebar guidance.
 
 ## Pages
 
-`pages` is the core of the spec. Each page:
+Pages are metadata only:
 
 ```yaml
-id: page-1
-name: Overview
-elements: [...]
-visibility: shown   # optional: "shown" (default) | "hidden"
+- id: overview
+  name: Overview
+  type: page              # optional; defaults to page
+  visibility: hidden      # optional, or the allowlist object below
+  pageWidth: full
+  backgroundColor: "#F8FAFC"
+  backgroundImage:
+    source:
+      kind: url
+      url: https://cdn.example.com/background.png
+    style:
+      fit: cover
+      horizontalAlign: center
+      verticalAlign: center
+      tiling: none
 ```
 
-The `elements` array holds table elements, charts, KPIs, controls, and containers. See the per-element reference files.
+The live page schema exposes `id`, `name`, `type`, `visibility`, `pageWidth`,
+`backgroundColor`, and `backgroundImage`; it does not expose `elements`.
+`backgroundImage.source` is either `{kind: url, url}` or an uploaded-image
+reference from a readback. Container and chart background images retain their
+own element-specific `{url: ...}` shape; do not transpose the page wrapper onto
+those element kinds.
 
-`visibility: hidden` keeps the page in the workbook (so other elements can `source` from its tables via `elementId`) but excludes it from the viewer. See `reference/workflows/composition.md` for when to reach for this.
-
-### Page `type` — `page`, `modal`, or `drawer`
-
-A page's optional `type` decides whether it's a navigable tab or an overlay. There are **three** variants, and they take different fields:
-
-| `type` | Renders as | Extra fields |
-|---|---|---|
-| `page` (default) | A normal navigable page/tab | `visibility` |
-| `modal` | A centered overlay | `modal`, `actions` |
-| `drawer` | An overlay sliding in from a page edge | `drawer`, `actions` |
-
-Only `type: page` accepts `visibility`; only the two overlay types accept `actions`. Both overlays are opened by the **same** `open-overlay` effect via `overlayId` pointing at the overlay **page's** `id` — see `reference/workflows/actions.md` → *Overlays*. **`drawer` is live-verified 2026-08-05** (create + readback round-trip, `type` intact).
-
-The overlay config objects differ:
+Restricted visibility:
 
 ```yaml
-# type: modal
-modal:
-  width: medium        # x-small | small | medium | large | x-large
-  header: { ... }
-  footer: { ... }
-
-# type: drawer  — no footer; adds edge + shadow
-drawer:
-  width: medium        # x-small | small | medium | large | x-large
-  position: end        # start | end  (which edge it slides from)
-  showShadow: shown    # shown | hidden
-  header: { ... }
+visibility:
+  kind: specific-users-and-teams
+  assignments:
+    users: [<user-id>]
+    teams: [<team-id>]
 ```
 
-Page-level `actions[]` entries are `{ id, trigger, effects, name?, state? }` where `trigger` ∈ `on-click`, `on-select`, `on-primary-cta-click`, `on-secondary-cta-click`, `on-close` and `state` ∈ `enabled`, `disabled`. The CTA triggers are what wire an overlay's header/footer buttons; `on-close` fires when the overlay dismisses. (Enums read from the OpenAPI; of these only the overlay round-trip itself is live-verified — the individual CTA triggers aren't yet.)
+## Overlays
 
-Overlay pages still need their own `<Page>` block in the top-level `layout` XML — see the layout gotcha in `actions.md`.
+Modal and drawer definitions live in `document.overlays`, not in `pages`.
+Their content still lives in flat `document.elements`; a layout `<Page>` block
+whose `id` equals the overlay id assigns content to it.
 
-## ID Rules
+```yaml
+overlays:
+  - id: detail-modal
+    type: modal
+    name: Detail
+    modal:
+      width: medium
+      header: { title: Details }
+      footer: { primaryCta: { text: Done } }
+  - id: filter-drawer
+    type: drawer
+    name: Filters
+    drawer:
+      width: medium
+      position: end
+      showShadow: shown
+      header: { title: Filters }
+```
 
-- Element IDs and column IDs must be unique within their scope.
-- Use descriptive kebab-case or short random-looking IDs — both are fine. IDs are internal identifiers, not displayed to users.
-- IDs you submit are **preserved verbatim** on `POST` — pages, elements, and columns keep the `id` values you sent, and layout `elementId` references stay valid. You can edit your saved spec and `PUT` it back directly. Layout `elementId` references must match an element `id` on that page exactly (case-sensitive).
+Overlay actions and open/close effects are in `reference/workflows/actions.md`.
 
-## Minimal Working Example
+## Panels
 
-The smallest spec that creates a workable workbook:
+`document.panels` is the metadata collection for workbook panels such as
+header/sidebar surfaces. Panel content is also selected by layout placement,
+not a nested element list. Panel variants have different configuration fields;
+read the live `panels` property before authoring one and preserve unknown panel
+metadata on round trip.
+
+## Response-only fields
+
+GET can return these outer server-managed fields:
+
+- `workbookId`, `url`
+- `documentVersion`, `latestDocumentVersion`
+- `ownerId`, `createdBy`, `updatedBy`, `createdAt`, `updatedAt`
+
+They are not part of a PUT body.
+
+## ID and layout rules
+
+- Page, overlay, panel, element, action, and column IDs must be unique in their
+  documented scopes.
+- IDs submitted on POST are preserved.
+- Every layout `elementId` must match a flat `document.elements[].id`.
+- Every element must be placed exactly where intended in layout. Do not infer
+  ownership from array adjacency.
+
+## Minimal working example
 
 ```yaml
 name: Sales Dashboard
 folderId: <folder-uuid>
-schemaVersion: 1
-pages:
-  - id: page-1
-    name: Overview
-    elements:
-      - id: sales-table
-        kind: table
-        name: Sales Data
-        source:
-          kind: warehouse-table
-          connectionId: <conn-uuid>
-          path: [SALES_DB, PUBLIC, ORDERS]
-        columns:
-          - id: col-order-id
-            name: Order ID
-            formula: "[ORDERS/order_id]"
-          - id: col-amount
-            name: Amount
-            formula: "[ORDERS/amount]"
-          - id: col-revenue
-            name: Revenue
-            formula: "[ORDERS/revenue]"
-          - id: col-cost
-            name: Cost
-            formula: "[ORDERS/cost]"
-          - id: col-date
-            name: Date
-            formula: "[ORDERS/order_date]"
-          - id: col-total
-            name: Total Amount
-            formula: Sum([Amount])
-          - id: col-profit
-            name: Profit
-            formula: "[Revenue] - [Cost]"
+document:
+  schemaVersion: 1
+  kind: workbook
+  elements:
+    - id: sales-table
+      kind: table
+      name: Sales Data
+      source:
+        kind: warehouse-table
+        connectionId: <connection-uuid>
+        path: [SALES_DB, PUBLIC, ORDERS]
+      columns:
+        - id: col-order-id
+          name: Order ID
+          formula: "[ORDERS/ORDER_ID]"
+        - id: col-amount
+          name: Amount
+          formula: "[ORDERS/AMOUNT]"
+  pages:
+    - id: overview
+      name: Overview
+  layout: |
+    <?xml version="1.0" encoding="utf-8"?>
+    <Page type="grid" gridTemplateColumns="repeat(24, 1fr)" gridTemplateRows="auto" id="overview">
+      <LayoutElement elementId="sales-table" gridColumn="1 / 25" gridRow="1 / 20"/>
+    </Page>
 ```
 
-Note how:
-- `[ORDERS/order_id]` references a warehouse column (table prefix required).
-- `Sum([Amount])` references the "Amount" column defined in the same element (no prefix).
-- `[Revenue] - [Cost]` references two other columns in the same element by their `name` field.
-
-For a realistic multi-page, multi-element spec, fetch an existing workbook's spec (`GET /v2/workbooks/{id}/spec`, see SKILL.md Steps 1–2) — a live spec is current and reflects real usage. For how much to build for a given request, see `reference/workflows/composition.md`.
+Raw warehouse names are accepted in warehouse-table formulas and canonicalized
+by Sigma on POST. Always GET the saved spec and use the canonical readback for
+later edits; Custom SQL aliases and join keys follow special rules documented
+in `formulas.md` and `sources.md`.

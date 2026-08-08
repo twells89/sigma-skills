@@ -2,7 +2,8 @@
 
 Recipe book for the control element family and the patterns that wire them up. The OpenAPI is the source of truth for every field; this file adds the wiring patterns it doesn't teach.
 
-Controls are interactive filter elements — lists, date pickers, text inputs, sliders, etc. They live in the page's `elements` array alongside tables and charts, **not** nested inside them. The wiring (which column a control filters, which downstream elements respond) is the part the OpenAPI doesn't teach — that's what this file is for.
+Controls are flat `document.elements[]` entries alongside tables and charts.
+Layout assigns them to pages or containers.
 
 **Every `controlType` wires up the same way** (`controlId` + `filters`, below); they differ only in the widget and its (flat top-level) value fields. So treat the per-type sections below as illustrations of the *wiring*, **not a catalog of what's supported** — a `controlType` you don't see here works the same way. The set also grows over time, so get the current list from the spec rather than hardcoding it:
 
@@ -304,6 +305,42 @@ filters:
 
 `top-n` is a dedicated control type for "show the top N" interactions. Wire it like any other control via `filters`; the cap is a flat top-level field.
 
+## Drill
+
+`controlType: drill` coordinates a drill path across one or more
+visualizations. In addition to the standard `id` / `controlId`, the live schema
+provides:
+
+- `source`: `{kind: source, source, columnId, displayColumnId?}` — value source
+  and anchor column;
+- `categories`: ordered `{columnId}` entries from outer to inner drill level;
+- `targets`: each `{source: {kind: table, elementId}, columnIds: [...]}` maps
+  the categories to a target visualization;
+- `value`: selected category column id or `null`.
+
+```yaml
+kind: control
+id: geography-drill
+controlId: GeographyDrill
+controlType: drill
+source:
+  kind: source
+  source: { kind: table, elementId: sales-table }
+  columnId: col-region
+categories:
+  - { columnId: col-region }
+  - { columnId: col-state }
+  - { columnId: col-city }
+targets:
+  - source: { kind: table, elementId: sales-chart }
+    columnIds: [chart-region, chart-state, chart-city]
+value: col-region
+```
+
+The order of `targets[].columnIds` must align with `categories`; use `null` for
+an intentionally unmapped level. Read back and exercise the drill because
+shape validation cannot prove that each target's semantic hierarchy matches.
+
 ## Synced
 
 A `synced` control is a **mirror** of another control already on the page (or workbook) — the same widget rendered again elsewhere without duplicating its wiring, e.g. repeating a filter at the top and bottom of a long page. It carries none of the usual fields — no `filters`, `source`, `name`, or value fields — just `kind`, `id`, `controlType`, and a repurposed `controlId`:
@@ -380,5 +417,3 @@ Multiple controls on the same target compose with **AND** — selecting region "
 They are not the same and both are required:
 - `id` is the element ID used internally and in `layout.md`.
 - `controlId` is a human-facing handle used when referring to this control's value from formulas or downstream logic. Pick it to be meaningful (e.g., `RegionFilter`, `DateRange`).
-</content>
-</invoke>

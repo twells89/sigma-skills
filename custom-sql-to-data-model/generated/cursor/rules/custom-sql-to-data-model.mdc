@@ -334,11 +334,11 @@ and update any child formulas that used the `Custom SQL` prefix to use the
 new name. Then the swap auto-rewrites cleanly.
 
 > **The workbook-spec body is wrapped, not flat (verified live 2026-08).**
-> `GET`/`POST`/`PUT` all nest `schemaVersion`/`pages`/`layout` under a
+> `GET`/`POST`/`PUT` all nest `schemaVersion`/`elements`/`pages`/`layout` under a
 > top-level `document` key; `name`/`folderId`/response-only fields stay
 > outside it, and `PUT` takes **only** `{document: {...}}` — see
 > `sigma-workbooks`'s `reference/specification/schema.md`. The snippet below
-> unwraps `spec['document']` before touching `pages`, and re-wraps just the
+> unwraps `spec['document']` before touching the flat `elements` array, and re-wraps just the
 > document for the PUT body.
 
 ```ruby
@@ -347,7 +347,7 @@ require 'tmpdir'
 WB = '<workbookId>'
 raw = `curl -s -H "Authorization: Bearer $SIGMA_API_TOKEN" -H "Accept: application/json" "$SIGMA_BASE_URL/v2/workbooks/#{WB}/spec"`
 spec = JSON.parse(raw)
-doc  = spec['document']   # schemaVersion/pages/layout live here, not on spec directly
+doc  = spec['document']   # schemaVersion/elements/pages/layout live here
 
 manifest = JSON.parse(File.read(File.join(Dir.tmpdir, 'custom-sql-manifest.json')))
 new_names = manifest
@@ -356,22 +356,18 @@ new_names = manifest
 
 # Children that referenced a root we're renaming
 child_parent = {}
-doc['pages'].each do |page|
-  page['elements'].each do |el|
-    parent = el.dig('source', 'elementId')
-    child_parent[el['id']] = parent if parent && new_names.key?(parent)
-  end
+doc['elements'].each do |el|
+  parent = el.dig('source', 'elementId')
+  child_parent[el['id']] = parent if parent && new_names.key?(parent)
 end
 
-doc['pages'].each do |page|
-  page['elements'].each do |el|
-    if new_names.key?(el['id'])
-      el['name'] = new_names[el['id']] if el['name'].to_s.strip.empty?
-    elsif (parent = child_parent[el['id']])
-      new_prefix = new_names[parent]
-      (el['columns'] || []).each do |col|
-        col['formula'] = col['formula']&.gsub('[Custom SQL/', "[#{new_prefix}/")
-      end
+doc['elements'].each do |el|
+  if new_names.key?(el['id'])
+    el['name'] = new_names[el['id']] if el['name'].to_s.strip.empty?
+  elsif (parent = child_parent[el['id']])
+    new_prefix = new_names[parent]
+    (el['columns'] || []).each do |col|
+      col['formula'] = col['formula']&.gsub('[Custom SQL/', "[#{new_prefix}/")
     end
   end
 end
@@ -511,16 +507,16 @@ must strip response-only fields, and layout edits may get rebuilt server-
 side. Prefer `:swapSources` whenever it works.
 
 > **`/tmp/wb-spec.yaml` here is a saved `GET /v2/workbooks/{id}/spec` response** —
-> which, like every workbook-spec body, nests `schemaVersion`/`pages`/`layout`
+> which, like every workbook-spec body, nests `schemaVersion`/`elements`/`pages`/`layout`
 > under `document` (verified live 2026-08; see the wrapper note in Phase 5, and
 > `sigma-workbooks`'s `reference/specification/schema.md`). The snippet unwraps
-> `spec['document']` before touching `pages`, and the PUT body is just the
+> `spec['document']` before touching `elements`, and the PUT body is just the
 > re-wrapped `document` — not the full GET response.
 
 ```ruby
 require 'yaml'; require 'json'; require 'date'
 spec = YAML.safe_load(File.read('/tmp/wb-spec.yaml'), permitted_classes: [Date, Time])
-doc  = spec['document']   # schemaVersion/pages/layout live here, not on spec directly
+doc  = spec['document']   # schemaVersion/elements/pages/layout live here
 
 conversions = {
   '<root_element_id>' => {
@@ -532,26 +528,22 @@ conversions = {
 
 root_ids = conversions.keys.to_set
 child_parent = {}
-doc['pages'].each do |page|
-  page['elements'].each do |el|
-    parent = el.dig('source', 'elementId')
-    child_parent[el['id']] = parent if parent && root_ids.include?(parent)
-  end
+doc['elements'].each do |el|
+  parent = el.dig('source', 'elementId')
+  child_parent[el['id']] = parent if parent && root_ids.include?(parent)
 end
 
-doc['pages'].each do |page|
-  page['elements'].each do |el|
-    if (conv = conversions[el['id']])
-      el['name']   = conv[:elementName]
-      el['source'] = { 'kind' => 'data-model', 'dataModelId' => conv[:dataModelId], 'elementId' => conv[:elementId] }
-      (el['columns'] || []).each do |col|
-        display = col['id'].split('_').map(&:capitalize).join(' ')
-        col['formula'] = "[#{conv[:elementName]}/#{display}]"
-      end
-    elsif (parent = child_parent[el['id']])
-      new_prefix = conversions[parent][:elementName]
-      (el['columns'] || []).each { |c| c['formula'] = c['formula']&.gsub('[Custom SQL/', "[#{new_prefix}/") }
+doc['elements'].each do |el|
+  if (conv = conversions[el['id']])
+    el['name']   = conv[:elementName]
+    el['source'] = { 'kind' => 'data-model', 'dataModelId' => conv[:dataModelId], 'elementId' => conv[:elementId] }
+    (el['columns'] || []).each do |col|
+      display = col['id'].split('_').map(&:capitalize).join(' ')
+      col['formula'] = "[#{conv[:elementName]}/#{display}]"
     end
+  elsif (parent = child_parent[el['id']])
+    new_prefix = conversions[parent][:elementName]
+    (el['columns'] || []).each { |c| c['formula'] = c['formula']&.gsub('[Custom SQL/', "[#{new_prefix}/") }
   end
 end
 

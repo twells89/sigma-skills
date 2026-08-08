@@ -29,8 +29,8 @@ Sigma's public API docs are an index at `https://help.sigmacomputing.com/openapi
 
 > **The split specs don't document the workbook spec endpoint at all** (verified 2026-08-05): `sigma-rest-api.json` has **zero** paths matching `spec` — no `/v2/workbooks/spec`, no `/v2/workbooks/spec/verify`, no `/v2/workbooks/{id}/spec` — and `code-representation.json` carries only the two `/v2/dataModels/spec*` paths. So for workbook authoring the split specs are not merely missing the inlined element shapes; the endpoint itself is absent. Use a per-endpoint reference page, the compiled asset, or a live readback (all below).
 
-- **A live workbook readback** — `GET /v2/workbooks/{id}/spec` on the user's org. The durable, always-current source: read a real workbook and navigate `pages[].elements[]` by `kind`. **Prefer this** when you have a workbook to read.
-- **A single endpoint's stable reference page** — `https://help.sigmacomputing.com/reference/<endpoint-slug>`. Verified live and current (2026-08-04): `create-workbook-spec`, `update-workbook-spec`, `verify-workbook-spec`, `get-workbook-spec`. Unlike the compiled asset below, **this path is not content-addressed** — it's the same URL forever regardless of docs redeploys, so it's safe to hardcode. **Use this for "what shape does endpoint X need right now"** — confirming one field, checking one endpoint's request or response body. (These four currently agree: `create-workbook-spec` and `verify-workbook-spec` both show the request body wrapped as `{name, folderId, document: {schemaVersion, kind, pages, layout}}`; `update-workbook-spec`, a PUT against an existing workbook, sends just `{document: {...}}`.)
+- **A live workbook readback** — `GET /v2/workbooks/{id}/spec` on the user's org. Read literal elements from flat `document.elements[]`; pages, overlays, and panels are metadata and layout determines placement.
+- **A single endpoint's stable reference page** — `https://help.sigmacomputing.com/reference/<endpoint-slug>`. Use it to confirm one endpoint's current request/response envelope. Create and verify use `{name, folderId, document: {...}}`; update accepts exactly `{document: {...}}`. <!-- pragma: allowlist secret -->
 - **The full compiled OpenAPI** — one document covering every workbook `kind`, and the **only** source that documents `/v2/workbooks/spec` at all. Use it for bulk discovery ("list every kind the API accepts") that no single per-endpoint page can do. **This is the canonical, stable, unauthenticated URL — use it directly:**
 
   ```
@@ -62,10 +62,10 @@ When this skill and the spec (or a live readback) disagree, the spec wins. When 
 ```bash
 # Assumes /tmp/sigma-api.json from "Fetching the compiled asset" above.
 # If a field looks wrong, check that field's per-endpoint page, or read a live workbook spec
-# (GET /v2/workbooks/{id}/spec) and navigate pages[].elements[] by kind.
+# (GET /v2/workbooks/{id}/spec) and navigate document.elements[] by kind.
 
 # The workbook spec request body. NOTE: the outer object is {name, folderId, description?, document},
-# so the pages/layout/agents you care about are one level down, under .document:
+# so elements/pages/overlays/panels/layout/settings/agents are under .document:
 jq '.paths."/v2/workbooks/spec".post.requestBody.content."application/json".schema' /tmp/sigma-api.json
 ```
 
@@ -140,7 +140,8 @@ curl -s -H "Authorization: Bearer $SIGMA_API_TOKEN" \
   > /tmp/reference-spec.yaml
 ```
 
-Look at source structure, column ID patterns, formula syntax, element naming, layout XML idioms. The `pages` array shape is exactly what you'll POST when creating.
+Look at source structure, column IDs, formulas, flat `document.elements`, page
+metadata, and layout XML. Do not copy an obsolete `pages[].elements` shape.
 
 ### Step 3 — Discover data sources
 
@@ -165,10 +166,15 @@ Write the spec YAML to disk (e.g., `/tmp/workbook-spec.yaml`). YAML is preferred
 - Every element needs a unique `id` and a descriptive `name`.
 - Every column needs a unique `id`, a `name`, and a `formula`.
 - Follow the formula reference rules in `reference/specification/formulas.md` exactly — most spec errors happen here.
-- **Write explicit `layout` XML for multi-element workbooks.** Auto-arrange (omitting `layout`) is acceptable only for single-element pages or a uniform stack of tables. See `reference/specification/layout.md` for the rubric.
+- **Write explicit `document.layout` XML whenever elements are non-empty.** It
+  is the source of truth for page/container/tab organization.
 - Start with 1–2 pages. Add more later via update.
 
-For **create**, the file must include top-level `name` and `folderId`, plus a nested `document` object carrying `schemaVersion` and `pages` (see *Sources of truth*, above, and `reference/specification/schema.md` for the full wrapped shape). `description` is optional at the top level; `layout` is technically optional but expected for multi-element workbooks, and — like `schemaVersion`/`pages` — lives inside `document`, not flat. `schemaVersion` is usually `1` — that's the current value; it may change in the future, so if the API rejects the spec on that field, check what your reference-workbook GET in Step 2 returned and use that instead. Full CRUD mechanics are in `reference/workflows/crud.md`.
+For **create**, include outer `name`/`folderId` and `document` with required
+`schemaVersion`, `kind: workbook`, flat `elements`, and metadata-only `pages`.
+Optional document fields include `overlays`, `panels`, `settings`, and `agents`.
+This skill requires `layout` whenever `elements` is non-empty. See
+`reference/specification/schema.md`.
 
 ### Step 6 — Validate the spec
 
@@ -220,7 +226,8 @@ curl -s -H "Authorization: Bearer $SIGMA_API_TOKEN" \
   "$SIGMA_BASE_URL/v2/workbooks/<workbook-id>/spec" \
   > /tmp/current-spec.yaml
 
-# Edit /tmp/current-spec.yaml inside .document (pages, layout, schemaVersion),
+# Edit /tmp/current-spec.yaml inside .document; preserve elements, pages,
+# overlays, panels, layout, settings, and agents.
 # then PUT only the document object — see reference/workflows/crud.md for why
 # sending the outer name/folderId/response-only fields alongside it 400s:
 yq '{document: .document}' /tmp/current-spec.yaml > /tmp/current-spec-put.yaml
@@ -254,10 +261,10 @@ The reference is feature-sliced — don't read every file up-front. The index ha
 | File | When to load |
 |------|--------------|
 | `reference/specification/tables.md` | Table element, tabular data, data grid, spreadsheet-style list. Also element-level filters (top N, limit, rank), groupings (pivot, group by), the `pivot-table` and editable `input-table` element kinds, and `conditionalFormats` (threshold-based cell coloring, on pivot/input tables). |
-| `reference/specification/charts.md` | Chart, graph, visualization, line / bar / column / stacked / grouped / combo / donut / pie / scatter / share-of / breakdown. Cartesian axes, color channel, trellis, trendlines, reference marks. |
+| `reference/specification/charts.md` | Chart, graph, visualization, line / bar / column / stacked / grouped / combo / donut / pie / scatter / waterfall / share-of / breakdown. Cartesian axes, color, trellis, legend, trendlines, reference marks. Box chart is unsupported/pending because it is absent from the live OpenAPI. |
 | `reference/specification/maps.md` | Map visualizations — `geography-map` (GeoJSON shapes), `point-map` (lat/long bubbles), `region-map` (states / counties / countries). |
 | `reference/specification/kpis.md` | KPI, stat, big number, single value, metric card — including layout / value styling, the comparison Δ badge (`comparisonColumn` + `comparison:{display:"delta"}` — spec-authorable and readback-stable; the house default), and the trend/sparkline block (still UI-bound). |
-| `reference/specification/controls.md` | Filter, dropdown, picker, multi-select, date range, date picker, text filter, number range, slider, segmented, hierarchy. Also the entry (write) text control shape used with buttons/actions. |
+| `reference/specification/controls.md` | Filter, dropdown, picker, multi-select, date range, date picker, text filter, number range, slider, segmented, hierarchy, and drill controls. Also entry controls and formula handles. |
 | `reference/specification/content-elements.md` | The non-data elements — `text` (Markdown + inline styling), `image`, `divider`, `embed` (external URLs), `page-break` (PDF/print pagination), `form`, `progress`, `navigation`, `plugin`. Titles, callouts, logos, rules, embedded content. |
 | `reference/specification/input-tables.md` | Operational supplement for `input-table` (spec shape lives in `tables.md`): write-connection requirement, the publish gate, reading data back via warehouse views, element endpoints for auditing, and migration patterns (Excel/planning models). |
 | `reference/specification/styling.md` | **Load when building a dashboard from scratch.** Design recipe library — vetted color palette, hero header strip, gradient header/KPI cards + composite sparkline, KPI card row, section headers, divider rhythm, categorical chart colors. Turns a default-arrange workbook into a designed-looking one without UI editing. |
@@ -274,10 +281,10 @@ The reference is feature-sliced — don't read every file up-front. The index ha
 
 | File | When to load |
 |------|--------------|
-| `reference/specification/schema.md` | Always — load before drafting any spec. Top-level shape, required fields, response-only fields to strip, page `type` (`page` / `modal` / `drawer`) and the overlay config objects. |
+| `reference/specification/schema.md` | Always — wrapped shape, required flat `document.elements`, metadata-only pages, overlays, panels, settings, backgrounds, and the PUT-only-document rule. |
 | `reference/specification/formulas.md` | Always — load before drafting any spec. Formula syntax, qualification, special characters, the #1 mistake. |
 | `reference/specification/formatting.md` | Format, currency, percentage, date format, decimals — column formatting. |
-| `reference/specification/layout.md` | **Always load for multi-element workbooks.** Layout XML, GridContainer/LayoutElement, container elements, tabbed containers, **`repeated-container` (cards repeating once per source row — spec-authorable, incl. the derived `{{[X repeated container/Col]}}` binding form)**, page visibility / background, auto-arrange fallback rules, when to write explicit layout vs. omit. |
+| `reference/specification/layout.md` | **Always load.** Required layout policy; page/container organization; backgrounds/spacing; panels, headers, sidebars, navigation; repeated and tabbed containers. |
 | `reference/specification/example-full.yaml` | A real multi-page reference spec (KPIs, charts, joins, controls, layout) — copy shapes from when in doubt. |
 | `reference/specification/comparative-kpi-card.yaml` | Minimal clone-able comparative KPI card — `value` + `comparisonColumn` + `comparison:{display:"delta"}`, the house-default comparative shape (see `kpis.md`). |
 
@@ -365,4 +372,4 @@ The column name in the formula doesn't match what the warehouse actually has. Re
 
 ### Cryptic validation errors / silent bad data
 
-See `reference/workflows/validate.md` for the full triage table (mapping `Invalid kind: pages[0].elements[N]...` style errors to the right spec file).
+See `reference/workflows/validate.md` for `document.elements[N]` and layout error triage.

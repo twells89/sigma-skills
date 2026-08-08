@@ -7,7 +7,7 @@ jq --arg k text 'first(.. | objects | select((.allOf? and any(.allOf[]?; .proper
 # swap k for image / divider / embed / form / progress / navigation
 ```
 
-These position in the page grid via `<LayoutElement>` like any other element — see `layout.md`.
+These are flat `document.elements[]` entries and are assigned by layout.
 
 ## text
 
@@ -27,6 +27,11 @@ body: |
 ### `body`: Markdown + inline styling
 
 `body` is Markdown plus a small set of inline HTML for styling. Standard Markdown: paragraphs, `**bold**`, `*italic*`, headings (`#`, `##`, `###`), bullet / ordered lists, `[links](https://example.com)`, and `{{formula}}` / `{{ast | fmt}}` segments (same syntax as element titles, e.g. `{{Count() | ,.0f}}`).
+
+A control value uses its `controlId`: `{{[RegionFilter]}}`. The element `id`
+is not the formula handle. Dynamic-text references can serialize without
+resolving, so GET the spec back and render the element; readback normalization
+and visible output are the binding checks.
 
 Inline styling via HTML — all round-trip through the spec and render:
 

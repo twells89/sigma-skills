@@ -6,15 +6,13 @@
 # scan-workbooks.rb/audit-formulas.rb) routes through to handle the
 # document-wrapper wire change.
 #
-# lib/code_rep.rb is BYTE-IDENTICAL to the canonical copy at
-# sigma-migration-skills/shared/lib/code_rep.rb, which is fanned out to 14
-# vendored targets by that repo's tools/sync-shared.rb. Do NOT hand-edit it
-# here: any divergence is silently reverted at the next re-vendor while these
-# call sites keep the old contract, producing a malformed wire body that the
-# SHA1 fan-out gate cannot see. Adapt the CALL SITES, never the adapter.
+# lib/code_rep.rb mirrors the workbook-only contract maintained in
+# sigma-migration-skills/shared/lib/code_rep.rb. Keep behavior aligned when
+# either repository changes; the migration repo fans its canonical copy out to
+# every vendored plugin.
 #
 # Canonical contract (differs from the first draft of this adapter):
-#   document(r) NARROWS to the six document keys — it does NOT carry metadata.
+#   document(r) NARROWS to the live document keys — it does NOT carry metadata.
 #   metadata(r) is everything else, minus the removed themeName/themeOverrides.
 #   wrap(doc, extra:) takes an ALREADY-BUILT document hash and does not narrow.
 # So a caller wanting the flat on-disk shape composes them:
@@ -37,8 +35,11 @@ NESTED_RESPONSE = {
   'name' => 'Demo', 'folderId' => 'fld1', 'workbookId' => 'wb1', 'url' => 'https://x/wb1',
   'document' => {
     'schemaVersion' => 1, 'kind' => 'workbook',
-    'pages' => [{ 'id' => 'p1', 'name' => 'Page 1', 'elements' => [] }],
-    'layout' => '<Layout/>',
+    'elements' => [{ 'id' => 'e1', 'kind' => 'text', 'body' => 'Hello' }],
+    'pages' => [{ 'id' => 'p1', 'name' => 'Page 1' }],
+    'overlays' => [{ 'id' => 'o1', 'name' => 'Details', 'type' => 'modal' }],
+    'panels' => [{ 'id' => 'panel1', 'name' => 'Filters' }],
+    'layout' => '<Page id="p1"><LayoutElement elementId="e1"/></Page>',
     'settings' => { 'theme' => { 'name' => 'Dark', 'overrides' => { 'hasCards' => 'shown' } },
                     'navigation' => { 'pageHeader' => 'enabled' } },
     'agents' => [{ 'id' => 'a1', 'instructions' => 'help' }]
@@ -47,7 +48,10 @@ NESTED_RESPONSE = {
 
 FLAT_SPEC = {
   'name' => 'Demo', 'folderId' => 'fld1',
-  'schemaVersion' => 1, 'pages' => [{ 'id' => 'p1', 'name' => 'Page 1', 'elements' => [] }],
+  'schemaVersion' => 1,
+  'elements' => [{ 'id' => 'e1', 'kind' => 'text', 'body' => 'Hello' }],
+  'pages' => [{ 'id' => 'p1', 'name' => 'Page 1' }],
+  'overlays' => [], 'panels' => [],
   'layout' => '<Layout/>',
   'settings' => { 'theme' => { 'name' => 'Dark' } },
   'agents' => [{ 'id' => 'a1', 'instructions' => 'help' }]
@@ -55,7 +59,8 @@ FLAT_SPEC = {
 
 # A spec written before the theme moved. Still on disk in user repos.
 LEGACY_THEME_SPEC = {
-  'name' => 'Demo', 'folderId' => 'fld1', 'schemaVersion' => 1, 'pages' => [],
+  'name' => 'Demo', 'folderId' => 'fld1', 'schemaVersion' => 1,
+  'elements' => [], 'pages' => [],
   'themeName' => 'Light',
   'themeOverrides' => { 'categoricalScheme' => %w[#111 #222] }
 }.freeze
@@ -97,6 +102,29 @@ end
 check('settings/agents are NOT metadata (they must not leak to the top level)') do
   m = Sigma::CodeRep.metadata(NESTED_RESPONSE)
   !m.key?('settings') && !m.key?('agents')
+end
+
+check('elements/overlays/panels survive inside document and never become metadata') do
+  d = Sigma::CodeRep.document(NESTED_RESPONSE)
+  m = Sigma::CodeRep.metadata(NESTED_RESPONSE)
+  d['elements'].size == 1 && d['overlays'].size == 1 && d['panels'].size == 1 &&
+    %w[elements overlays panels].none? { |key| m.key?(key) }
+end
+
+check('page membership is derived from layout, not nested page elements') do
+  element, page = Sigma::CodeRep.workbook_elements_with_pages(NESTED_RESPONSE).first
+  element['id'] == 'e1' && page['id'] == 'p1' &&
+    !Sigma::CodeRep.document(NESTED_RESPONSE)['pages'].first.key?('elements')
+end
+
+check('wrap migrates legacy page-nested elements to the current API shape') do
+  legacy = {
+    'schemaVersion' => 1,
+    'pages' => [{ 'id' => 'p1', 'elements' => [{ 'id' => 'old', 'kind' => 'text' }] }]
+  }
+  wrapped = Sigma::CodeRep.wrap(legacy).fetch('document')
+  wrapped['elements'].map { |element| element['id'] } == ['old'] &&
+    wrapped['pages'].none? { |page| page.key?('elements') }
 end
 
 check('metadata() still returns the real metadata') do
@@ -167,7 +195,7 @@ end
 # --- emitter helpers -------------------------------------------------------
 
 check('set_theme() writes the current shape and merges overrides') do
-  doc = { 'schemaVersion' => 1, 'pages' => [] }
+  doc = { 'schemaVersion' => 1, 'kind' => 'workbook', 'elements' => [], 'pages' => [] }
   Sigma::CodeRep.set_theme(doc, name: 'Light', overrides: { 'hasCards' => 'shown' })
   Sigma::CodeRep.set_theme(doc, overrides: { 'borderRadius' => 'round' })
   doc.dig('settings', 'theme', 'name') == 'Light' &&

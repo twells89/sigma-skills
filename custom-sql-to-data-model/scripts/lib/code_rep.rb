@@ -13,11 +13,14 @@
 # disk (committed workbook snapshots, fixtures) even though the API no longer returns them.
 module Sigma
   module CodeRep
-    # The non-metadata fields that live INSIDE `document`. Confirmed by live readback.
-    # `settings` (theme/navigation) and `agents` belong here too — omitting them
-    # sweeps themeName/themeOverrides/agents onto the top level, where they are
-    # not valid keys, silently dropping theme + agents on every write.
-    DOC_KEYS = %w[schemaVersion pages kind layout settings agents].freeze
+    # Every field accepted inside `document` by the live workbook OpenAPI.
+    # `elements` is a required flat array; pages/overlays/panels are metadata
+    # collections whose membership is established by `layout`, not by nested
+    # element arrays. Keep this list complete: an omitted key is misclassified
+    # as outer metadata and is then silently dropped from PUT bodies.
+    DOC_KEYS = %w[
+      schemaVersion kind elements pages overlays panels layout settings agents
+    ].freeze
 
     # REMOVED from the API. The workbook theme is now `settings.theme.name` and
     # `settings.theme.overrides` (published OpenAPI: createWorkbookSpec — there
@@ -66,12 +69,67 @@ module Sigma
         { 'name' => t['name'], 'overrides' => t['overrides'] || {} }
       end
 
-      # Write path: every live workbook code-rep endpoint requires the wrapper.
+      # Write path: every live workbook code-rep endpoint requires the wrapper
+      # and flat document.elements. Flatten legacy page-nested artifacts at this
+      # boundary so older artifacts remain postable during migration.
       def wrap(document_hash, extra: {})
-        extra.merge('document' => document_hash)
+        extra.merge('document' => flatten_elements(document_hash))
+      end
+
+      def workbook_elements(spec)
+        elements = document(spec)['elements']
+        elements.is_a?(Array) ? elements.select { |element| element.is_a?(Hash) } : []
+      end
+
+      # { page_id => [element_id, ...] }, in layout order.
+      def workbook_page_element_ids(spec)
+        document(spec)['layout'].to_s
+                       .scan(%r{<Page\b[^>]*\bid="([^"]*)"[^>]*>(.*?)</Page>}m)
+                       .each_with_object({}) do |(page_id, body), out|
+          out[page_id] = body.scan(/\belementId="([^"]*)"/).flatten.uniq
+        end
+      end
+
+      def workbook_page_by_element(spec)
+        doc = document(spec)
+        pages = doc['pages'].is_a?(Array) ? doc['pages'].select { |page| page.is_a?(Hash) } : []
+        pages_by_id = pages.each_with_object({}) { |page, out| out[page['id']] = page if page['id'] }
+        workbook_page_element_ids(doc).each_with_object({}) do |(page_id, element_ids), out|
+          page = pages_by_id[page_id] || { 'id' => page_id, 'name' => page_id }
+          element_ids.each { |element_id| out[element_id] ||= page }
+        end
+      end
+
+      def workbook_elements_with_pages(spec)
+        page_by_element = workbook_page_by_element(spec)
+        workbook_elements(spec).map do |element|
+          [element, page_by_element[element['id'] || element['elementId']]]
+        end
       end
 
       private
+
+      def flatten_elements(doc)
+        return doc unless doc.is_a?(Hash)
+        pages = doc['pages']
+        return doc unless pages.is_a?(Array)
+
+        nested_elements = []
+        flattened_pages = pages.map do |page|
+          copy = page.dup
+          nested_elements.concat(Array(copy.delete('elements')))
+          copy
+        end
+        seen = {}
+        elements = (Array(doc['elements']) + nested_elements).filter do |element|
+          id = element.is_a?(Hash) && element['id']
+          next true unless id
+          next false if seen[id]
+
+          seen[id] = true
+        end
+        doc.merge('pages' => flattened_pages, 'elements' => elements)
+      end
 
       # themeName/themeOverrides -> settings.theme.{name,overrides}. Non-mutating:
       # only builds a new hash when a legacy key is actually present, so the

@@ -3,9 +3,8 @@
 A Sigma workbook can carry a **spec-authorable AI agent** that end users chat with
 inside the workbook. It is easy to miss: it is **not a page element** — it's a
 **`document.agents[]` array**, a sibling of `pages` / `layout` / `settings`.
-An element-kind scan of `pages[].elements[]` alone will never find it and can wrongly
-conclude "not authorable." The agent is *surfaced* on a page via a small `chat`
-element that just references the agent's id.
+The agent is surfaced by a flat `document.elements[]` `chat` entry that
+references the agent id; layout places that chat on a page or panel.
 
 > **Now fully in the public OpenAPI** (confirmed 2026-08-05 against the canonical
 > asset — see `SKILL.md` → *Fetching the compiled asset*). `document.agents[]`,
@@ -24,6 +23,7 @@ name: My Workbook
 folderId: <folderId>
 document:
   schemaVersion: 1
+  kind: workbook
   agents:
     - id: ag-analyst
       name: Analyst
@@ -33,17 +33,23 @@ document:
         numbers you used.
       dataSources:
         - kind: table
-          elementId: src        # an element id already in this workbook's pages
+          elementId: src
+  elements:
+    - id: src
+      kind: table
+      # ...
+    - id: chat
+      kind: chat
+      agentId: ag-analyst
   pages:
     - id: pg
       name: Overview
-      elements:
-        - id: src
-          kind: table
-          # ...
-        - id: chat
-          kind: chat
-          agentId: ag-analyst   # the AGENT's `id` above, not an element id
+  layout: |
+    <?xml version="1.0" encoding="utf-8"?>
+    <Page type="grid" gridTemplateColumns="repeat(24, 1fr)" gridTemplateRows="auto" id="pg">
+      <LayoutElement elementId="src" gridColumn="1 / 17" gridRow="1 / 20"/>
+      <LayoutElement elementId="chat" gridColumn="17 / 25" gridRow="1 / 20"/>
+    </Page>
 ```
 
 | Field (agent entry) | Required | Notes |
