@@ -29,20 +29,33 @@ jobs:
       - name: Run every test-*.rb / test_*.rb (glob, aggregate failures)
         run: |
           set -uo pipefail
+          dirs=(sigma-workbooks custom-sql-to-data-model sigma-plugin-authoring)
+          # Each directory must exist on its own — an aggregate count alone
+          # would let one moved/renamed directory silently vanish from the
+          # glob while the other two still supply enough matches to pass.
+          for d in "${dirs[@]}"; do
+            [ -d "$d" ] || { echo "::error::expected test directory '$d' not found (moved/renamed?)"; exit 1; }
+          done
           tests=()
           while IFS= read -r -d '' f; do
             tests+=("$f")
-          done < <(find sigma-workbooks custom-sql-to-data-model sigma-plugin-authoring -type f \( -name 'test-*.rb' -o -name 'test_*.rb' \) -print0 | sort -z)
-          # A moved/renamed directory must FAIL here, never vacuously pass.
+          done < <(find "${dirs[@]}" -type f \( -name 'test-*.rb' -o -name 'test_*.rb' \) -print0 | sort -z)
+          # Belt-and-suspenders: a directory can exist but have every test
+          # file deleted from it. A moved/renamed directory (caught above) or
+          # an emptied one (caught here) must FAIL, never vacuously pass.
           [ "${#tests[@]}" -gt 0 ] || { echo "::error::glob matched no test files under sigma-workbooks/, custom-sql-to-data-model/, sigma-plugin-authoring/"; exit 1; }
           fail=0; ran=0
           for t in "${tests[@]}"; do
-            case "$(basename "$t")" in
-              # The ONLY exclusion. test-verify.rb hits the live Sigma API and
-              # needs SIGMA_BASE_URL/SIGMA_API_TOKEN; verified it does NOT skip
-              # cleanly without them (exits 2, not 0), so keep this workflow
-              # creds-free by never running it here rather than adding secrets.
-              test-verify.rb) echo "SKIP $t (needs live Sigma creds; does not skip cleanly without them)"; continue ;;
+            case "$t" in
+              # The ONLY exclusion — matched by full relative PATH, not
+              # basename, so an unrelated file elsewhere that happens to
+              # share this name is never silently skipped.
+              # sigma-workbooks/scripts/test-verify.rb hits the live Sigma API
+              # and needs SIGMA_BASE_URL/SIGMA_API_TOKEN; verified it does NOT
+              # skip cleanly without them (exits 2, not 0), so keep this
+              # workflow creds-free by never running it here rather than
+              # adding secrets.
+              sigma-workbooks/scripts/test-verify.rb) echo "SKIP $t (needs live Sigma creds; does not skip cleanly without them)"; continue ;;
             esac
             echo "::group::$t"
             if ruby "$t"; then
