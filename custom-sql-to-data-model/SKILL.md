@@ -30,7 +30,21 @@ catches.
 
 ## Prerequisites
 
-Required env vars: `SIGMA_BASE_URL`, `SIGMA_CLIENT_ID`, `SIGMA_CLIENT_SECRET`
+Required env var: `SIGMA_BASE_URL`. Then pick **one** of two auth options:
+
+- **Client credentials (headless):** set `SIGMA_CLIENT_ID` and
+  `SIGMA_CLIENT_SECRET` (from Sigma → Administration → Developer Access). Best
+  for automation.
+- **Browser login (no client ID/secret):** sign in once through the browser
+  using the `sigma-api` skill —
+  `eval "$(bash <repo-root>/sigma-api/scripts/browser-login.sh)"`. It stores a
+  refresh token in your OS keychain, and the token scripts below redeem it
+  headlessly (no browser round-trip on subsequent runs). `SIGMA_CLIENT_ID` /
+  `SIGMA_CLIENT_SECRET` can stay unset.
+
+Both options feed the same `get_token.py` / `get-token.sh` helpers below —
+when the client-credential env vars are absent they automatically fall back to
+the stored browser-login refresh token.
 
 **Default (shell-neutral, works in bash/zsh/PowerShell/cmd):** mint a token
 with the stdlib-only Python script and let `scripts/lib/sigma_rest.rb` pick
@@ -58,7 +72,7 @@ ruby scripts/scan-workbooks.rb
 eval "$(bash scripts/get-token.sh)"
 ```
 
-> Tokens expire after ~1 hour. **The Ruby scripts in this skill now auto-refresh on 401** via `scripts/lib/sigma_rest.rb` — full-site scans on large orgs (hundreds of workbooks, sometimes >1 hour total) no longer fail mid-run. If you still see `Token missing or malformed` after a refresh, re-run `python3 scripts/get_token.py --workdir "$SIGMA_WORKDIR"` (or `eval "$(bash scripts/get-token.sh)"` in bash) manually.
+> Tokens expire after ~1 hour. **With client credentials, the Ruby scripts auto-refresh on 401** via `scripts/lib/sigma_rest.rb` — full-site scans on large orgs (hundreds of workbooks, sometimes >1 hour total) no longer fail mid-run. **Browser-login users** don't have client credentials for the in-process refresh, so re-run `python3 scripts/get_token.py --workdir "$SIGMA_WORKDIR"` between phases — it serves the cached keychain token or redeems the stored refresh token headlessly. Either way, if you still see `Token missing or malformed`, re-run `python3 scripts/get_token.py --workdir "$SIGMA_WORKDIR"` (or `eval "$(bash scripts/get-token.sh)"` in bash) manually.
 
 ---
 
