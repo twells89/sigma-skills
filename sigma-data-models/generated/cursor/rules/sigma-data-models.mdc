@@ -16,7 +16,7 @@ Build a Sigma data model spec — the JSON definition of pages, sources, columns
 
 This skill is for **authoring from existing warehouse tables**: a user knows their warehouse, wants to expose specific tables as a Sigma data model with the right joins, metrics, and governance, and needs help composing the spec. Conversions from other BI-tool formats (dbt schema.yml, LookML views, Tableau TDS, Power BI PBIT, Alteryx YXMD, etc.) are **not in this skill** — direct users to the Sigma data-model converter MCP / browser tool, which already handles those mappings.
 
-**Auth:** Authenticate via the `sigma-api` skill first to set `$SIGMA_BASE_URL` and `$SIGMA_API_TOKEN`. This skill assumes both are already exported.
+**Auth:** Authenticate via the `sigma-api` skill first to set `$SIGMA_BASE_URL` and `$SIGMA_API_TOKEN`. That skill offers two options — **client credentials** (`SIGMA_CLIENT_ID`/`SIGMA_CLIENT_SECRET`) or **interactive browser login** (`browser-login.sh`, no client ID/secret) — either of which exports the token this skill assumes is already present.
 
 **Requirements:** `curl`, `jq`, `base64`. Your Sigma API credentials must have permission to create or edit data models, plus "Can edit" access on the destination folder (for create) or the existing data model (for update). If a request returns 403, ask your Sigma admin to confirm the credential's permissions.
 
