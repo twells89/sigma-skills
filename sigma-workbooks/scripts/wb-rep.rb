@@ -112,17 +112,23 @@ end
 
 # Split the top-level layout XML into [preamble, { page_id => chunk }].
 # Chunks are verbatim byte slices so an untouched rep reassembles identically.
+# A layout region block opens with <Page>, <Overlay>, or <Panel> (header/
+# sidebar). Live GET specs emit a distinct <Panel> tag for header/sidebar
+# panels (live-confirmed 2026-08-10) and <Overlay> for overlays, alongside
+# <Page>; each is a top-level, id-keyed chunk. Splitting on all three keeps a
+# panel/overlay body from being folded into the preceding page chunk.
+LAYOUT_REGION_TAGS = %w[Page Overlay Panel].freeze
 def split_layout(layout)
   return [XML_PROLOG, {}] if layout.nil? || layout.empty?
   starts = []
-  layout.scan(/<Page[\s>]/) { starts << Regexp.last_match.begin(0) }
+  layout.scan(/<(?:#{LAYOUT_REGION_TAGS.join('|')})[\s>]/) { starts << Regexp.last_match.begin(0) }
   return [layout, {}] if starts.empty?
   preamble = layout[0...starts.first]
   chunks = {}
   starts.each_with_index do |s, i|
     chunk = layout[s...(starts[i + 1] || layout.length)]
-    id = chunk[/\A<Page[^>]*\bid="([^"]*)"/, 1]
-    warn "wb-rep: warning — layout <Page> block without an id attribute; it will be appended last" unless id
+    id = chunk[/\A<(?:#{LAYOUT_REGION_TAGS.join('|')})[^>]*\bid="([^"]*)"/, 1]
+    warn "wb-rep: warning — layout region block without an id attribute; it will be appended last" unless id
     chunks[id || "_orphan#{i}"] = chunk
   end
   [preamble, chunks]
@@ -167,7 +173,7 @@ def explode(spec, dir, raw_yaml:, manifest_extra: {})
     File.write(File.join(dir, 'elements', format('%03d-%s.yaml', (index + 1) * 10, base)), YAML.dump(el))
   end
   layout_chunks.each_key do |k|
-    warn "wb-rep: warning — layout <Page id=\"#{k}\"> matches no page, overlay, or panel; chunk dropped"
+    warn "wb-rep: warning — layout region block id=\"#{k}\" matches no page, overlay, or panel; chunk dropped"
   end
 
   File.write(File.join(dir, '.sigma', 'snapshot.yaml'), YAML.dump(canonical_spec(YAML.load(raw_yaml))))
@@ -294,7 +300,7 @@ def lint_layout_coverage(spec)
   referenced = referenced_all.uniq
   regions = COLLECTIONS.keys.flat_map { |collection| Array(doc[collection]) }
   declared_region_ids = regions.filter_map { |region| region['id'] }.uniq
-  referenced_region_ids = layout.scan(/<Page\b[^>]*\bid="([^"]+)"/).flatten.uniq
+  referenced_region_ids = layout.scan(/<(?:Page|Overlay|Panel)\b[^>]*\bid="([^"]+)"/).flatten.uniq
   issues = []
 
   elements.group_by { |element| element['id'] }.each do |id, grouped|

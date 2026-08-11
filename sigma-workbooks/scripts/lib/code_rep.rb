@@ -86,19 +86,25 @@ module Sigma
         elements.is_a?(Array) ? elements.select { |element| element.is_a?(Hash) } : []
       end
 
-      # { page_id => [element_id, ...] }, in layout order.
-      # Current GET specs use <Element> leaves, <Container> nested grids, and
-      # <TabbedContainer> tab groups. Keep the two pre-release aliases readable
-      # for old snapshots, but do not treat arbitrary XML tags carrying an
-      # elementId as workbook ownership.
+      # { region_id => [element_id, ...] }, in layout order. A "region" is a
+      # page, an overlay, or a **panel** (header/sidebar) — each owns a
+      # top-level layout block keyed by id. Live GET specs emit a distinct
+      # <Panel> tag for header/sidebar panels (live-confirmed 2026-08-10), and
+      # <Overlay> for overlay chrome, alongside <Page> for normal pages; all
+      # three carry <Element> leaves, <Container> nested grids, and
+      # <TabbedContainer> tab groups the same way. Match on the opening tag and
+      # its own closing tag via a backreference so a <Panel> body is never
+      # mis-attributed to the preceding <Page>. Keep the two pre-release aliases
+      # readable for old snapshots, but do not treat arbitrary XML tags carrying
+      # an elementId as workbook ownership.
       def workbook_page_element_ids(spec)
         document(spec)['layout'].to_s
-                       .scan(%r{<Page\b[^>]*\bid="([^"]*)"[^>]*>(.*?)</Page>}m)
-                       .each_with_object({}) do |(page_id, body), out|
+                       .scan(%r{<(Page|Panel|Overlay)\b[^>]*\bid="([^"]*)"[^>]*>(.*?)</\1>}m)
+                       .each_with_object({}) do |(_tag, region_id, body), out|
           nodes = body.scan(
             %r{<(?:#{LAYOUT_NODE_TAG_PATTERN})\b[^>]*\belementId="([^"]*)"}m
           )
-          out[page_id] = nodes.flatten.uniq
+          out[region_id] = nodes.flatten.uniq
         end
       end
 

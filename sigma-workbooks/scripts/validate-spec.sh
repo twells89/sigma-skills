@@ -141,7 +141,7 @@ LAYOUT_ISSUES=$(printf '%s' "$SPEC_JSON" | jq -r '
   ($placed_all | unique) as $placed |
   ([($d.pages // [])[], ($d.overlays // [])[], ($d.panels // [])[]] |
     map(.id) | map(select(. != null)) | unique) as $declared_regions |
-  ([($d.layout // "") | scan("<Page[^>]*\\bid=\"([^\"]+)\"") | .[0]] | unique) as $placed_regions |
+  ([($d.layout // "") | scan("<(?:Page|Overlay|Panel)[^>]*\\bid=\"([^\"]+)\"") | .[0]] | unique) as $placed_regions |
   (($d.elements // []) | map(select(.kind == "page-break") | .id)) as $page_break_ids |
   ([($d.layout // "") |
     scan("<(?:Element|LayoutElement)\\b[^>]*\\belementId=\"([^\"]+)\"[^>]*\\bgridRow=\"\\s*([0-9]+)\\s*/\\s*([0-9]+)\"")]) as $leaf_rows |

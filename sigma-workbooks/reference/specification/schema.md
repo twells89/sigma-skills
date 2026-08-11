@@ -137,10 +137,14 @@ Overlay actions and open/close effects are in `reference/workflows/actions.md`.
 ## Panels
 
 `document.panels` is the metadata collection for workbook panels such as
-header/sidebar surfaces. Panel content is also selected by layout placement,
-not a nested element list. Panel variants have different configuration fields;
-read the live `panels` property before authoring one and preserve unknown panel
-metadata on round trip.
+header/sidebar surfaces (live-confirmed 2026-08-10 on a navigation-enabled
+workspace). Each entry is discriminated by `type` (`"header"` | `"sidebar"`).
+Panel content is selected by layout placement — a dedicated `<Panel id="...">`
+block in the `layout` XML (its own tag, not `<Page>`), not a nested element
+list. See `layout.md` §"Panels, headers, sidebars, and navigation" for the
+full field reference, the `<Panel>` layout shape, the
+`document.settings.navigation` on/off switch, and the workspace-entitlement
+gate. Preserve unknown panel metadata on round trip.
 
 ## Response-only fields
 
