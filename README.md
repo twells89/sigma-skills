@@ -2,7 +2,7 @@
 
 Skills for building and maintaining analytics in Sigma Computing from any AI coding agent.
 
-The skills split along the surfaces of the Sigma REST API — one for data models, one for workbooks, plus utility skills that orchestrate them. Each skill is a self-contained directory.
+The skills split along the surfaces of the Sigma REST API: data models, responsive workbooks, fixed-layout reports, and utility skills that orchestrate them. Each skill is a self-contained directory.
 
 **Supported agents** (`generated/` outputs per skill, install via `scripts/install-into-project.sh`):
 
@@ -24,6 +24,7 @@ See [Installation](#installation) below for the install helper.
 | [`sigma-api`](sigma-api/) | Configure Sigma API credentials and mint short-lived bearer tokens with client credentials or interactive browser OAuth. Prerequisite for skills that call the REST API. |
 | [`sigma-data-models`](sigma-data-models/) | Author Sigma data models from existing warehouse tables — sources, columns, metrics, relationships, filters, calc columns, CLS. Covers spec shape, discovery, CRUD, validation, and authoring judgment calls. **Out of scope: converting from another BI tool's format** (use the converter MCP / browser tool). |
 | [`sigma-workbooks`](sigma-workbooks/) | Build, edit, and iterate on Sigma workbook specs — pages, layout, controls, charts (line/bar/area/combo/donut), KPIs, tables, pivot tables, formulas, sources. Canonical reference for the workbook spec; other skills cross-link here for spec shape. |
+| [`sigma-reports`](sigma-reports/) | Build, validate, and safely update private-beta Sigma report code representations: fixed pixel pages, header/footer panels, common elements, PDF-oriented validation, and workbook-to-report conversion. Use for invoices, statements, regulatory documents, and other pixel-perfect output, not responsive dashboards. |
 | [`sigma-plugin-authoring`](sigma-plugin-authoring/) | Recreate a source viz that has no native Sigma equivalent — a radial gauge, custom heatmap, sankey — as a bespoke `@sigmacomputing/plugin`: build, register, host, embed, bind, verify. Includes a worked gauge example. |
 | [`custom-sql-to-data-model`](custom-sql-to-data-model/) | Scan Sigma workbooks for custom SQL elements, dedupe across workbooks, build or reuse data models, then repoint via the v3alpha `:swapSources` endpoint. Handles many workbooks pointing at one shared model. |
 
@@ -39,6 +40,8 @@ See [Installation](#installation) below for the install helper.
 | "Convert this dbt / LookML / Tableau / Power BI / Alteryx model to Sigma" | The **converter MCP** or the **browser converter tool** — *not* a skill. The skills cover authoring, not source-format parsing. |
 | "Build me a sales dashboard / workbook from this data model" | `sigma-workbooks` |
 | "Add a KPI / chart / control to an existing workbook" | `sigma-workbooks` |
+| "Build a pixel-perfect invoice / statement / printable report" | `sigma-reports` |
+| "Convert this workbook to a fixed-layout report" | `sigma-reports` |
 | "There's custom SQL in this workbook — promote it to a model" | `custom-sql-to-data-model` |
 
 ## Architecture
@@ -47,11 +50,12 @@ See [Installation](#installation) below for the install helper.
 sigma-data-models     ──┐
                         ├── building blocks (load on demand)
 sigma-workbooks       ──┘
+sigma-reports         ─── fixed-layout report authoring and delivery
 
 custom-sql-to-data-model    ─── orchestrator: SQL extraction + DM creation
 ```
 
-`sigma-data-models` and `sigma-workbooks` are the building blocks meant to be loaded by any Sigma authoring task. `custom-sql-to-data-model` is a higher-level pipeline that depends on them.
+`sigma-data-models`, `sigma-workbooks`, and `sigma-reports` are authoring building blocks. Workbooks are responsive and exploratory; reports use fixed physical pages. `custom-sql-to-data-model` is a higher-level pipeline that depends on the data-model and workbook skills.
 
 ## Auth
 
@@ -115,6 +119,7 @@ Each skill ships pre-built outputs in `generated/`. Use the install helper to dr
 # Project-local install
 ~/sigma-skills/scripts/install-into-project.sh tableau-to-sigma codex ~/work/myproject
 ~/sigma-skills/scripts/install-into-project.sh sigma-workbooks   cursor ~/work/myproject
+~/sigma-skills/scripts/install-into-project.sh sigma-reports     all    ~/work/myproject
 ~/sigma-skills/scripts/install-into-project.sh sigma-workbooks   all    ~/work/myproject
 
 # User-global install

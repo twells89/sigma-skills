@@ -1,0 +1,131 @@
+{
+  "source": {
+    "openapiVersion": "3.1.0",
+    "apiVersion": "2.0.0",
+    "capturedAt": "2026-08-11"
+  },
+  "mediaTypes": {
+    "create": ["application/json"],
+    "verify": ["application/json"],
+    "read": ["application/json"],
+    "update": ["application/json"]
+  },
+  "schemas": {
+    "CreateReportSpec": {
+      "required": ["document", "folderId", "name"],
+      "properties": ["description", "document", "folderId", "name"]
+    },
+    "CreateReportSpec.document": {
+      "required": ["elements", "kind", "pages", "schemaVersion"],
+      "properties": ["config", "elements", "kind", "layout", "pages", "panels", "schemaVersion", "settings"]
+    },
+    "VerifyReportSpec": {
+      "required": ["document", "folderId", "name"],
+      "properties": ["description", "document", "folderId", "name"]
+    },
+    "UpdateReportSpec": {
+      "required": ["document"],
+      "properties": ["document"]
+    },
+    "UpdateReportSpec.document": {
+      "required": ["elements", "kind", "pages", "schemaVersion"],
+      "properties": ["config", "elements", "kind", "layout", "pages", "panels", "schemaVersion", "settings"]
+    },
+    "ReportSpec": {
+      "required": ["createdAt", "createdBy", "document", "documentVersion", "folderId", "latestDocumentVersion", "name", "ownerId", "reportId", "updatedAt", "updatedBy", "url"],
+      "properties": ["createdAt", "createdBy", "description", "document", "documentVersion", "folderId", "latestDocumentVersion", "name", "ownerId", "reportId", "updatedAt", "updatedBy", "url"]
+    },
+    "ReportSpec.document": {
+      "required": ["elements", "kind", "layout", "pages", "schemaVersion"],
+      "properties": ["config", "elements", "kind", "layout", "pages", "panels", "schemaVersion", "settings"]
+    },
+    "ReportPage": {
+      "required": ["id", "name"],
+      "properties": ["backgroundColor", "backgroundImage", "id", "name", "pageWidth", "type", "visibility"]
+    },
+    "ReportPanel": {
+      "required": ["id", "type"],
+      "properties": ["config", "id", "pages", "title", "type"]
+    },
+    "ReportPanel.config": {
+      "required": [],
+      "properties": ["backgroundColor", "height"]
+    },
+    "ReportConfig": {
+      "required": [],
+      "properties": ["margin", "pageHeight", "pageWidth"]
+    },
+    "ConvertWorkbookToReport": {
+      "required": ["name"],
+      "properties": ["description", "destinationFolderId", "format", "name", "pageIds"]
+    },
+    "ConvertWorkbookToReportResponse": {
+      "required": ["convertedReport", "sourceWorkbook", "warnings"],
+      "properties": ["convertedReport", "sourceWorkbook", "warnings"]
+    }
+  },
+  "enums": {
+    "documentKind": ["report"],
+    "panelType": ["footer", "header"]
+  },
+  "publishedVariants": {
+    "commonElements": [
+      {"title": "Area Chart", "kind": "area-chart"},
+      {"title": "Bar Chart", "kind": "bar-chart"},
+      {"title": "Button", "kind": "button"},
+      {"title": "Combo Chart", "kind": "combo-chart"},
+      {"title": "Checkbox", "kind": "control"},
+      {"title": "Divider", "kind": "divider"},
+      {"title": "Embed", "kind": "embed"},
+      {"title": "Geography Map", "kind": "geography-map"},
+      {"title": "Image", "kind": "image"},
+      {"title": "Input Table", "kind": "input-table"},
+      {"title": "KPI", "kind": "kpi-chart"},
+      {"title": "Line Chart", "kind": "line-chart"},
+      {"title": "Pivot Table", "kind": "pivot-table"},
+      {"title": "Plugin", "kind": "plugin"},
+      {"title": "Point Map", "kind": "point-map"},
+      {"title": "Progress", "kind": "progress"},
+      {"title": "Region Map", "kind": "region-map"},
+      {"title": "Scatter Chart", "kind": "scatter-chart"},
+      {"title": "Table", "kind": "table"},
+      {"title": "Text", "kind": "text"},
+      {"title": "Waterfall Chart", "kind": "waterfall-chart"}
+    ],
+    "workbookOnlyElements": [
+      {"title": "Chat", "kind": "chat"},
+      {"title": "Container", "kind": "container"},
+      {"title": "Form", "kind": "form"},
+      {"title": "Manual navigation", "kind": "navigation"},
+      {"title": "Page break", "kind": "page-break"},
+      {"title": "Repeated container", "kind": "repeated-container"},
+      {"title": "Tabbed container", "kind": "tabbed-container"}
+    ],
+    "controls": [
+      {"title": "Checkbox", "controlType": "checkbox"},
+      {"title": "Date", "controlType": "date"},
+      {"title": "Date Range", "controlType": "date-range"},
+      {"title": "Drill down", "controlType": "drill"},
+      {"title": "Hierarchy", "controlType": "hierarchy"},
+      {"title": "Legend", "controlType": "legend"},
+      {"title": "Number", "controlType": "number"},
+      {"title": "Number Range", "controlType": "number-range"},
+      {"title": "Range Slider", "controlType": "range-slider"},
+      {"title": "Segmented Control", "controlType": "segmented"},
+      {"title": "Slider", "controlType": "slider"},
+      {"title": "Switch", "controlType": "switch"},
+      {"title": "Synced", "controlType": "synced"},
+      {"title": "Text", "controlType": "text"},
+      {"title": "Text Area", "controlType": "text-area"},
+      {"title": "Top N", "controlType": "top-n"}
+    ]
+  },
+  "operations": {
+    "reportResourceMethods": ["get"],
+    "createStatuses": ["200", "default"],
+    "verifyStatuses": ["200", "default"],
+    "readStatuses": ["200", "default"],
+    "updateStatuses": ["200", "default"],
+    "convertStatuses": ["201", "default"]
+  }
+}

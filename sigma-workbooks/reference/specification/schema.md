@@ -197,8 +197,9 @@ Key differences from the workbook shapes documented in this skill:
   workbook equivalent.
 
 This skill targets `/v2/workbooks/spec`; report authoring is out of scope
-here beyond this pointer. To build a report, start from the `/v2/reports/*`
-OpenAPI paths directly rather than reusing workbook layout recipes.
+here. Load the sibling `sigma-reports` skill for the report lifecycle, pixel
+layout, support matrix, offline validator, and safe full-replacement workflow.
+Do not reuse workbook layout recipes for reports.
 
 ## Minimal working example
 
