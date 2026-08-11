@@ -307,6 +307,11 @@ if [ -n "$REFRESH" ]; then
     fi
   elif command -v secret-tool >/dev/null 2>&1; then
     if printf '%s' "$REFRESH" | secret-tool store --label="sigma-api refresh token" service sigma-api key refresh-token; then
+      # client_id + token_url ride along so refresh-token.sh / get_token.py can
+      # redeem the refresh token without re-discovering anything (mirrors the
+      # macOS branch above — without these, headless refresh on Linux fails).
+      printf '%s' "$CLIENT_ID" | secret-tool store --label="sigma-api client-id" service sigma-api key client-id >/dev/null 2>&1 || true
+      printf '%s' "$TOKEN_URL" | secret-tool store --label="sigma-api token-url" service sigma-api key token-url >/dev/null 2>&1 || true
       log "Stored refresh token via libsecret (service 'sigma-api', key 'refresh-token')."
     else
       log "Warning: could not write to libsecret; refresh token NOT persisted."
