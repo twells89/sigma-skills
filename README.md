@@ -55,8 +55,10 @@ custom-sql-to-data-model    ─── orchestrator: SQL extraction + DM creation
 
 ## Auth
 
-Use the `sigma-api` skill to configure credentials and mint a token. For the
-client-credentials flow:
+Use the `sigma-api` skill to configure credentials and mint a token. There are
+**two options** — pick whichever fits.
+
+### Option 1 — Client credentials (headless / automation)
 
 ```bash
 export SIGMA_BASE_URL="https://api.sigmacomputing.com"
@@ -68,6 +70,27 @@ eval "$(bash ~/sigma-skills/sigma-api/scripts/get-token.sh)"
 ```
 
 Sigma client credentials are issued from **Administration → Developer Access** in your Sigma org.
+
+### Option 2 — Interactive browser login (no client ID/secret)
+
+Prefer signing in through the browser? The `sigma-api` skill also supports an
+OAuth authorization-code + PKCE login — no pre-provisioned credentials, the
+client registers itself. Best when a human is at the keyboard:
+
+```bash
+export SIGMA_BASE_URL="https://api.sigmacomputing.com"  # adjust per cloud; pragma: allowlist secret
+
+# Opens your browser, captures the redirect, and prints an export line to eval.
+eval "$(bash ~/sigma-skills/sigma-api/scripts/browser-login.sh)"
+
+# Later, mint a fresh token headlessly (no browser) from the stored refresh token:
+eval "$(bash ~/sigma-skills/sigma-api/scripts/refresh-token.sh)"
+```
+
+`browser-login.sh` stores the refresh token in your OS keychain, so
+`refresh-token.sh` can renew the ~1h access token without another sign-in. See
+[`sigma-api/reference/browser-oauth-login.md`](sigma-api/reference/browser-oauth-login.md)
+for the full flow.
 
 ## Installation
 

@@ -1,7 +1,13 @@
 #!/usr/bin/env bash
-# Exchange Sigma client credentials for a bearer token.
+# Exchange Sigma credentials for a bearer token.
 # Usage:  eval "$(scripts/get-token.sh)"
 # Sets SIGMA_API_TOKEN in the calling shell.
+#
+# Two auth options (SIGMA_BASE_URL is required for both):
+#   - Client credentials: set SIGMA_CLIENT_ID / SIGMA_CLIENT_SECRET (headless).
+#   - Browser login: if those are unset, this delegates to get_token.py, which
+#     redeems the refresh token the sigma-api skill's browser-login.sh stored
+#     in your OS keychain — no client ID/secret needed.
 #
 # bash/zsh only — PowerShell and cmd.exe can't run `eval "$(...)"`. For a
 # shell-neutral path (any shell, any agent), use scripts/get_token.py instead:
@@ -10,9 +16,19 @@
 
 set -euo pipefail
 
-: "${SIGMA_BASE_URL:?Run scripts/setup.rb to configure credentials}"
-: "${SIGMA_CLIENT_ID:?Run scripts/setup.rb to configure credentials}"
-: "${SIGMA_CLIENT_SECRET:?Run scripts/setup.rb to configure credentials}"
+: "${SIGMA_BASE_URL:?Set SIGMA_BASE_URL to your cloud API host (see the README Auth section)}"
+
+# No client credentials → hand off to get_token.py, which covers the
+# browser-login refresh path too (and prints the same `export` line).
+if [ -z "${SIGMA_CLIENT_ID:-}" ] || [ -z "${SIGMA_CLIENT_SECRET:-}" ]; then
+  SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+  if command -v python3 >/dev/null 2>&1; then
+    exec python3 "$SCRIPT_DIR/get_token.py" --print-export
+  fi
+  echo "Error: SIGMA_CLIENT_ID / SIGMA_CLIENT_SECRET are unset and python3 is not available." >&2
+  echo "  Set client credentials, or sign in with the sigma-api skill's browser-login.sh." >&2
+  exit 1
+fi
 
 CREDENTIALS=$(printf '%s:%s' "$SIGMA_CLIENT_ID" "$SIGMA_CLIENT_SECRET" | base64)
 

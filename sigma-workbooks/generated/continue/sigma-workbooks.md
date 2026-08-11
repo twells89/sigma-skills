@@ -94,7 +94,7 @@ ruby scripts/wb-rep.rb capabilities --kind bar-chart --field source  # one field
 
 ## Auth
 
-Authenticate via the `sigma-api` skill first to populate `$SIGMA_BASE_URL` and `$SIGMA_API_TOKEN`.
+Authenticate via the `sigma-api` skill first to populate `$SIGMA_BASE_URL` and `$SIGMA_API_TOKEN`. Two options there: **client credentials** (`SIGMA_CLIENT_ID`/`SIGMA_CLIENT_SECRET`, best for headless/automation) or **interactive browser login** (`sigma-api/scripts/browser-login.sh` → refresh headlessly with `refresh-token.sh`, no client ID/secret). Either yields a `$SIGMA_API_TOKEN`; the rest of this skill is identical.
 
 ## Recommended Workflow
 
@@ -348,7 +348,7 @@ sigma_curl() {
 }
 ```
 
-If 401 persists after refresh, re-authenticate via `sigma-api` and verify `SIGMA_BASE_URL`, `SIGMA_CLIENT_ID`, `SIGMA_CLIENT_SECRET`.
+If 401 persists after refresh, re-authenticate via `sigma-api`: for client credentials verify `SIGMA_BASE_URL`, `SIGMA_CLIENT_ID`, `SIGMA_CLIENT_SECRET`; for browser login re-run `sigma-api/scripts/refresh-token.sh` (or `browser-login.sh` if the refresh token has expired).
 
 ### 403 Forbidden on workbook create
 

@@ -150,7 +150,7 @@ vendored dependency — this skill doesn't ship or maintain it.
   mechanics) → `sigma-workbooks` skill.
 - **The underlying data model** the bound element sources from →
   `sigma-data-models` skill.
-- **Auth, base URL, token refresh** → defer to the `sigma-api` skill.
+- **Auth, base URL, token refresh** → defer to the `sigma-api` skill (either client credentials or interactive browser login yields the `SIGMA_API_TOKEN` this skill needs).
 
 ## Troubleshooting
 
