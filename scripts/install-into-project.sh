@@ -4,7 +4,8 @@
 # Usage:
 #   install-into-project.sh <skill-name> <target> [<dest-dir>]
 #
-#   <skill-name>   sigma-workbooks | sigma-data-models | custom-sql-to-data-model
+#   <skill-name>   sigma-workbooks | sigma-reports | sigma-data-models
+#                  | custom-sql-to-data-model
 #                  | tableau-to-sigma | tableau-vds-to-snowflake
 #   <target>       codex | cursor | cline | continue | cortex | all
 #   <dest-dir>     project directory (default: $PWD)
@@ -13,6 +14,7 @@
 # Examples:
 #   install-into-project.sh tableau-to-sigma codex ~/work/myproject
 #   install-into-project.sh sigma-workbooks all ~/work/myproject
+#   install-into-project.sh sigma-reports all ~/work/myproject
 #   install-into-project.sh sigma-workbooks codex --global   # → ~/.codex/AGENTS.md (concat)
 #
 # Cortex Code reads Claude's SKILL.md format natively — for `cortex`, this
