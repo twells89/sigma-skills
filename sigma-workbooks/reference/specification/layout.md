@@ -277,24 +277,25 @@ errors.
 
 ## Panels, headers, sidebars, and navigation
 
-> **Derived from the OpenAPI only — NOT live-confirmed.** Every shape below
-> matches `components.schemas.WorkbookSpec` → `document.panels` /
-> `document.settings.navigation` in the compiled OpenAPI, but no probe has
-> gotten a panel to actually render. Live-probed 2026-08-08 against the AWS
-> API host <!-- pragma: allowlist secret --> (an otherwise normal org): any spec that
-> includes `document.settings.navigation` at all — even one that is
-> spec-valid and otherwise unremarkable — is rejected with:
+> **LIVE-CONFIRMED 2026-08-10** on a workspace with navigation enabled: a
+> workbook with a header panel and a sidebar panel round-trips through
+> `GET /v2/workbooks/{id}/spec` with both `document.panels[]` entries, the
+> `document.settings.navigation` block, and `<Panel>` layout nodes intact, and
+> the panels render. The shapes below match `components.schemas.WorkbookSpec`
+> → `document.panels` / `document.settings.navigation`.
+>
+> **Workspace entitlement gate (still applies).** `document.settings.navigation`
+> is rejected on a workspace where the feature is **not** enabled:
 >
 > ```
 > 400 settings.navigation: workbook navigation settings are not enabled for this workspace.
 > ```
 >
-> The identical spec with `settings.navigation` omitted returns 200. That
-> reads as a **per-workspace entitlement gate**, not a payload error — if you
-> hit this exact message, recognize it as "this org lacks the feature," not a
-> spec mistake to debug. Treat everything in this section as spec-valid and
-> schema-accurate, but unverified end-to-end, until it's been created and
-> rendered on an org where the workspace setting is enabled.
+> The identical spec with `settings.navigation` omitted returns 200. That is a
+> **per-workspace entitlement gate**, not a payload error — if you hit this
+> exact message, recognize it as "this org lacks the feature," not a spec
+> mistake to debug. Panels only render on an org where the workspace setting is
+> enabled.
 
 `document.panels[]` holds page **headers** and page **sidebars** — chrome
 that sits outside the scrolling page grid. Each entry is a `oneOf` of two
@@ -333,12 +334,29 @@ document:
         borderStyle: line
 ```
 
-Panel *content* is placed exactly like overlay content: a layout
-`<Page id="<panel-id>">` block whose `id` matches the panel's `id` assigns
-elements to it (see "Each `<Page id>` matches a `document.pages[].id`,
-`document.overlays[].id`, or `document.panels[].id`" above). Preserve panel
-metadata from readback and re-check the live `panels` schema before adding
-fields not shown here — panel variants evolve.
+Panel *content* is placed by a dedicated layout **`<Panel>`** block whose
+`id` matches the panel's `id` (NOT a `<Page>` block — that was the pre-2026-08
+guess; live readback uses its own `<Panel>` tag). The block carries the same
+`type="grid"` / `gridTemplateColumns` / `gridTemplateRows` attributes as a
+`<Page>` and holds `<Element>` children the same way. Live-confirmed shape
+(`GET /v2/workbooks/{id}/spec`, 2026-08-10):
+
+```xml
+<Page type="grid" gridTemplateColumns="repeat(24, 1fr)" gridTemplateRows="auto" id="kchtzPvp2c"/>
+<Panel type="grid" gridTemplateColumns="repeat(24, 1fr)" gridTemplateRows="auto" id="main-header">
+  <Element elementId="header-text" gridColumn="3 / 15" gridRow="1 / 3"/>
+</Panel>
+<Panel type="grid" gridTemplateColumns="repeat(6, 1fr)" gridTemplateRows="auto" id="nav-sidebar">
+  <Element elementId="sidebar-text" gridColumn="3 / 6" gridRow="5 / 11"/>
+</Panel>
+```
+
+Every `<Panel id>` must match a `document.panels[].id`, and every element it
+places must exist in the flat `document.elements` array (same
+place-each-element-exactly-once rule as pages/overlays). A sidebar panel's grid
+is commonly narrower (`repeat(6, 1fr)`) than the 24-column page grid. Preserve
+panel metadata from readback and re-check the live `panels` schema before
+adding fields not shown here — panel variants evolve.
 
 ### `document.settings.navigation` — the on/off switch
 
