@@ -73,9 +73,13 @@ jq --arg k container 'first(.. | objects | select((.allOf? and any(.allOf[]?; .p
 ```
 
 - **Element on a background image:** to place an element *on top of* a container's `backgroundImage`, make it a **child** of that container in the layout XML — the background spans the container and the child sits on top.
-- **Background shape:** container/chart backgrounds use their element schema's
-  top-level `backgroundImage: {url: ...}` shape, sibling to `style`. Page
-  backgrounds use `backgroundImage: {source: {kind: url, url: ...}, style: ...}`.
+- **Background shape:** `backgroundImage` is a top-level field on the element,
+  sibling to `style`. **Live API change (2026-08-08): container backgrounds now
+  require the same nested shape as pages** —
+  `backgroundImage: {source: {kind: url, url: ...}, style: ...}` — the old flat
+  `backgroundImage: {url: ...}` hard-400s. Chart-element (plot-area)
+  `backgroundImage` was not re-verified in this pass; confirm its shape before
+  assuming it matches.
 - **Spacing:** `style.padding` accepts only `none` or omission on a container;
   values such as `small` are rejected. Use `elementGap`/`spacing` for
   child-to-child rhythm; do not fake spacing with empty text elements.

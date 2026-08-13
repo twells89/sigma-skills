@@ -278,8 +278,12 @@ module Styling
     title_id = "#{id}-title"
     subtitle_id = "#{id}-subtitle"
 
+    # Live API contract update (2026-08-08): backgroundImage now requires the
+    # url nested under source:{kind:"url",url:} -- the old flat
+    # backgroundImage:{url:} shape hard-400s ("backgroundImage.source: Invalid
+    # value: undefined"). style stays a sibling of source.
     container_el = { 'id' => container_id, 'kind' => 'container', 'style' => { 'borderRadius' => 'round' },
-                     'backgroundImage' => { 'url' => bg_url, 'style' => { 'fit' => 'cover' } } }
+                     'backgroundImage' => { 'source' => { 'kind' => 'url', 'url' => bg_url }, 'style' => { 'fit' => 'cover' } } }
     title_el = { 'id' => title_id, 'kind' => 'text', 'verticalAlign' => 'middle',
                  'body' => "# <span style=\"color: #FFFFFF\">#{title}</span>" }
 
@@ -374,8 +378,9 @@ module Styling
     return { element: [], child_layout: '', patch: {} } unless surfaces[:gradient_card]
 
     bg_url = svg_data_uri(compose_card_svg(gradient))
+    # Live API contract update (2026-08-08) -- see gradient_header's identical note above.
     container_el = { 'id' => id, 'kind' => 'container', 'style' => { 'borderRadius' => 'round' },
-                      'backgroundImage' => { 'url' => bg_url, 'style' => { 'fit' => 'cover' } } }
+                      'backgroundImage' => { 'source' => { 'kind' => 'url', 'url' => bg_url }, 'style' => { 'fit' => 'cover' } } }
     child_layout = "<Element elementId=\"#{kpi_element['id']}\" gridColumn=\"1 / #{page_cols + 1}\" gridRow=\"1 / 7\"/>"
     patch = { 'value' => { 'color' => '#FFFFFF' }, 'name' => { 'color' => '#FFFFFF' },
               'style' => { 'backgroundColor' => 'transparent', 'padding' => 'none' } }
