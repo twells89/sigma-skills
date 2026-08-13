@@ -474,15 +474,18 @@ Neil-style gradient banners are NOT directly authorable:
 - `style.backgroundColor` with a CSS `linear-gradient(...)` string is **accepted by POST/PUT but
   silently dropped** — the container renders with *no* background at all (worse than a 400; only
   a render catches it). Hex only.
-- ✓ **The working recipe (re-verified 2026-06-26): `backgroundImage` is a TOP-LEVEL field on the
+- ✓ **The working recipe (re-verified 2026-08-08): `backgroundImage` is a TOP-LEVEL field on the
   container element — a SIBLING of `style`, NOT nested inside `style`.** Nesting it under `style`
   silently drops it (posts `200`, GET readback shows only `backgroundColor`, renders flat) — that was
-  a real mistake caught this session. The correct shape:
+  a real mistake caught this session. **Breaking change (live, 2026-08-08):** the url itself now
+  nests under `source: {kind: url, url: ...}` — the old flat `backgroundImage: {url: ...}` hard-400s
+  (`"backgroundImage.source: Invalid value: undefined"`). The correct shape:
   ```yaml
   - id: hero
     kind: container
     style: { backgroundColor: "#0B1120", borderRadius: round }   # solid fallback / load color
-    backgroundImage: { url: "https://…/gradient.png" }           # <-- sibling of style, not inside it
+    backgroundImage:
+      source: { kind: url, url: "https://…/gradient.png" }       # <-- sibling of style, not inside it
   ```
   Lay the title **text element inside the hero container** and it overlays the gradient (text-over-image
   works for a container background — unlike a separate `image` element, which does NOT z-stack under
@@ -621,13 +624,18 @@ return contract as `header`, so it drops into the same composition call sites.
   kind: container
   style: { borderRadius: round }
   backgroundImage:
-    url: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0i..."   # composed gradient(+motif) SVG
+    source:
+      kind: url
+      url: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0i..."   # composed gradient(+motif) SVG
     style: { fit: cover }
 - id: hdr-title
   kind: text
   verticalAlign: middle
   body: '# <span style="color: #FFFFFF">Overview</span>'
 ```
+
+(Breaking change, live 2026-08-08: the url now nests under `source: {kind: url, url:}` — the
+old flat `backgroundImage: {url:}` hard-400s. Same shape applies to `gradient_card` below.)
 
 - `gradient:` is an array of **2–3 hex stops** (default: a neutral, host-agnostic
   3-stop slate→navy→blue ramp in `DEFAULT_THEME[:header_gradient]` — not red; red,

@@ -186,7 +186,7 @@ check('gradient_header (default :glow, :right): container has data-URI SVG backg
   h = Styling.gradient_header(id: 'ghdr', title: 'Command Center')
   bg = h[:element][0]
   bg['kind'] == 'container' && bg['style'] == { 'borderRadius' => 'round' } &&
-    bg['backgroundImage']['url'].start_with?('data:image/svg+xml;base64,') &&
+    bg['backgroundImage']['source']['url'].start_with?('data:image/svg+xml;base64,') &&
     bg['backgroundImage']['style'] == { 'fit' => 'cover' } &&
     h[:element].any? { |e| e['kind'] == 'text' && e['id'] == 'ghdr-title' } &&
     h[:layout].include?('<Container') && h[:layout].include?('elementId="ghdr-title"')
@@ -194,19 +194,19 @@ end
 
 check('gradient_header: decoded SVG carries the linearGradient + the requested motif group') do
   h = Styling.gradient_header(id: 'ghdr', title: 'X', motif: :rings)
-  svg = Base64.decode64(h[:element][0]['backgroundImage']['url'].sub('data:image/svg+xml;base64,', ''))
+  svg = Base64.decode64(h[:element][0]['backgroundImage']['source']['url'].sub('data:image/svg+xml;base64,', ''))
   svg.include?('linearGradient') && svg.include?('<circle r="40"/>') && svg.include?('<g transform="translate(1440,86)">')
 end
 
 check('gradient_header motif :none: no motif <g> group in the decoded SVG') do
   h = Styling.gradient_header(id: 'ghdr', title: 'X', motif: :none)
-  svg = Base64.decode64(h[:element][0]['backgroundImage']['url'].sub('data:image/svg+xml;base64,', ''))
+  svg = Base64.decode64(h[:element][0]['backgroundImage']['source']['url'].sub('data:image/svg+xml;base64,', ''))
   !svg.include?('<g transform=')
 end
 
 check('gradient_header motif_side: :left translates the motif group to x=160') do
   h = Styling.gradient_header(id: 'ghdr', title: 'X', motif: :rings, motif_side: :left)
-  svg = Base64.decode64(h[:element][0]['backgroundImage']['url'].sub('data:image/svg+xml;base64,', ''))
+  svg = Base64.decode64(h[:element][0]['backgroundImage']['source']['url'].sub('data:image/svg+xml;base64,', ''))
   svg.include?('translate(160,86)')
 end
 
@@ -236,12 +236,12 @@ end
 
 check('gradient_header: bring-your-own http(s) URL used verbatim, SVG compose skipped') do
   h = Styling.gradient_header(id: 'ghdr', title: 'X', motif: 'https://example.com/art.png')
-  h[:element][0]['backgroundImage']['url'] == 'https://example.com/art.png'
+  h[:element][0]['backgroundImage']['source']['url'] == 'https://example.com/art.png'
 end
 check('gradient_header: bring-your-own data: URL used verbatim') do
   uri = 'data:image/png;base64,AAAA'
   h = Styling.gradient_header(id: 'ghdr', title: 'X', motif: uri)
-  h[:element][0]['backgroundImage']['url'] == uri
+  h[:element][0]['backgroundImage']['source']['url'] == uri
 end
 
 check('gradient_header: gradient with != 2-3 stops raises ArgumentError') do
@@ -263,7 +263,7 @@ end
 check('gradient_header: NO-GO motif surface + menu-key motif falls back to the plain gradient (:none)') do
   surfaces = Styling::SURFACES.merge(motif: false)
   h = Styling.gradient_header(id: 'ghdr', title: 'X', motif: :rings, surfaces: surfaces)
-  bg = h[:element][0]['backgroundImage']['url']
+  bg = h[:element][0]['backgroundImage']['source']['url']
   svg = Base64.decode64(bg.sub('data:image/svg+xml;base64,', ''))
   bg.start_with?('data:image/svg+xml;base64,') && svg.include?('linearGradient') && !svg.include?('<g transform=')
 end
@@ -271,12 +271,12 @@ end
 check('gradient_header: NO-GO motif surface does NOT suppress a bring-your-own URL (honored verbatim)') do
   surfaces = Styling::SURFACES.merge(motif: false)
   h = Styling.gradient_header(id: 'ghdr', title: 'X', motif: 'https://example.com/art.png', surfaces: surfaces)
-  h[:element][0]['backgroundImage']['url'] == 'https://example.com/art.png'
+  h[:element][0]['backgroundImage']['source']['url'] == 'https://example.com/art.png'
 end
 
 check('gradient_header motif_side: :center translates the motif group to x=800 and produces a valid header') do
   h = Styling.gradient_header(id: 'ghdr', title: 'X', motif: :rings, motif_side: :center)
-  svg = Base64.decode64(h[:element][0]['backgroundImage']['url'].sub('data:image/svg+xml;base64,', ''))
+  svg = Base64.decode64(h[:element][0]['backgroundImage']['source']['url'].sub('data:image/svg+xml;base64,', ''))
   svg.include?('translate(800,86)') &&
     h[:element].any? { |e| e['kind'] == 'text' && e['id'] == 'ghdr-title' } &&
     h[:layout].include?('<Container') && h[:layout].include?('elementId="ghdr-title"')
@@ -301,7 +301,7 @@ check('gradient_card: GO returns a gradient container + child_layout positioning
   gc[:element].length == 1 &&
     gc[:element][0]['id'] == 'card-1' && gc[:element][0]['kind'] == 'container' &&
     gc[:element][0]['style'] == { 'borderRadius' => 'round' } &&
-    gc[:element][0]['backgroundImage']['url'].start_with?('data:image/svg+xml;base64,') &&
+    gc[:element][0]['backgroundImage']['source']['url'].start_with?('data:image/svg+xml;base64,') &&
     gc[:element][0]['backgroundImage']['style'] == { 'fit' => 'cover' } &&
     gc[:child_layout] == '<Element elementId="kpi-rev" gridColumn="1 / 25" gridRow="1 / 7"/>' &&
     gc[:patch] == { 'value' => { 'color' => '#FFFFFF' }, 'name' => { 'color' => '#FFFFFF' },
@@ -315,14 +315,14 @@ end
 
 check('gradient_card: decoded SVG carries the linearGradient stops (motif: :none -- no motif group)') do
   gc = Styling.gradient_card(id: 'card-1', kpi_element: GC_KPI_EL, gradient: %w[#0F172A #2563EB])
-  svg = Base64.decode64(gc[:element][0]['backgroundImage']['url'].sub('data:image/svg+xml;base64,', ''))
+  svg = Base64.decode64(gc[:element][0]['backgroundImage']['source']['url'].sub('data:image/svg+xml;base64,', ''))
   svg.include?('linearGradient') && !svg.include?('<g transform=')
 end
 
 check('gradient_card: composed SVG layers a dark scrim (id="card-scrim") over the caller gradient so white ' \
       'KPI text stays legible on any gradient, bright or dark (live-render fix, user-reported)') do
   gc = Styling.gradient_card(id: 'card-1', kpi_element: GC_KPI_EL, gradient: %w[#0F172A #2563EB])
-  svg = Base64.decode64(gc[:element][0]['backgroundImage']['url'].sub('data:image/svg+xml;base64,', ''))
+  svg = Base64.decode64(gc[:element][0]['backgroundImage']['source']['url'].sub('data:image/svg+xml;base64,', ''))
   svg.include?('id="card-scrim"') &&
     svg.include?("stop-opacity=\"#{Styling::CARD_SCRIM_TOP_OPACITY}\"") &&
     svg.include?('stop-opacity="0"') &&
@@ -331,7 +331,7 @@ end
 
 check('gradient_card: gradient: can be omitted -- defaults to DEFAULT_THEME[:card_gradient] (a dark slate pair)') do
   gc = Styling.gradient_card(id: 'card-1', kpi_element: GC_KPI_EL)
-  svg = Base64.decode64(gc[:element][0]['backgroundImage']['url'].sub('data:image/svg+xml;base64,', ''))
+  svg = Base64.decode64(gc[:element][0]['backgroundImage']['source']['url'].sub('data:image/svg+xml;base64,', ''))
   default_gradient = Styling::DEFAULT_THEME[:card_gradient]
   svg.include?(default_gradient[0]) && svg.include?(default_gradient[1])
 end

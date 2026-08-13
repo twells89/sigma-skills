@@ -93,9 +93,14 @@ Pages are metadata only:
 The live page schema exposes `id`, `name`, `type`, `visibility`, `pageWidth`,
 `backgroundColor`, and `backgroundImage`; it does not expose `elements`.
 `backgroundImage.source` is either `{kind: url, url}` or an uploaded-image
-reference from a readback. Container and chart background images retain their
-own element-specific `{url: ...}` shape; do not transpose the page wrapper onto
-those element kinds.
+reference from a readback. **Live API change (2026-08-08): container
+background images now require this same `source` wrapper too** —
+`backgroundImage: {url: ...}` (the old flat container shape) hard-400s
+(`"backgroundImage.source: Invalid value: undefined"`); use
+`backgroundImage: {source: {kind: url, url: ...}, style: ...}` on containers,
+same as the page shape above. Chart-element `backgroundImage` (the plot-area
+background) was not re-verified in this pass — confirm its current shape
+before assuming it matches.
 
 Restricted visibility:
 
