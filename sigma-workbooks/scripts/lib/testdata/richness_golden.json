@@ -31,9 +31,11 @@
             "kind": "effect",
             "effect": "insert-rows",
             "table": "annotations",
-            "value": {
-              "type": "agent-input",
-              "inputName": "note"
+            "values": {
+              "an-note": {
+                "type": "agent-input",
+                "inputName": "note"
+              }
             }
           }
         ]

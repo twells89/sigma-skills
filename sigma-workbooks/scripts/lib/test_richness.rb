@@ -202,7 +202,7 @@ end
 AGENT_TOOLS = [
   { 'toolId' => 't-log-note', 'kind' => 'action', 'name' => 'Log note', 'description' => 'Insert a review note.',
     'steps' => [{ 'kind' => 'effect', 'effect' => 'insert-rows', 'table' => 'annotations',
-                  'value' => { 'type' => 'agent-input', 'inputName' => 'note' } }] }
+                  'values' => { 'an-note' => { 'type' => 'agent-input', 'inputName' => 'note' } } }] }
 ].freeze
 
 check('agent: read-only analyst (tools: []) OMITS the tools key entirely') do
@@ -217,6 +217,16 @@ check('agent: multiple data_source_ids map to multiple dataSources entries, in o
   el = Richness.agent(id: 'ag-1', name: 'Analyst', instructions: 'x', data_source_ids: %w[src-a src-b])
   el['dataSources'] == [{ 'kind' => 'table', 'elementId' => 'src-a' }, { 'kind' => 'table', 'elementId' => 'src-b' }]
 end
+check('agent: optional name/data source arguments emit an API-valid minimal entry') do
+  el = Richness.agent(id: 'ag-min', instructions: '')
+  el == { 'id' => 'ag-min', 'instructions' => '', 'dataSources' => [] }
+end
+check('agent: optional description and greeting pass through') do
+  greeting = { 'mode' => 'static', 'message' => 'Ready.' }
+  el = Richness.agent(id: 'ag-described', name: 'Assistant', instructions: 'x', data_source_ids: [],
+                      description: 'A helper.', greeting: greeting)
+  el['description'] == 'A helper.' && el['greeting'] == greeting
+end
 check('agent: non-empty tools: is added verbatim') do
   el = Richness.agent(id: 'ag-2', name: 'Assistant', instructions: 'Act on my behalf.',
                        data_source_ids: ['src'], tools: AGENT_TOOLS)
@@ -227,15 +237,17 @@ check('agent: id required') do
     Richness.agent(id: '', name: 'A', instructions: 'x', data_source_ids: ['src']); false
   rescue ArgumentError; true; end
 end
-check('agent: name required') do
+check('agent: instructions must be present') do
   begin
-    Richness.agent(id: 'ag-1', name: '', instructions: 'x', data_source_ids: ['src']); false
+    Richness.agent(id: 'ag-1', name: 'A', instructions: nil, data_source_ids: ['src']); false
   rescue ArgumentError; true; end
 end
-check('agent: instructions required') do
+check('agent: omitted instructions is rejected by Ruby keyword arity') do
   begin
-    Richness.agent(id: 'ag-1', name: 'A', instructions: '', data_source_ids: ['src']); false
-  rescue ArgumentError; true; end
+    Richness.agent(id: 'ag-1', name: 'A', data_source_ids: ['src']); false
+  rescue ArgumentError
+    true
+  end
 end
 check('agent: NO-GO surface -> opt-in marker, never a faked agent') do
   el = Richness.agent(id: 'ag-1', name: 'A', instructions: 'x', data_source_ids: ['src'],
