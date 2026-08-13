@@ -126,7 +126,7 @@ agents:
                 inputName: note         # the agent supplies this at call time
 ```
 
-`value: { type: "agent-input", inputName }` is the tool-call analog of the
+`values: { <column-id>: { type: "agent-input", inputName } }` is the tool-call analog of the
 `type: "control"` / `type: "constant"` value shapes an `insert-rows` effect takes
 from a button (see `reference/workflows/actions.md`) — instead of pulling from a
 control's current value or a hard-coded constant, the value comes from an argument
@@ -156,8 +156,8 @@ tools:
 |---|---|---|
 | `action` | `toolId`, `name`, `description`, `steps`, `requiresApproval?` | **Live-verified** (create + readback) |
 | `mcp-connector` | `toolId`, `name`, `connectorId` | Shape accepted; needs a real connector — see below |
-| `warehouse-agent` | `toolId`, `description`, `connectionId`, `path` | Not exercised (no such agent in the test org) |
-| `search-service` | `toolId`, `description`, `connectionId`, `path` | Not exercised (no such service in the test org) |
+| `warehouse-agent` | `toolId`, `connectionId`, `path` (live readback; `description` optional) | Shape parses; `/verify` resolves the path against the host and can return `invocable inodes are not supported by this host` when the host lacks the registered agent. |
+| `search-service` | `toolId`, `connectionId`, `path` (live-example shape; `description` optional) | Requires a registered search service; verify with a real path before shipping. |
 
 `mcp-connector` lets a workbook agent call an external MCP tool by `connectorId`.
 A syntactically valid but fake `connectorId` is rejected with `invocable inodes are
@@ -165,7 +165,16 @@ not supported by this host: '<id>'` — i.e. the **shape parses** and the id is
 resolved against real org inodes, so this needs an actual registered connector to
 verify end to end. `warehouse-agent` and `search-service` both take a
 `connectionId` + `path` pair (a warehouse-side agent/service), same as a
-warehouse-table path.
+warehouse-table path. The compiled OpenAPI currently under-describes these live
+fields, so use a live readback or `/verify` result as the tiebreaker rather than
+omitting them.
+
+For action-agent steps, `/verify` accepts `agent-input` values for
+`set-control-value` and both `page` and `control` `clear-control` scopes. The
+button-specific guidance in `reference/workflows/actions.md` is narrower because
+only page-scoped `clear-control` has been proven to fire from a button; acceptance
+of an agent step does not prove that an action will execute successfully at run
+time.
 
 ### `steps[]` — `effect` or `sequence`
 
@@ -191,9 +200,10 @@ steps:
 > (This refines the blanket "action sequences are unsupported" claim: they are not
 > *authorable*, but they are *referenceable*.)
 
-> **Scope note:** the write/action agent shape above documents a live-verified
-> *pattern* — it is not independently exercised end-to-end in this pass (no
-> automated test drives an agent into actually invoking a tool).
+> **Scope note:** the write/action agent shape and the listed effect-step shapes
+> have been accepted by neutral `/verify` probes, including action tools targeting
+> `inputMode: view` tables. This is not end-to-end execution: no automated test
+> drives an agent into actually invoking a tool or proves a warehouse mutation.
 > `Richness.agent`'s `tools:` parameter passes an already-shaped array through
 > **verbatim** (never reshapes it) for exactly this reason: confirm any non-trivial
 > tool/step shape against a live POST + readback before shipping it, same discipline
@@ -230,13 +240,13 @@ gated feature look implemented.
 
 ## Cross-links
 
-- `scripts/lib/richness.rb` — `Richness.agent(id:, name:, instructions:,
-  data_source_ids:, tools: [])` builds the `agents[]` entry (`data_source_ids`
-  maps to `dataSources`; empty `tools:` is omitted from the emitted Hash,
-  matching the read-only shape above). `Richness.chat(id:, agent_id:)` builds
-  the page element. Both are gated behind `Richness::SURFACES[:agent]`; a
-  NO-GO flip returns `{opt_in: true, id:}` rather than emitting an unverified
-  shape.
+- `scripts/lib/richness.rb` — `Richness.agent(id:, instructions:, name: nil,
+  data_source_ids: [], tools: [], description: nil, greeting: nil)` builds the
+  `agents[]` entry (`data_source_ids` maps to `dataSources`; empty `tools:` is
+  omitted from the emitted Hash, matching the read-only shape above).
+  `Richness.chat(id:, agent_id:)` builds the page element. Both are gated behind
+  `Richness::SURFACES[:agent]`; a NO-GO flip returns `{opt_in: true, id:}` rather
+  than emitting an unverified shape.
 - `reference/workflows/actions.md` — the `insert-rows`/`clear-control`/
   `set-control-value` effect shapes a write-agent's tool `steps[]` reuses, and
   the append-only-log input-table pattern a logging tool typically targets.

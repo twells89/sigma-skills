@@ -225,18 +225,23 @@ module Richness
   # than a 400 (see `chat`'s docstring and reference/workflows/actions.md for
   # the caller-side fallback pattern). NO-GO surface ->
   # {'opt_in'=>true,'id'=>id}: never emit a faked agent.
-  def self.agent(id:, name:, instructions:, data_source_ids:, tools: [], surfaces: SURFACES)
+  # `instructions` must be present, but an empty string is accepted. `name` and
+  # `data_source_ids` are optional in the live API. `description` and `greeting`
+  # are passed through when supplied; callers remain responsible for shaping a
+  # valid greeting object (static or generated).
+  def self.agent(id:, instructions:, name: nil, data_source_ids: [], tools: [], description: nil, greeting: nil, surfaces: SURFACES)
     raise ArgumentError, 'id required' if id.to_s.empty?
-    raise ArgumentError, 'name required' if name.to_s.empty?
-    raise ArgumentError, 'instructions required' if instructions.to_s.empty?
+    raise ArgumentError, 'instructions required' if instructions.nil?
     return { 'opt_in' => true, 'id' => id } unless surfaces[:agent]
 
     out = {
       'id' => id,
-      'name' => name,
       'instructions' => instructions,
       'dataSources' => (data_source_ids || []).map { |eid| { 'kind' => 'table', 'elementId' => eid } }
     }
+    out['name'] = name unless name.nil?
+    out['description'] = description unless description.nil?
+    out['greeting'] = greeting unless greeting.nil?
     out['tools'] = tools unless tools.nil? || tools.empty?
     out
   end

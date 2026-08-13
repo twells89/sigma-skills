@@ -127,6 +127,11 @@ The only verified `value` shape is a constant text value (e.g. a "quick filter
 preset" button). Useful paired with a `list`/`segmented` control to give users a
 one-click shortcut into a known filter state.
 
+An action-agent step is a separate host: `/verify` also accepts
+`value: { type: agent-input, inputName: <name> }` there. That proves the step
+shape only; it does not prove that the agent will invoke it or that the control
+will accept the supplied value at runtime.
+
 ## Overlays: `open-overlay` / `close-overlay` (modal **and** drawer)
 
 Modal and drawer metadata lives in `document.overlays`, not
@@ -274,6 +279,11 @@ type: column-match, column: status, condition: "=", value: {...} }`.
 `>=` / `<` / `<=` / `Contains` / `NotContains` / `StartsWith` / `EndsWith`
 (`value` required), or `Between` / `NotBetween` (`low`/`high` required instead
 of `value`).
+
+For an action-agent tool, `primaryKeys` and the `values` map must use the target
+input-table element's own column IDs. Do not copy friendly names or IDs from a
+derived table/chart that reads from the input table; Sigma may report those as
+`bad column` during `/verify`.
 
 > **`current-row` is not reachable from a page-level button.** It rejects with
 > `current-row selector requires the action host to be within the target input
