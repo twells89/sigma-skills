@@ -312,6 +312,12 @@ The single most common spec error is bare `[column_name]` references to warehous
 - References a column defined in this element by its `name` field.
 - A column cannot reference itself (circular reference error).
 
+**Data-model metrics** — use `[Metrics/<metric name>]`:
+- `Metrics` is a reserved namespace; use the metric's `name`, not its ID.
+- `[<element name>/<metric>]` is a column reference and can fail with
+  `Dependency not found` even though the metric exists.
+- Confirm the metric survives the data-model GET readback before binding it.
+
 ## Troubleshooting
 
 ### "I don't see this field in the skill"

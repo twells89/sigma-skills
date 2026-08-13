@@ -38,6 +38,15 @@ elementId: <element-uuid within that model>
 
 Optionally add `groupingId` to apply one of the model element's groupings.
 
+Columns exposed by the data-model element use the element's name as their
+formula prefix, for example `[Order Fact/Revenue]`. Governed metrics are
+different: reference them through the reserved namespace
+`[Metrics/<metric name>]`, for example `[Metrics/Total Revenue]`. Do not use
+the data-model element name or metric ID as the prefix. Confirm the metric is
+present in the data-model GET readback before binding a workbook formula; a
+successful model write alone does not prove that the metric survived
+normalization.
+
 ## join
 
 Joins multiple sources into one logical source via an array of `joins`. Each leg (`primarySource`, `left`, `right`) can be any source kind, so warehouse tables, other elements, and data-model elements can be joined interchangeably.

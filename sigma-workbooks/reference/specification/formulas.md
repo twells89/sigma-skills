@@ -122,6 +122,34 @@ The prefix depends on the source type:
 
 - Column names must match exactly what the describe endpoint returns. **Never invent column names.**
 
+### Data-model metrics — use `[Metrics/<metric name>]`
+
+A metric in a data-model table's `metrics[]` is not a normal source column.
+Workbook elements sourcing that data-model element reference it through the
+reserved `Metrics` namespace:
+
+```yaml
+source:
+  kind: data-model
+  dataModelId: <data-model-id>
+  elementId: <element-id>
+columns:
+  - id: c-total-revenue
+    name: Total Revenue
+    formula: "[Metrics/Total Revenue]"
+```
+
+The segment after `Metrics/` is the metric's display `name`, not its `id`.
+`[Base/Total Revenue]`, `[Base/<metric-id>]`, and
+`[<data-model-element-name>/Total Revenue]` try to resolve columns and can
+return `400 Dependency not found`; that does not mean data-model metrics are
+unavailable to workbooks.
+
+GET the data-model spec after its write and bind only metrics present in the
+readback. If a metric and column on the same data-model element have identical
+names, rename the metric or use the inline aggregate: Sigma can accept that
+collision-shaped model and omit its metrics from readback.
+
 ## Control references
 
 `controlId` is the formula handle (distinct from the element `id`). Reference a
