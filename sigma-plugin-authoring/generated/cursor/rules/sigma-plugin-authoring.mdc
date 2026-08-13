@@ -37,6 +37,16 @@ OpenAPI" section). Only recreate as a plugin when the native surface is a
 confirmed miss — plugins carry real lifecycle cost (hosting, registration,
 re-registration on URL change) that a native chart doesn't.
 
+**A screenshot, mockup, or Claude design artifact is not itself a reason to
+build a plugin.** For a whole dashboard/app artifact, start with
+`sigma-workbooks/reference/workflows/from-image.md`. App shell, headers, rails,
+cards, buttons, controls, input tables, agents, and ordinary charts should be
+native workbook elements. Return here only for an individual bespoke data
+visualization whose marks/interactions have no native Sigma equivalent. Do not
+rebuild an entire artifact as one HTML plugin merely to get pixel control; that
+throws away native filtering, writeback, agent, accessibility, and workbook
+composition behavior.
+
 ## The recipe
 
 ### 1. Build the plugin
