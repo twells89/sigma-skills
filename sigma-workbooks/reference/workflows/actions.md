@@ -123,14 +123,53 @@ control: RegionFilter
 value: { type: constant, value: { type: text, value: "West" } }
 ```
 
-The only verified `value` shape is a constant text value (e.g. a "quick filter
-preset" button). Useful paired with a `list`/`segmented` control to give users a
-one-click shortcut into a known filter state.
+The only verified `value` shape is a constant text value (e.g. a quick-filter
+preset or `""` to blank a wizard field). Useful paired with a
+`list`/`segmented` control to give users a one-click shortcut into a known
+filter state.
 
 An action-agent step is a separate host: `/verify` also accepts
 `value: { type: agent-input, inputName: <name> }` there. That proves the step
 shape only; it does not prove that the agent will invoke it or that the control
 will accept the supplied value at runtime.
+
+### Resetting a create wizard after it writes
+
+A new-record modal keeps its control values after the row is inserted. Reset
+the fields on the same button, ordered after `insert-rows` because the write
+reads those controls:
+
+```yaml
+effects:
+  - effect: insert-rows
+    table: scenarios
+    values:
+      name:  { type: control, control: newName }
+      owner: { type: control, control: newOwner }
+  - effect: set-control-value
+    control: newName
+    value: { type: constant, value: { type: text, value: "" } }
+  - effect: set-control-value
+    control: newStrategy
+    value: { type: constant, value: { type: text, value: "Baseline" } }
+  - effect: close-overlay
+```
+
+Do not use page-scoped `clear-control` for this. Overlay content lives in flat
+`document.elements`; page scope resolves to the host page and can clear
+unrelated controls such as an active-scenario selector. Use per-control,
+constant `set-control-value` effects, then close the overlay last.
+
+Click the deployed button once and prove both outcomes: the row landed and the
+fields reset. Readback proves only that the effect shapes persisted.
+
+### Actions write workflow events; they do not bulk-populate tables
+
+Use `insert-rows` for deliberate runtime submissions—a note, request, scenario
+header, or audit event. It is not a supported initial-load mechanism for a
+planning grid or imported dataset. A union or join also cannot write rows; it
+only composes a downstream read path. Route row creation through
+`../specification/input-tables.md` before authoring actions.
 
 ## Overlays: `open-overlay` / `close-overlay` (modal **and** drawer)
 
@@ -393,7 +432,7 @@ to capture what the user types, and a **button** that inserts a row.
 #    insert-rows `values` above; doing so breaks the column.
 - id: annotations
   kind: input-table
-  inputMode: edit
+  inputMode: view # required; published editing is a separate UI-only setting
   source: { kind: empty, connectionId: <WRITE_CONNECTION_ID> }
   columns:
     - id: an-note
@@ -416,7 +455,7 @@ listed cause **first** before assuming the element kind itself is unsupported.
 
 | Error | Real cause | Fix |
 |---|---|---|
-| `Invalid kind: "input-table"` | `inputMode` was omitted. | Always set `inputMode: edit` (or `explore`/`view` — see `input-tables.md`). It's technically documented as required in `tables.md`, but omitting it produces this generic message rather than a field-specific one. |
+| `Invalid kind: "input-table"` | `inputMode` was omitted. | Always set `inputMode` (`view` is a safe structural default). It does not enable published editing; that is the UI-only “Set data entry permission” setting in `input-tables.md`. |
 | `Invalid kind: "control"` (on a `text`/`text-area` control used for **entry**, not filtering) | One or more of `mode`, `case`, `includeNulls`, `showOperators` was omitted. | Set all four — see `controls.md`'s "Entry (write) text controls" section. |
 | Button silently does nothing on click | An element/container-scoped `clear-control`. | Use `scope: { type: page, page: <id> }` only (see above). |
 | `document.pages[0]: Invalid type: "page"` | An invalid entry in some element's `columns[]` — e.g. trying to author a row-action `kind: button` as an input-table column. The mismatch is reported against the **page** schema, not the offending column. | Check the `columns[]` you last touched, not the page `type`. Row-scoped action hosts aren't spec-authorable (see `delete-rows` / `current-row` above). |
@@ -429,12 +468,13 @@ listed cause **first** before assuming the element kind itself is unsupported.
 
 - `scripts/lib/actions.rb` — `Actions.button(id:, text:, effects:,
   appearance:)`, `Actions.input_table_empty(id:, connection_id:, columns:,
-  name:)`, `Actions.input_table_linked(id:, from:, connection_id:, columns:,
-  name:)`, and the three effect builders `Actions.insert_rows_effect(table:,
+  name:, input_mode:)`, `Actions.input_table_linked(id:, from:,
+  connection_id:, columns:, name:, input_mode:)`, and the three effect builders `Actions.insert_rows_effect(table:,
   values:)` / `Actions.clear_control_effect(page:)` /
   `Actions.set_control_value_effect(control:, text:)` build exactly the shapes
-  above (`inputMode: "edit"` always emitted; `clear_control_effect` only ever
-  emits page scope). Gated behind `Actions::SURFACES`; a NO-GO flip returns
+  above (`inputMode: "view"` by default with explicit `edit`/`explore`
+  overrides; `clear_control_effect` only ever emits page scope). Gated behind
+  `Actions::SURFACES`; a NO-GO flip returns
   `{opt_in: true, id:}` (element builders) or `{}` (effect builders) rather than
   a faked shape. **The nine effects in *Navigation, refresh, and row-editing
   effects* have no builder yet** — hand-author those shapes (they're verified,

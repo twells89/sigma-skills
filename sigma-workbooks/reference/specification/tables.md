@@ -181,11 +181,22 @@ Condition operators include `=`, `!=`, `>`, `>=`, `<`, `<=`, `IsNull`, `IsNotNul
 
 The `input-table` element is an editable table — users type values directly into cells, backed by a provisioned warehouse table. Required fields: `id`, `kind`, `source`, `inputMode`.
 
-`inputMode` controls who can edit and where:
+`inputMode` is required and accepts `edit`, `explore`, or `view`. It does
+**not** decide whether users can type into the published workbook.
 
-- `edit` — workbook editors only, in draft mode
-- `explore` — users with explore permission or greater, in published view
-- `view` — all users, in published view
+Published data entry is a separate UI-only setting on each input table:
+
+```text
+element kebab → Set data entry permission
+              → Only in draft              # default
+              → Only in published version
+```
+
+Live verification found that all three `inputMode` values remained inert in
+published view while the permission stayed at its default. Flipping one table
+made only that table editable, while `GET /spec` stayed byte-identical. Code
+Rep therefore cannot set or inspect this permission. Every spec-built
+writeback app needs this manual step per input table before handoff.
 
 `source` is one of:
 
@@ -230,3 +241,8 @@ columns:
 ```
 
 `input-table` also supports `filters`, `conditionalFormats` (see above), `sort`, `summary`, and the styled title-section `name`/`noDataText`. Fetch the full schema with the `kind`-form recipe at the top of this doc.
+
+Creating this element defines its structure; it does not bulk-populate rows.
+For the supported population decision tree—and why unions, joins, and actions
+are not interchangeable seeding strategies—read `input-tables.md` before
+building a writeback workflow.
