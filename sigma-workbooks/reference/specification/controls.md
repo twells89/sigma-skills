@@ -5,6 +5,8 @@ Recipe book for the control element family and the patterns that wire them up. T
 Controls are flat `document.elements[]` entries alongside tables and charts.
 Layout assigns them to pages or containers.
 
+> **Two different `filters` arrays.** On a `kind: control`, `filters[]` is only **wiring**: `{ source: { kind: table, elementId }, columnId }` — which element+column this widget drives. On a data element (`table`, chart, …), `filters[]` is the **predicate catalog** (`kind: list | top-n | number-range | date-range | text-match | hierarchy`). Do not put control wiring objects on a table, or list/`top-n` objects on a control. Element-filter shapes: `tables.md` → `filters`.
+
 **Every `controlType` wires up the same way** (`controlId` + `filters`, below); they differ only in the widget and its (flat top-level) value fields. So treat the per-type sections below as illustrations of the *wiring*, **not a catalog of what's supported** — a `controlType` you don't see here works the same way. The set also grows over time, so get the current list from the spec rather than hardcoding it:
 
 ```bash

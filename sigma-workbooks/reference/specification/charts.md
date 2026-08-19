@@ -179,9 +179,9 @@ holeValue:
 
 Related donut-only fields (all round-trip): `innerRadius` (hole size as a ratio of the outer radius, default 0.6) and `hole.value` styling (`fontWeight`, `color`, `visibility`) for the center label.
 
-## Element-level filters (Top-N, etc.)
+## Element-level filters
 
-Charts take the same `filters` array as tables — the top-N example in `tables.md` applies to `bar-chart`, `line-chart`, and `donut-chart` without changes.
+Charts (and KPIs / maps) take the **same** element `filters` array as tables — all six `kind`s (`list`, `top-n`, `number-range`, `date-range`, `text-match`, `hierarchy`). Full field catalog and traps: `tables.md` → `filters`.
 
 Top 10 regions by `Sales` on a bar chart:
 
@@ -196,7 +196,7 @@ filters:
     includeNulls: when-no-value-is-selected
 ```
 
-`rowCount` takes a number literal — it cannot be bound to a control (see `controls.md`, "Where Control Bindings Apply").
+`rowCount` takes a number literal — it cannot be bound to a control (see `tables.md` and `controls.md`).
 
 ## Cartesian-only optional features
 

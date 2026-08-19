@@ -281,7 +281,7 @@ The reference is feature-sliced — don't read every file up-front. The index ha
 
 | File | When to load |
 |------|--------------|
-| `reference/specification/tables.md` | Table element, tabular data, data grid, spreadsheet-style list. Also element-level filters (top N, limit, rank), groupings (pivot, group by), the `pivot-table` and editable `input-table` element kinds, and `conditionalFormats` (threshold-based cell coloring, on pivot/input tables). |
+| `reference/specification/tables.md` | Table element, tabular data, data grid, spreadsheet-style list. Also **element-level filters** (`list`, `top-n`, `number-range`, `date-range`, `text-match`, `hierarchy`), groupings (pivot, group by), the `pivot-table` and editable `input-table` element kinds, and `conditionalFormats` (threshold-based cell coloring, on pivot/input tables). |
 | `reference/specification/charts.md` | Chart, graph, visualization, line / bar / column / stacked / grouped / combo / donut / pie / scatter / waterfall / share-of / breakdown. Cartesian axes, color, trellis, legend, trendlines, reference marks. Box chart is unsupported/pending because it is absent from the live OpenAPI. |
 | `reference/specification/maps.md` | Map visualizations — `geography-map` (GeoJSON shapes), `point-map` (lat/long bubbles), `region-map` (states / counties / countries). |
 | `reference/specification/kpis.md` | KPI, stat, big number, single value, metric card — including layout / value styling, the comparison Δ badge (`comparisonColumn` + `comparison:{display:"delta"}` — spec-authorable and readback-stable; the house default), and the trend/sparkline block (still UI-bound). |
@@ -338,6 +338,12 @@ The single most common spec error is bare `[column_name]` references to warehous
 **Inside the same element** — use `[column_name]` (no prefix):
 - References a column defined in this element by its `name` field.
 - A column cannot reference itself (circular reference error).
+
+**Data-model metrics** — use `[Metrics/<metric name>]`:
+- `Metrics` is a reserved namespace; use the metric's `name`, not its ID.
+- `[<element name>/<metric>]` is a column reference and can fail with
+  `Dependency not found` even though the metric exists.
+- Confirm the metric survives the data-model GET readback before binding it.
 
 ## Troubleshooting
 
