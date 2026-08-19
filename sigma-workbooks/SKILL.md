@@ -168,6 +168,14 @@ Load `reference/workflows/discover.md`. Quick summary:
 
 Map the user's request to the **Reference Index** below. State the features you identified, then read the listed reference files before drafting. **If the user asks for a feature this skill doesn't cover**, fetch the OpenAPI and inspect the relevant schema.
 
+If the request includes an input table, writeback, “populate,” “seed,” planning,
+approval, allocation, or exception workflow, load
+`reference/specification/input-tables.md` before choosing an architecture.
+Creating an input-table element, loading initial rows, composing a downstream
+read path, and submitting a runtime action are four different operations. Do
+not substitute actions, unions, or joins for one another when the first
+approach leaves the table empty.
+
 ### Step 5 — Draft the spec to a local file
 
 Write the spec YAML to disk (e.g., `/tmp/workbook-spec.yaml`). YAML is preferred over JSON in this skill — easier to read, diff, and comment for human review. The API accepts either; pick YAML unless something downstream specifically needs JSON. Key rules:
@@ -279,7 +287,7 @@ The reference is feature-sliced — don't read every file up-front. The index ha
 | `reference/specification/kpis.md` | KPI, stat, big number, single value, metric card — including layout / value styling, the comparison Δ badge (`comparisonColumn` + `comparison:{display:"delta"}` — spec-authorable and readback-stable; the house default), and the trend/sparkline block (still UI-bound). |
 | `reference/specification/controls.md` | Filter, dropdown, picker, multi-select, date range, date picker, text filter, number range, slider, segmented, hierarchy, legend, and drill controls. Also entry controls and formula handles. |
 | `reference/specification/content-elements.md` | The non-data elements — `text` (Markdown + inline styling), `image`, `divider`, `embed` (external URLs), `page-break` (PDF/print pagination), `form`, `progress`, `navigation`, `plugin`. Titles, callouts, logos, rules, embedded content. |
-| `reference/specification/input-tables.md` | Operational supplement for `input-table` (spec shape lives in `tables.md`): write-connection requirement, the publish gate, reading data back via warehouse views, element endpoints for auditing, and migration patterns (Excel/planning models). |
+| `reference/specification/input-tables.md` | **Load for every input-table or “populate/seed” request.** Operational supplement for `input-table`: supported row-arrival decision tree, write connection, UI-only published permission, publish gate, linked-key correlation, warehouse views, and why actions/unions/joins are not bulk seeding mechanisms. |
 | `reference/specification/styling.md` | **Load when building a dashboard from scratch.** Design recipe library — vetted color palette, hero header strip, gradient header/KPI cards + composite sparkline, KPI card row, section headers, divider rhythm, categorical chart colors. Turns a default-arrange workbook into a designed-looking one without UI editing. |
 | `reference/specification/agents.md` | Workbook AI agent, chat with your data, agent, chatbot, AI assistant. The workbook-top-level `agents:[]` array + page-level `chat` element; read-only analyst vs. write/action agent; the four `tools[]` kinds (`action`, `mcp-connector`, `warehouse-agent`, `search-service`), `greeting`, `requiresApproval`, why action sequences are referenceable but not authorable; org-feature gate + graceful degrade. |
 
@@ -308,8 +316,13 @@ The reference is feature-sliced — don't read every file up-front. The index ha
 | `reference/workflows/discover.md` | Finding connections, tables, and column names. Load before composing a new spec. |
 | `reference/workflows/composition.md` | Open-ended design decisions — calibrating workbook complexity to the request, when to ask the user, what to ask, surfacing structural choices in the final summary, and a few safe defaults (hidden source pages, ranked-table sort direction). Load before drafting anything when the prompt leaves significant design choices unmade. |
 | `reference/workflows/actions.md` | Buttons, write-back, and **all twelve** action effects — insert/update/delete-rows, clear-control, set-control-value, open/close-overlay (modal **and** drawer), open-url, open-document (incl. passing `targetControls` into another workbook), navigate, select-tab, refresh-element — plus the append-only-log pattern and the masked-error catalog. Load when the user wants a button, a "log/save/submit" action, tab/page navigation, a deep link, or a write-back workflow. |
+| `reference/workflows/planning-apps.md` | **Scenario planning, budgeting, and forecasting apps.** Scenario × Period × Planning Line grain, governed baseline, scenario matrix, linked override grid, financial sign, filter-propagation choices, approval/audit, and runtime gates. |
+| `reference/workflows/allocation-apps.md` | **Allocation and capacity apps.** Budget/target vs. baseline at Period × Allocation Dimension grain, linked editable units/uplifts, working allocation, request queue, and exact variance gates. |
+| `reference/workflows/approval-apps.md` | **Approval and decision apps.** Stable entity-key queues, counter-values, immutable audit logs, one-row status updates, agent boundaries, and runtime tests. |
+| `reference/workflows/exception-apps.md` | **Exception command centers.** Stable operational-key queues, deterministic recommendations, overrides, ownership, resolution logs, and exact KPI-delta tests. |
 | `reference/workflows/crud.md` | POST / GET / PUT against the workbook spec endpoints. Load when creating, retrieving, or updating a workbook. |
-| `reference/workflows/validate.md` | Pre-submit + post-create validation. Load before any POST or PUT. |
+| `reference/workflows/validate.md` | Pre-submit + post-create structural validation. Load before any POST or PUT; for joins, controls, writeback, agents, or numeric claims continue to `runtime-verification.md`. |
+| `reference/workflows/runtime-verification.md` | **Runtime evidence loop:** compile, render, export, cardinality, numeric oracle, published writeback, linked-row correlation, control scope, approval scope, and agent tests. |
 | `reference/workflows/from-image.md` | The user supplied a target image or Claude design artifact to reproduce. Load *before* discovery — it inventories the entire app shell and behavior, routes native Sigma vs plugin/UI-only surfaces, requires a local design manifest, and enforces first-render → diff → final-render acceptance. |
 | `reference/workflows/element-rep.md` | **Large or multi-page workbooks, parallel element work, or iterative refinement.** `scripts/wb-rep.rb` explodes the spec into one small file per element (pull/status/push/render) so edits never drag the whole spec through context — element-level semantics over the whole-spec API, plus PNG renders to inspect what you built. |
 
