@@ -31,6 +31,7 @@
 #   status [dir]                 element-level diff: working files vs last-synced snapshot
 #   push [dir]                   reassemble -> drift-check -> validate -> PUT (or POST create)
 #   assemble [dir] [-o file]     print/write the reassembled spec without pushing
+#   lint [dir|spec-file]         offline: layout coverage + filter reference integrity
 #   import <spec.yaml> [dir]     explode an existing local spec file (create mode: push POSTs)
 #   verify <spec-file>           dry-run (Beta endpoint): POST to /v2/workbooks/spec/verify —
 #                                zero-persistence schema/reference check; prints valid: true or
@@ -326,7 +327,60 @@ def lint_layout_coverage(spec)
   die "layout validation failed:\n  - #{issues.join("\n  - ")}", 1 unless issues.empty?
 end
 
+# Every `filters[].columnId` must name a column that is declared on the element
+# that owns it. Two shapes, per reference/specification/controls.md:
+#   - control wiring:      { source: { kind: table, elementId }, columnId }
+#                          -> the column lives on the TARGET element
+#   - element predicate:   { id, columnId, kind: list|top-n|... }
+#                          -> the column lives on the OWNING element
+#
+# Sigma's /v2/workbooks/spec/verify catches the element-predicate case but NOT
+# control wiring (measured 2026-08-20): a control filtering a nonexistent column
+# returns valid:true, saves with the bogus id intact, and compiles with zero
+# errors — the control silently stops filtering. This closes that gap offline.
+def lint_reference_integrity(spec)
+  doc = document(spec)
+  elements = Array(doc['elements'])
+  declared = index_by_id(elements)
+  columns = elements.each_with_object({}) do |element, acc|
+    acc[element['id']] = Array(element['columns']).filter_map { |column| column['id'] }
+  end
+  issues = []
+
+  elements.each do |element|
+    label = element['controlId'] || element['name'] || element['id']
+    Array(element['filters']).each_with_index do |filter, idx|
+      next unless filter.is_a?(Hash)
+      column_id = filter['columnId']
+      next if column_id.nil?
+
+      source = filter['source']
+      target_id = source.is_a?(Hash) ? source['elementId'] : nil
+      if target_id && !declared.key?(target_id)
+        issues << "#{label} filters[#{idx}] targets unknown element #{target_id.inspect}"
+        next
+      end
+      target_id ||= element['id']
+      next if Array(columns[target_id]).include?(column_id)
+
+      issues << "#{label} filters[#{idx}] references column #{column_id.inspect} " \
+                "which is not declared on element #{target_id.inspect}"
+    end
+  end
+
+  die "reference integrity check failed:\n  - #{issues.join("\n  - ")}", 1 unless issues.empty?
+end
+
 # ---- commands ------------------------------------------------------------
+
+def cmd_lint(args)
+  target = args.shift || '.'
+  spec = File.directory?(target) ? assemble(target) : YAML.load_file(target)
+  lint_layout_coverage(spec)
+  lint_reference_integrity(spec)
+  lint_reference_integrity(spec)
+  puts 'lint: ok'
+end
 
 def cmd_pull(args, force:)
   wb_id = args.shift or die 'usage: wb-rep.rb pull <workbook-id> [dir]'
@@ -693,10 +747,11 @@ when 'import'   then cmd_import(argv)
 when 'verify'   then cmd_verify(argv)
 when 'status'   then cmd_status(argv)
 when 'assemble' then cmd_assemble(argv)
+when 'lint'     then cmd_lint(argv)
 when 'push'         then cmd_push(argv, force: force, validate: !no_validate)
 when 'render'       then cmd_render(argv)
 when 'summarize'    then cmd_summarize(argv)
 when 'capabilities' then cmd_capabilities(argv)
 else
-  die "usage: wb-rep.rb {pull <workbook-id> [dir] | import <spec.yaml> [dir] | verify <spec-file> | status [dir] | assemble [dir] [-o file] | push [dir] | render [dir] [--page <id|name>] [--element <id>] | summarize [dir|workbook-id] | capabilities [--kind K [--field F]]} [--force] [--no-validate]"
+  die "usage: wb-rep.rb {pull <workbook-id> [dir] | import <spec.yaml> [dir] | verify <spec-file> | status [dir] | assemble [dir] [-o file] | lint [dir|spec-file] | push [dir] | render [dir] [--page <id|name>] [--element <id>] | summarize [dir|workbook-id] | capabilities [--kind K [--field F]]} [--force] [--no-validate]"
 end
