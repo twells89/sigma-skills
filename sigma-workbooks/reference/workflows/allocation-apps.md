@@ -55,8 +55,15 @@ compounding growth driver.
 
 Do not seed this grid with an `insert-rows` button. Build the governed
 `Period × Allocation Dimension` baseline, then link editable columns to its
-stable keys. If the source cannot provide that grain, establish it through a
-supported Sigma UI or warehouse load before building the app.
+stable keys.
+
+If the warehouse is not already at that grain — for example one row per
+employee — derive it in the workbook: group to the allocation dimension,
+Period as a constant formula if there is no period column, headcount/cost as
+`Count`/`Sum` over a probed status value (`DISTINCT` first), budget or hire
+cost as formulas off real columns. Do not invent `[Source/Budget]` or
+`[Source/Period]`. Do not rename formula columns to labels that contain `$`
+(`Plan $` / `Loaded $` compile as `Unknown column`).
 
 ## Scope
 

@@ -119,8 +119,9 @@ The prefix depends on the source type:
 - **Union source**: `SourceName` = the union's `name` field. References resolve against the union's `matches[].outputColumnName` values, not the underlying tables' columns.
   - Union with `name: "All Sales"` → `[All Sales/Order Number]`.
   - If you omit `name`, Sigma assigns `"Union of N Sources"`; **a bare reference like `[Order Number]` to a column the consuming element also defines named `Order Number` is a circular reference and the SQL won't compile.** Set the `name` explicitly to avoid this.
+  - After POST, GET the consuming element's formulas. Sigma may drop `source.name` and rewrite prefixes to `[Union of N Sources/…]`. Later PUTs must use the readback prefix, not the authored name.
 
-- Column names must match exactly what the describe endpoint returns. **Never invent column names.**
+- Column names must match exactly what the describe endpoint returns. **Never invent column names.** Do not rename a formula column to a display label that contains `$` (`Plan $`, `Loaded $`) — sibling refs like `[Plan $]` compile as `Unknown column`.
 
 ## Control references
 
@@ -202,7 +203,7 @@ The trap: `Not(...)` parses successfully (the parens become grouping), so the fa
 | Function | Example |
 |----------|---------|
 | `DateTrunc(<part>, <date>)` | `DateTrunc("month", [Date])` |
-| `DateDiff(<part>, <start>, <end>)` | `DateDiff("day", [Start], [End])` |
+| `DateDiff(<part>, <start>, <end>)` | `DateDiff("day", [Start], [End])` — signed `end − start`; past due dates go negative |
 | `DateAdd(<part>, <units>, <date>)` | `DateAdd("month", 3, [Date])` |
 | `DateFormat(<date>, <fmt>)` | `DateFormat([Date], "%Y-%m-%d")` |
 
@@ -220,6 +221,12 @@ If([Status] = "Active", "Active", [Status] = "Pending", "Pending", "Other")
 ```
 
 **Do not use** `Case` — use `If` instead.
+
+Do not string-replace a control handle inside an existing `If(...)` with
+`Coalesce([control], "default")`. `If` is comma-split; the extra commas become
+new arguments and the formula silently miscompiles. Add a boolean column on
+the source (`[src/name] = Coalesce([control], "default")`) and filter on that
+flag, or create the default row so the control is never empty.
 
 ## Text Functions
 

@@ -115,6 +115,11 @@ filters:
 ```
 
 > **`rowCount` / `percentile` take number literals only** — `rowCount: "[TopN]"` is rejected. Control bindings apply to filter **values**, not structural fields (`rowCount`, `percentile`, `rankingFunction`, `mode`, `kind`). To vary the cap interactively, use a `controlType: top-n` control (`controls.md`) or duplicate the element per cap.
+>
+> A `top-n` (or other element filter) on a **parent directory does not flow
+> through to a linked input table** (live generate-app verification). Cap the
+> warehouse or SQL source — or a child table — *before* the `kind: linked`
+> queue. See `input-tables.md`.
 
 #### `number-range`
 
@@ -295,6 +300,10 @@ conditionalFormats:
 ```
 
 Condition operators include `=`, `!=`, `>`, `>=`, `<`, `<=`, `IsNull`, `IsNotNull`, `Contains`, `NotContains`, `StartsWith`, `EndsWith`, `Between`, `NotBetween`, and `formula` (arbitrary boolean). Style block supports `backgroundColor`, `color`, `bold`, `italic`, `underline`, and column-level `format` override.
+
+GET may stringify `value` (`"0"`). Later PUTs sometimes want a number `0`
+and sometimes the string — re-type from the 400 rather than echoing
+readback blindly.
 
 ---
 

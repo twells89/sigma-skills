@@ -14,7 +14,36 @@ Do not turn every dashboard into a planning app. Establish the requested mode:
    editable forecast values.
 4. **Parity only** — preserve the verified analytical workbook.
 
-The architecture below is for scenario planning.
+The architecture below is for scenario planning. The fixture is a **studio
+shell**: Workspace, Scenarios, Build the Plan, Review & Approve, plus a
+hidden Data page and a New Scenario overlay. Do not flatten that back to
+one page.
+
+| Page | Job |
+|---|---|
+| Workspace | Active scenario, a few plan measures, trend and impact-by-section. Not a status-count strip. |
+| Scenarios | Directory of directions. Create via the overlay (`insert-rows` into the scenarios input). |
+| Build the Plan | The linked grid is the work surface. |
+| Review & Approve | Submit / Approve / Request changes write the log and update only that scenario's status. Agent rail is composed here if intake said yes. |
+| Data (hidden) | Actuals, plan base, matrix, ledger plumbing. |
+
+If the org has a data model for actuals and baseline, rebind `source-actual`
+and `source-base` to `kind: data-model`. Otherwise keep the warehouse-table
+placeholders. Union actuals + plan lines into a named ledger (`Ledger Union`
+in the fixture) so KPIs can distinguish `(actual)` from the selected plan.
+After POST, GET the ledger formulas: Sigma may drop `source.name` and rewrite
+the prefix to `Union of 2 Sources`. Later PUTs must use the readback prefix.
+
+The active-scenario control filters the plan grid (Option B). Ledger and
+Workspace KPIs must still include actuals with formulas, not as descendants
+of the filtered grid alone. When the scenario control is empty, Workspace
+goes actuals-only with a `null` profit-impact KPI. Create one scenario
+before the PNG pass, or add a boolean on the ledger
+(`[ledger/scenario-name] = Coalesce([scenario], "Board Plan")`) and scope
+KPIs/charts with `If([Active Flag], …)`. Do not splice `Coalesce([scenario],
+…)` into an existing `If(...)` via string replace — extra commas become
+new `If` arguments (`formulas.md`). A list-control `values: ["Board Plan"]`
+does not stick when the bound column is still empty (`controls.md`).
 
 ## Non-negotiable grain
 
@@ -79,8 +108,13 @@ columns:
   - { id: sc-notes,  type: text, name: Notes }
 ```
 
-Creating one scenario is an appropriate `insert-rows` action. Creating every
-scenario-period-line row through actions is not.
+Creating one scenario is an appropriate `insert-rows` action (the fixture's
+New Scenario overlay). Creating every scenario-period-line row through
+actions is not. The spec cannot seed an empty input table, so **Build the
+Plan is 0 rows until at least one scenario exists**. Create one (overlay, or
+a SQL default directory the matrix joins — do not union an empty input table
+with that SQL as the first attempt) before the PNG pass. `expected rows =
+scenarios × forecast periods × planning lines` is 0 when scenarios is 0.
 
 Scenario strategy is descriptive unless explicit formulas implement it. Never
 give scenarios different labels but identical math and imply the labels changed
@@ -130,12 +164,12 @@ source:
 columns:
   - { id: pg-scenario, key: mx-scenario, name: Scenario }
   - { id: pg-period,   key: mx-period,   name: Period }
-  - { id: pg-line,     key: mx-line,     name: Planning Line }
+  - { id: pg-line,     key: mx-line,     name: Line Item }
   - { id: pg-section,  key: mx-section,  name: Section }
   - { id: pg-baseline, key: mx-baseline, name: Baseline }
   - { id: pg-method, type: text, name: Method,
-      values: ["Uplift %", "Adjust $", "Set amount"] }
-  - { id: pg-percent, type: number, name: Uplift % }
+      values: ["Grow %", "Adjust $", "Set amount"] }
+  - { id: pg-percent, type: number, name: Pct Change }
   - { id: pg-dollars, type: number, name: Dollar Change }
   - { id: pg-new,     type: number, name: New Amount }
   - { id: pg-plan,   formula: "<method switch>", name: Plan Amount }
@@ -151,7 +185,7 @@ after data lands and prove each key resolves to one parent row.
 Keys are immutable once the linked table exists. Key only deterministic, stable
 context:
 
-- good: scenario, period, planning line, section, governed baseline;
+- good: scenario, period, line item, section, governed baseline;
 - bad: status, owner, current user, `Now()`, volatile lookup, approval state.
 
 ## Override semantics
@@ -166,8 +200,8 @@ is a 10% uplift to that row, not a monthly growth rate that compounds into
 future periods.
 
 ```text
-If Method = "Uplift %":
-  Baseline × (1 + Uplift %)
+If Method = "Grow %":
+  Baseline × (1 + Pct Change)
 Else if Method = "Adjust $":
   Baseline + Dollar Change
 Else if Method = "Set amount":

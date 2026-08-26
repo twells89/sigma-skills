@@ -121,7 +121,7 @@ or add names. Key columns and formula columns stay non-editable.
 
 | Type | Users edit (recommended) |
 |---|---|
-| planning | Method, Uplift %, Dollar Change, New Amount, Rationale |
+| planning | Method, Pct Change, Dollar Change, New Amount, Rationale |
 | allocation | Added Hires, Cost Uplift %, Rationale |
 | approval | Decision, Approved Discount, Reviewer, Decision Note |
 | exception | Override Order Qty, Decision, Owner, Resolution Note |
@@ -137,13 +137,14 @@ do not reclassify the app.
 
 If **no**, keep the linked grid or queue and omit the fixture's submit /
 log-insert button and any status-update `whichRows` path. If **yes**, keep
-the recipe's approval/audit layer (planning: submit + scenario status;
+the recipe's approval/audit layer (planning: submit / approve / request
+changes + scenario status;
 allocation: request log; approval: audit log + one-row status update;
 exception: resolution log).
 
 | Type | Recommended approval action |
 |---|---|
-| planning | submit the selected scenario: decision-log row + update only that scenario's status |
+| planning | submit, approve, or request changes: decision-log row + `whichRows` update of that scenario's status |
 | allocation | log a hiring or reallocation request (off the editable plan grid) |
 | approval | record Approve / Reject / Counter: audit-log row + `whichRows` on the stable entity key |
 | exception | log a resolution for the selected operational entity |
@@ -165,7 +166,7 @@ Step D.5 — do not draft `agents[]` during the interview.
 
 | Type | Analyze (`dataSources`) | Act (`tools`) |
 |---|---|---|
-| planning | plan grid, selected-plan ledger, all-scenario comparison, scenario directory, decision log — actual vs baseline vs selected plan | read-only unless they asked the agent to submit or log; any write tool sets `requiresApproval: true` |
+| planning | plan grid, plan ledger (actuals vs plan), scenario directory, decision log — actual vs baseline vs selected plan | read-only unless they asked the agent to submit or log; any write tool sets `requiresApproval: true` |
 | allocation | allocation grid, working allocation, variance, request log — over/under, baseline vs added units, tradeoffs | read-only unless they asked the agent to log a request; any write tool sets `requiresApproval: true` |
 | approval | entity directory, review queue, decision log — prioritize by policy breach, value at risk, and age | do not record a decision unless they asked for that tool; any write tool sets `requiresApproval: true` |
 | exception | exception directory and action queue — rank unresolved items, skip already-logged resolutions | log-resolution (or equivalent) with `requiresApproval: true` |
@@ -241,7 +242,13 @@ connection IDs, folder IDs, or workbook IDs into this skill.
 2. Load `discover.md`. Replace placeholders (`<FOLDER_ID>`,
    `<WRITE_CONNECTION_ID>`, `<SOURCE_CONNECTION_ID>`,
    `[Source/…]` column names) with values the API actually returned.
-   **Never invent column names.**
+   **Never invent column names.** If the warehouse is not already at the
+   recipe grain (for example people rows instead of Period × Department),
+   derive grain with formulas and a grouping from columns that exist —
+   a constant Period formula is fine. Probe `DISTINCT` before writing
+   status/closed predicates (`discover.md`). Do not rename a formula
+   column to a label that contains `$`; later `[Plan $]` refs compile as
+   `Unknown column`.
 3. Load the matching recipe and `../specification/input-tables.md`. Adjust
    grain columns and formulas to the answers; do not skip the recipe's
    non-negotiable layers. Keep the fixture's `tableElementId` on
@@ -250,6 +257,10 @@ connection IDs, folder IDs, or workbook IDs into this skill.
    `Invalid kind: "button"`. Keep `clear-control` as
    `scope: { type: page, pageId: <page id> }` — a stale `page:` key is
    dropped on GET and click fails with `No target page is selected`.
+   Entry `text` / `text-area` controls in the fixtures already carry
+   `mode` / `case` / `includeNulls` / `showOperators`. Copy that block
+   onto any new entry control (`controls.md`); omit it and POST fails as
+   `Invalid kind: "control"`.
 
    Apply the interview:
 
@@ -261,11 +272,12 @@ connection IDs, folder IDs, or workbook IDs into this skill.
      rewrite it (usually `Coalesce` to the baseline) rather than leaving
      a dangling `[Column]` ref.
    - **Approvals.** If `approvals.include` is false, omit the fixture's
-     log-insert button and any status-update `whichRows` path. Keep the
-     linked grid. Log-only controls (comment/request inputs used only by
-     that button) go with the button. The empty log table may stay on a
-     hidden page. If `approvals.include` is true, keep the recipe's
-     approval/audit layer and the allowed decisions from Step B.
+     log-insert buttons and any status-update `whichRows` path. Keep the
+     linked grid. On planning, keep the New Scenario overlay (that creates
+     directory rows; it is not the approval path). Log-only controls go with
+     the review buttons. The empty log table may stay on a hidden page. If
+     `approvals.include` is true, keep the recipe's approval/audit layer and
+     the allowed decisions from Step B.
 4. Load `../specification/styling.md` as a **library**, not a stamp. A
    design pass is required — do not ship the fixture's default grid — but
    do **not** apply the five-pattern exec-dashboard stack (navy hero +
@@ -289,7 +301,7 @@ connection IDs, folder IDs, or workbook IDs into this skill.
 
    | Type | The page is for | What has to be true (not chrome) |
    |---|---|---|
-   | planning | editing and comparing a grid | The plan grid is the first thing you can work in. Scenario control nearby. Status is optional and small. |
+   | planning | building and reviewing a plan | Workspace may show a few **plan measures** (revenue, EBITDA, profit impact). The grid lives on Build the Plan and is the thing you can work in. Status counts are not a KPI strip. |
    | allocation | redistributing against a budget | The allocation grid is usable without scrolling past dashboard chrome. Variance is visible, not a 3-KPI strip. |
    | approval | reviewing rows and recording a decision | The queue is the page. The audit log is a trail, not a second dashboard. |
    | exception | triaging urgency | The exception queue is the page. Status belongs in the title line or a single chip — not a branded hero and not a 3-KPI strip. Red only if a value is actually critical. |
@@ -308,13 +320,20 @@ connection IDs, folder IDs, or workbook IDs into this skill.
    - a clone of the `styling.md` exec-dashboard example;
    - recognizable skill chrome (dark hero, equal KPI strip, `#3B82F6` CTA,
      `##` / uppercase QUEUE/LOG labels);
-   - **status as a 3-KPI strip** — counts belong in the title line or one
-     chip;
+   - **status as a 3-KPI strip** — queue/status counts belong in the title
+     line or one chip. Planning Workspace **plan measures** (revenue,
+     EBITDA, profit impact) are the model, not that fail;
    - **entry controls you cannot see** — white-on-white or Dark-on-dark
      text boxes. A tinted well behind controls on Light is one verified
      way to show field chrome; it is not a look to clone;
    - **`settings.theme.name: Dark` on a data-entry app** unless the user
-     asked for dark.
+     asked for dark;
+   - **empty work surface** — Build the Plan / allocation grid / review
+     queue showing `No data` when the governed source has rows. Planning:
+     create one scenario before this pass (the spec cannot seed an empty
+     input table). Approval: cap the queue; do not link every open entity;
+   - **broken compile in the PNG** — `null` KPI, `Unknown column`, or
+     `Invalid Query` on a measure the page is for.
 
    Name the design choices in the handoff summary (`composition.md`).
    Do not add a new composition to `styling.md` from a one-off app.
@@ -337,12 +356,16 @@ connection IDs, folder IDs, or workbook IDs into this skill.
    - **Read-only is the default:** omit `tools` entirely (not
      `tools: []`). Add a write tool only if they overrode Act to include
      one. Any write tool **must** set `requiresApproval: true`.
-   - Place `chat` as a **supporting rail**, not the focal work surface
-     (the grid or queue keeps the wide columns from Step D.4). Several
+   - Place `chat` as a **supporting rail**, not the focal work surface.
+     On planning, replace `txt-agent-rail` on Review & Approve. The grid
+     on Build the Plan keeps the wide columns from Step D.4. Several
      `chat` elements may share one `agents[]` id.
 6. Continue from SKILL.md Step 5: validate (`./scripts/validate-spec.sh`),
-   POST, `./scripts/verify-workbook.sh`, then the recipe's runtime gates in
-   `runtime-verification.md`.
+   POST, GET the spec, `./scripts/verify-workbook.sh`, then the recipe's
+   runtime gates in `runtime-verification.md`. Union `name` may not
+   round-trip (`Ledger Union` → `Union of 2 Sources`); later PUTs use the
+   GET prefix. `validate-spec.sh` can flag `[scenario]`-style control
+   handles as unqualified refs — inspect before rewriting them.
 
 Published data entry cannot be set from the spec. Before handoff, for every
 input table: element kebab → Set data entry permission → Only in published
@@ -359,10 +382,14 @@ compose the look in Step D.4. Do not assemble an operational app from
 Fixtures stay **agent-free** (`document.agents` and `chat` are composed in
 Step D.5 when `agent.include` is true). They **do** include the default
 approval/log layer; Step D.3 drops it when `approvals.include` is false.
+Planning is a **multi-page studio shell** (Workspace, Scenarios, Build the
+Plan, Review & Approve, hidden Data, New Scenario overlay). The other
+three types stay single-page architecture until they have a house example
+as strong as that.
 
 | Type | Fixture | Required layers |
 |---|---|---|
-| planning | `fixtures/planning-app.yaml` | governed baseline, empty scenario directory, cross-join matrix, linked plan grid, append-only decision log, submit button |
+| planning | `fixtures/planning-app.yaml` | actuals + plan base, empty scenario directory + create overlay, cross-join matrix, linked plan grid, union ledger, append-only decision log, submit/approve/request-changes with `whichRows` |
 | allocation | `fixtures/allocation-app.yaml` | period × dimension baseline, linked allocation grid, working allocation + variance, request log |
 | approval | `fixtures/approval-app.yaml` | governed entity directory, linked review queue, computed impact, append-only audit log, `whichRows` on the stable entity key |
 | exception | `fixtures/exception-app.yaml` | exception directory, linked action queue, deterministic recommendation (not labeled “AI”), override coalesced into final action, resolution log |

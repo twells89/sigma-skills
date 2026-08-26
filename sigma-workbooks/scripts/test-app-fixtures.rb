@@ -28,6 +28,8 @@ REQUIRED_KINDS = {
     linked_input: 1,
     join: true,
     insert_rows: true,
+    update_rows: true,
+    which_rows: true,
     hidden_page: true
   },
   'allocation' => {
@@ -146,6 +148,18 @@ AppIntake::APP_TYPES.each do |app_type|
     raise 'missing hidden source page' if req[:hidden_page] && !hidden
   end
 
+  check("#{app_type} entry text controls carry the four required fields", failures) do
+    elements(doc).select { |el| el['kind'] == 'control' }.each do |control|
+      type = control['controlType'].to_s
+      next unless %w[text text-area].include?(type)
+
+      %w[mode case includeNulls showOperators].each do |field|
+        raise "#{control['id']} (#{type}) missing #{field} — POST is Invalid kind: \"control\"" if
+          control[field].nil? || (control[field].is_a?(String) && control[field].strip.empty?)
+      end
+    end
+  end
+
   check("#{app_type} fixture is architecture, not a stamped dashboard look", failures) do
     raise 'stamped hero container — fixtures must not ship the exec-dashboard chrome' if
       elements(doc).any? { |el| el['id'] == 'hero' && el['kind'] == 'container' }
@@ -223,11 +237,42 @@ check('planning grid keys stable context only', failures) do
   raise 'missing plan-grid' unless grid
 
   key_names = Array(grid['columns']).select { |col| col['key'] }.map { |col| col['name'] }
-  %w[Scenario Period Planning\ Line Section Baseline].each do |name|
+  %w[Scenario Period Line\ Item Section Baseline].each do |name|
     raise "plan-grid missing key #{name}" unless key_names.include?(name)
   end
   bad = key_names & ['Status', 'Owner']
   raise "volatile key columns #{bad.inspect}" unless bad.empty?
+end
+
+check('planning fixture is a studio shell, not a one-page grid', failures) do
+  path = File.join(SKILL_ROOT, AppIntake.fixture_for('planning'))
+  raw = File.read(path)
+  doc = YAML.safe_load(raw)
+  page_ids = Array(doc.dig('document', 'pages')).map { |page| page['id'] }
+  %w[pg-home pg-scenarios pg-build pg-review pg-data].each do |page_id|
+    raise "missing page #{page_id}" unless page_ids.include?(page_id)
+  end
+  raise 'planning fixture must not ship a Guide page' if page_ids.include?('pg-guide')
+  overlays = Array(doc.dig('document', 'overlays'))
+  raise 'missing New Scenario overlay' unless overlays.any? { |overlay| overlay['id'] == 'ov-new' }
+  raise 'layout missing overlay page ov-new' unless layout(doc).include?(%(id="ov-new"))
+  ids = elements(doc).map { |el| el['id'] }
+  raise 'missing plan-ledger' unless ids.include?('plan-ledger')
+  raise 'missing agent-rail placeholder' unless ids.include?('txt-agent-rail')
+  raise 'fixture must not ship a chat element' if elements(doc).any? { |el| el['kind'] == 'chat' }
+  fx = effects(doc)
+  raise 'missing open-overlay' if fx.none? { |effect| effect['effect'] == 'open-overlay' }
+  create = fx.find { |effect| effect['effect'] == 'insert-rows' && effect['tableElementId'] == 'scenarios' }
+  raise 'missing create-scenario insert into the scenarios table' unless create
+  status = fx.select { |effect| effect['effect'] == 'update-rows' }
+  raise 'planning review buttons must update-rows scenario status' if status.empty?
+  status.each do |effect|
+    formula = effect.dig('whichRows', 'formula').to_s
+    raise "status whichRows must key on Scenario Name, got #{formula.inspect}" unless
+      formula.include?('[Scenario Name]')
+  end
+  raise 'stamped indigo fillColor' if raw.include?('#4f46e5') || raw.include?('#0f172a')
+  raise 'stamped FY26 copy' if raw.include?('FY26') || raw.include?('FY2026')
 end
 
 {
@@ -248,7 +293,7 @@ end
 check('generate-apps PNG fail list encodes input and Dark constraints', failures) do
   path = File.join(SKILL_ROOT, 'reference/workflows/generate-apps.md')
   text = File.read(path)
-  %w[white-on-white Dark-on-dark 3-KPI strip data-entry app].each do |needle|
+  %w[white-on-white Dark-on-dark 3-KPI strip data-entry app plan measures empty work surface Unknown column].each do |needle|
     raise "missing constraint #{needle.inspect}" unless text.include?(needle)
   end
 end
