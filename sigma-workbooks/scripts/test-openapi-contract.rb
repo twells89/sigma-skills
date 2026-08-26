@@ -24,14 +24,108 @@ create_doc = schemas.fetch('CreateWorkbookSpec.document')
 update = schemas.fetch('UpdateWorkbookSpec')
 read_doc = schemas.fetch('WorkbookSpec.document')
 page = schemas.fetch('WorkbookPage')
+actions = contract.fetch('actions')
+effects = actions.fetch('effects')
+union_shapes = actions.fetch('unionShapes').values
+
+# ---- the 2026-08-26 action field rename -----------------------------------
+# This fixture pinned CreateWorkbookSpec and the element/control discriminators
+# but had ZERO Actions coverage. So when Sigma renamed every action identifier
+# field to a *Id shape, the pin did not move, this gate stayed green, and four
+# repos emitted dead keys. These assertions exist so the NEXT rename is a
+# failing test rather than a field incident.
+#
+# `_renamed` pairs are asserted in BOTH directions: the new key must be pinned
+# AND the old key must be gone. Only checking the new key would keep passing if
+# the API ever accepted both.
+{
+  'insert-rows' => 'tableElementId',
+  'update-rows' => 'tableElementId',
+  'delete-rows' => 'tableElementId',
+  'set-form-values' => 'formElementId',
+  'select-tab' => 'tabbedContainerElementId',
+  'open-document' => 'documentId',
+  'custom-sort' => 'elementId',
+  'run-python-element' => 'codeElementId',
+  'clear-chat-element-messages' => 'chatElementId'
+}.each do |effect, new_key|
+  assert_contract(failures, "#{effect} requires #{new_key} (post-rename)") do
+    effects.fetch(effect, {}).fetch('required', []).include?(new_key)
+  end
+end
+
+{
+  'insert-rows' => 'table', 'update-rows' => 'table', 'delete-rows' => 'table',
+  'set-form-values' => 'form', 'select-tab' => 'tabbedContainer',
+  'open-document' => 'document'
+}.each do |effect, dead_key|
+  assert_contract(failures, "#{effect} no longer exposes the dead `#{dead_key}` key") do
+    !effects.fetch(effect, {}).fetch('properties', []).include?(dead_key)
+  end
+end
+
+assert_contract(failures, 'trigger-plugin uses pluginElementId + pluginEffectId') do
+  effects.fetch('trigger-plugin', {}).fetch('required', []).sort == %w[pluginEffectId pluginElementId]
+end
+
+# The rename is SELECTIVE. These three were probed and deliberately NOT renamed,
+# so a future "cleanup" to *Id would be a live 400. Pin the bare names.
+assert_contract(failures, 'set-control-value keeps the bare `control` key') do
+  effects.fetch('set-control-value', {}).fetch('required', []).include?('control')
+end
+assert_contract(failures, 'a {type:page} union member with a bare `page` still exists (navigate target)') do
+  union_shapes.any? { |shape| shape['type'] == 'page' && shape['properties'] == ['page'] }
+end
+assert_contract(failures, 'a {type:element} union member with a bare `element` still exists (refresh-element target)') do
+  union_shapes.any? { |shape| shape['type'] == 'element' && shape['properties'] == ['element'] }
+end
+assert_contract(failures, 'a {type:control} union member with a bare `control` still exists (set-control-value)') do
+  union_shapes.any? { |shape| shape['type'] == 'control' && shape['properties'] == ['control'] }
+end
+
+# ...while the SAME discriminators renamed under a clear-control scope.
+assert_contract(failures, 'clear-control scope union renamed to pageId/controlId/containerElementId') do
+  %w[pageId controlId containerElementId].all? do |key|
+    union_shapes.any? { |shape| shape['properties'] == [key] }
+  end
+end
+
+# The nested half of the rename -- value sources, whichRows selectors, sort keys.
+assert_contract(failures, 'column union members use columnId, never bare `column`') do
+  cols = union_shapes.select { |shape| shape['type'] == 'column' }
+  cols.any? && cols.none? { |shape| shape['properties'].include?('column') } &&
+    cols.all? { |shape| shape['properties'].include?('columnId') }
+end
+assert_contract(failures, 'column-match uses columnId') do
+  union_shapes.any? { |shape| shape['type'] == 'column-match' && shape['properties'] == ['columnId'] }
+end
+assert_contract(failures, 'column-range uses minColumnId/maxColumnId, not min/max') do
+  ranges = union_shapes.select { |shape| shape['type'] == 'column-range' }
+  ranges.any? && ranges.all? { |shape| shape['properties'].sort == %w[maxColumnId minColumnId] }
+end
+
+# Coverage floor: element actions currently expose 22 effects and
+# automatedActions exposes only call-agent. A DROP means the pin lost coverage;
+# a RISE means Sigma shipped an effect nobody has looked at yet.
+assert_contract(failures, "element actions expose 22 effects (got #{effects.length})") do
+  effects.length == 22
+end
+assert_contract(failures, 'automatedActions exposes call-agent (its own separate surface)') do
+  actions.fetch('automatedActionEffects').key?('call-agent')
+end
+
 element_kinds = contract.dig('releasedVariants', 'elements').map { |entry| entry.fetch('kind') }
 control_types = contract.dig('releasedVariants', 'controls').map { |entry| entry.fetch('controlType') }
 
 assert_contract(failures, 'create envelope requires name, folderId, and document') do
   create.fetch('required') == %w[document folderId name]
 end
-assert_contract(failures, 'update accepts only a required document') do
-  update.fetch('required') == ['document'] && update.fetch('properties') == ['document']
+assert_contract(failures, 'update requires document and now also accepts documentVersion') do
+  # `documentVersion` appeared alongside `document` (optimistic concurrency on
+  # PUT). It is OPTIONAL -- required is still exactly ['document'] -- so the old
+  # `properties == ['document']` assertion was pinning its absence.
+  update.fetch('required') == ['document'] &&
+    update.fetch('properties').sort == %w[document documentVersion]
 end
 assert_contract(failures, 'document owns every released top-level collection') do
   %w[elements overlays pages panels settings agents layout].all? do |key|
@@ -45,8 +139,12 @@ assert_contract(failures, 'pages are metadata-only and expose styling') do
   !page.fetch('properties').include?('elements') &&
     %w[backgroundColor backgroundImage].all? { |key| page.fetch('properties').include?(key) }
 end
-assert_contract(failures, 'readback requires layout even while create OpenAPI leaves it nullable') do
-  read_doc.fetch('required').include?('layout') && !create_doc.fetch('required').include?('layout')
+assert_contract(failures, 'layout is required on BOTH create and readback') do
+  # It used to be required on readback but nullable on create, and this assertion
+  # pinned that asymmetry. Create now requires it too (the 2026-08 layout
+  # contract), so a spec POSTed without `layout` is rejected outright rather than
+  # accepted and silently unplaced.
+  read_doc.fetch('required').include?('layout') && create_doc.fetch('required').include?('layout')
 end
 assert_contract(failures, 'released element kinds are pinned') do
   %w[
@@ -56,8 +154,24 @@ end
 assert_contract(failures, 'legend and drill controls are pinned') do
   %w[legend drill].all? { |control_type| control_types.include?(control_type) }
 end
-assert_contract(failures, 'box chart remains gated until it is published') do
-  (element_kinds & %w[box-chart box-plot]).empty?
+assert_contract(failures, 'box-chart is PUBLISHED (this assertion was inverted 2026-08-26)') do
+  # This asserted box-chart stayed gated. It shipped: verified live against a real
+  # org -- a box-chart with source/columns/yAxis returns {"valid": true} from
+  # /v2/workbooks/spec/verify. `box-plot` was never a Sigma kind and stays out.
+  element_kinds.include?('box-chart') && !element_kinds.include?('box-plot')
+end
+assert_contract(failures, 'the charts that shipped with box-chart are pinned too') do
+  # All live-verified 2026-08-26 against a real org. treemap-chart and
+  # sankey-chart matter most: converters were routing those to plugin fallbacks
+  # or dropping them entirely on the belief that Sigma had no native equivalent.
+  %w[treemap-chart sankey-chart funnel-chart gauge-chart pie-chart value-list code]
+    .all? { |kind| element_kinds.include?(kind) }
+end
+assert_contract(failures, 'the list + file-upload control types are pinned') do
+  # `file-upload` is genuinely new; `list` was always there but was dropped by the
+  # extractor's discriminator lookup (see discriminator_value) -- which is why the
+  # historical pin said 16 controls and not 18.
+  %w[list file-upload].all? { |type| control_types.include?(type) }
 end
 
 if ARGV[0]
