@@ -32,6 +32,9 @@ users need to edit at that lower grain and uniqueness is proven.
 3. **Working allocation** — calculated result and variance.
 4. **Optional request queue** — hiring or reallocation requests.
 5. **Decision log** — approvals separated from the editable plan.
+   Generate-apps Step B asks whether this workflow needs that layer; if
+   they declined, keep the allocation grid and omit the request-log
+   button.
 
 Workforce example:
 
@@ -62,6 +65,9 @@ that grid, every descendant KPI inherits the filter. Scope selected views by
 formula or provide an independent all-scope lineage for comparisons.
 
 ## Agent
+
+Generate-apps Step B offers this agent and pre-fills the recommended
+purpose; skip this section if they declined.
 
 The agent should explain:
 

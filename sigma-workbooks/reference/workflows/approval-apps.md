@@ -11,6 +11,8 @@ Use this pattern when the source contains:
 
 The source proves that an approval queue exists. The write path is an
 enhancement, so ask what decisions users should be allowed to make.
+Generate-apps Step B also asks whether to keep the submit / audit-log
+action (the queue itself is still this type).
 
 ## Grain
 
@@ -64,6 +66,9 @@ The `whichRows` formula must use the stable entity key:
 Test that a second entity remains unchanged.
 
 ## Agent
+
+Generate-apps Step B offers this agent and pre-fills the recommended
+purpose; skip this section if they declined.
 
 Give the agent the directory, editable review queue, and decision log. It
 should prioritize by policy breach, value at risk, and age. It must not claim a

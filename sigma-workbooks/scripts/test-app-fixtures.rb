@@ -153,6 +153,30 @@ AppIntake::APP_TYPES.each do |app_type|
       doc.dig('document', 'settings', 'theme')
   end
 
+  check("#{app_type} fixture stays agent-free", failures) do
+    raise 'fixtures must not ship document.agents — compose in generate-apps Step D.5' if
+      doc.dig('document', 'agents')
+    raise 'fixtures must not ship a chat element' if
+      elements(doc).any? { |el| el['kind'] == 'chat' }
+  end
+
+  check("#{app_type} recommended agent data sources exist on the fixture", failures) do
+    ids = elements(doc).map { |el| el['id'] }
+    AppIntake.agent_data_sources_for(app_type).each do |element_id|
+      raise "agent data source #{element_id} missing from fixture" unless ids.include?(element_id)
+    end
+  end
+
+  check("#{app_type} recommended editable fields are type columns on the linked grid", failures) do
+    linked = input_tables(doc).find { |table| table.dig('source', 'kind') == 'linked' }
+    raise 'missing linked input-table' unless linked
+
+    names = Array(linked['columns']).select { |col| col['type'] }.map { |col| col['name'] }
+    AppIntake.editable_fields_for(app_type).each do |name|
+      raise "#{name.inspect} is not a type column on #{linked['id']}" unless names.include?(name)
+    end
+  end
+
   check("#{app_type} layout places every element", failures) do
     xml = layout(doc)
     elements(doc).each do |el|
@@ -226,6 +250,20 @@ check('generate-apps PNG fail list encodes input and Dark constraints', failures
   text = File.read(path)
   %w[white-on-white Dark-on-dark 3-KPI strip data-entry app].each do |needle|
     raise "missing constraint #{needle.inspect}" unless text.include?(needle)
+  end
+end
+
+check('generate-apps interviews for fields, approvals, and agent', failures) do
+  path = File.join(SKILL_ROOT, 'reference/workflows/generate-apps.md')
+  text = File.read(path)
+  %w[
+    Interview before building
+    Editable fields (all types)
+    Does this workflow need approvals?
+    Add a workbook agent?
+    supporting rail
+  ].each do |needle|
+    raise "missing interview #{needle.inspect}" unless text.include?(needle)
   end
 end
 
