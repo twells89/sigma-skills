@@ -23,11 +23,11 @@ end
 
 check('button: default appearance/trigger + default action_id "a-<id>"') do
   el = Actions.button(id: 'btn-log', text: 'Log note',
-                       effects: [{ 'effect' => 'insert-rows', 'table' => 'annotations', 'values' => {} }])
+                       effects: [{ 'effect' => 'insert-rows', 'tableElementId' => 'annotations', 'values' => {} }])
   el == {
     'id' => 'btn-log', 'kind' => 'button', 'text' => 'Log note', 'appearance' => 'filled',
     'actions' => [{ 'id' => 'a-btn-log', 'trigger' => 'on-click',
-                    'effects' => [{ 'effect' => 'insert-rows', 'table' => 'annotations', 'values' => {} }] }]
+                    'effects' => [{ 'effect' => 'insert-rows', 'tableElementId' => 'annotations', 'values' => {} }] }]
   }
 end
 check('button: custom appearance + trigger are honored') do
@@ -39,8 +39,8 @@ check('button: explicit action_id: overrides the "a-<id>" default') do
   el['actions'][0]['id'] == 'a-reset'
 end
 check('button: effects array is passed through verbatim (caller builds via effect builders)') do
-  effects = [{ 'effect' => 'insert-rows', 'table' => 't', 'values' => { 'c' => 1 } },
-             { 'effect' => 'clear-control', 'scope' => { 'type' => 'page', 'page' => 'pg' }, 'usePublishedValue' => true }]
+  effects = [{ 'effect' => 'insert-rows', 'tableElementId' => 't', 'values' => { 'c' => 1 } },
+             { 'effect' => 'clear-control', 'scope' => { 'type' => 'page', 'pageId' => 'pg' }, 'usePublishedValue' => true }]
   el = Actions.button(id: 'btn-log', text: 'Log note', effects: effects)
   el['actions'][0]['effects'] == effects && el['actions'][0]['effects'].length == 2
 end
@@ -176,30 +176,30 @@ end
 
 # --- effect builders -------------------------------------------------------
 
-check('insert_rows_effect: {effect, table, values} — values passed through verbatim') do
+check('insert_rows_effect: {effect, tableElementId, values} — values passed through verbatim') do
   values = { 'an-note' => { 'type' => 'control', 'control' => 'NoteCtl' } }
-  Actions.insert_rows_effect(table: 'annotations', values: values) ==
-    { 'effect' => 'insert-rows', 'table' => 'annotations', 'values' => values }
+  Actions.insert_rows_effect(table_element_id: 'annotations', values: values) ==
+    { 'effect' => 'insert-rows', 'tableElementId' => 'annotations', 'values' => values }
 end
-check('insert_rows_effect: table required') do
-  begin; Actions.insert_rows_effect(table: '', values: {}); false
+check('insert_rows_effect: table_element_id required') do
+  begin; Actions.insert_rows_effect(table_element_id: '', values: {}); false
   rescue ArgumentError; true; end
 end
 check('insert_rows_effect: NO-GO surface -> {}') do
-  Actions.insert_rows_effect(table: 'annotations', values: {},
+  Actions.insert_rows_effect(table_element_id: 'annotations', values: {},
                               surfaces: Actions::SURFACES.merge(effects: false)) == {}
 end
 
-check('clear_control_effect: {effect, scope:{type:page,page}, usePublishedValue:true}') do
-  Actions.clear_control_effect(page: 'pg') ==
-    { 'effect' => 'clear-control', 'scope' => { 'type' => 'page', 'page' => 'pg' }, 'usePublishedValue' => true }
+check('clear_control_effect: {effect, scope:{type:page,pageId}, usePublishedValue:true}') do
+  Actions.clear_control_effect(page_id: 'pg') ==
+    { 'effect' => 'clear-control', 'scope' => { 'type' => 'page', 'pageId' => 'pg' }, 'usePublishedValue' => true }
 end
-check('clear_control_effect: page required') do
-  begin; Actions.clear_control_effect(page: ''); false
+check('clear_control_effect: page_id required') do
+  begin; Actions.clear_control_effect(page_id: ''); false
   rescue ArgumentError; true; end
 end
 check('clear_control_effect: NO-GO surface -> {}') do
-  Actions.clear_control_effect(page: 'pg', surfaces: Actions::SURFACES.merge(effects: false)) == {}
+  Actions.clear_control_effect(page_id: 'pg', surfaces: Actions::SURFACES.merge(effects: false)) == {}
 end
 
 check('set_control_value_effect: {effect, control, value:{type:constant,value:{type:text,value}}}') do
@@ -230,9 +230,9 @@ end
 golden = JSON.parse(File.read(File.join(__dir__, 'testdata', 'actions_golden.json')))
 check('helpers match actions_golden.json (sorted-key identical)') do
   button_effects = [
-    Actions.insert_rows_effect(table: 'annotations',
+    Actions.insert_rows_effect(table_element_id: 'annotations',
                                 values: { 'an-note' => { 'type' => 'control', 'control' => 'NoteCtl' } }),
-    Actions.clear_control_effect(page: 'pg')
+    Actions.clear_control_effect(page_id: 'pg')
   ]
   actual = {
     'button' => Actions.button(id: 'btn-log', text: 'Log note', appearance: 'filled', effects: button_effects),
@@ -243,9 +243,9 @@ check('helpers match actions_golden.json (sorted-key identical)') do
     'input_table_linked' => Actions.input_table_linked(id: 'targets', from: 'fam-pivot',
                                                         connection_id: 'write-conn-1', columns: TARGET_COLUMNS),
     'insert_rows_effect' => Actions.insert_rows_effect(
-      table: 'annotations', values: { 'an-note' => { 'type' => 'control', 'control' => 'NoteCtl' } }
+      table_element_id: 'annotations', values: { 'an-note' => { 'type' => 'control', 'control' => 'NoteCtl' } }
     ),
-    'clear_control_effect' => Actions.clear_control_effect(page: 'pg'),
+    'clear_control_effect' => Actions.clear_control_effect(page_id: 'pg'),
     'set_control_value_effect' => Actions.set_control_value_effect(control: 'RegionF', text: 'West')
   }
   JSON.generate(sort_deep(actual)) == JSON.generate(sort_deep(golden))

@@ -1,5 +1,7 @@
 # Allocation and capacity apps
 
+Entered via [`generate-apps.md`](generate-apps.md) when the user asked to generate an app.
+
 Use this pattern when the source contains:
 
 - Budget / Target / Quota / Capacity measures;

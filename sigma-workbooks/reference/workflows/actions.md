@@ -16,7 +16,7 @@ actions:
     trigger: on-click
     effects:
       - effect: insert-rows
-        table: annotations
+        tableElementId: annotations
         values:
           an-note: { type: control, control: NoteCtl }
 ```
@@ -77,7 +77,7 @@ build:
 
 ```yaml
 effect: insert-rows
-table: annotations             # an input-table element's id
+tableElementId: annotations    # an input-table element's id
 values:
   an-note: { type: control, control: NoteCtl }
   an-tag:  { type: constant, value: { type: text, value: "manual" } }
@@ -90,6 +90,11 @@ values:
 - `{ type: constant, value: { type: text, value: <literal> } }` — a hard-coded
   literal.
 
+The target field is **`tableElementId`**, not `table`. The live OpenAPI
+(`components.schemas.Actions`) requires `[effect, tableElementId, values]`
+for `insert-rows`. Sending `table:` instead fails every element oneOf and
+Sigma reports the masked `Invalid kind: "button"`.
+
 **Never include a system column** (`ID`/`CREATED_AT`/`CREATED_BY`/`UPDATED_AT`/
 `UPDATED_BY`) in `values` — Sigma auto-fills those; see *the append-only-log
 pattern* below.
@@ -98,22 +103,21 @@ pattern* below.
 
 ```yaml
 effect: clear-control
-scope: { type: page, page: pg }
+scope: { type: page, pageId: pg }
 usePublishedValue: true
 ```
 
-The OpenAPI's `scope` discriminator actually has **four** shapes (re-verified
-2026-08-08 against the live codec — an earlier pass here undercounted this at
-three) — `{ type: control, control: <controlId> }` (clear one control), `{
-type: container, container: <containerElementId> }` (clear every control in a
-container), `{ type: page, page: <pageId> }` (clear every control on a page,
-or the current page when `page` is omitted), and `{ type: workbook }` (clear
-every control in the whole workbook). **Only `page` scope is live-verified
-here** — an element/container-scoped `clear-control` masked-failed the button
-in live testing (the button silently didn't work; no clear error pointed at
-the cause), and `workbook` scope hasn't been exercised live at all. Until
+The OpenAPI's `scope` discriminator has **four** shapes — `{ type: control,
+controlId: <controlId> }` (clear one control), `{ type: container,
+containerElementId: <containerElementId> }` (clear every control in a
+container), `{ type: page, pageId: <pageId> }` (clear every control on a
+page, or the current page when `pageId` is omitted in the schema), and `{
+type: workbook }` (clear every control in the whole workbook). **Page scope
+with an explicit `pageId` is the live-verified shape.** A stale `page:` key
+is dropped on GET readback (leaving `{ type: page }` with no target) and
+click then fails with `No target page is selected in the action.` Until
 `control`/`container`/`workbook` scope is independently re-verified, build
-resets around `page` scope only.
+resets around `page` scope with `pageId` only.
 
 ### `set-control-value` — set a control programmatically
 
@@ -142,7 +146,7 @@ reads those controls:
 ```yaml
 effects:
   - effect: insert-rows
-    table: scenarios
+    tableElementId: scenarios
     values:
       name:  { type: control, control: newName }
       owner: { type: control, control: newOwner }
@@ -258,7 +262,7 @@ Use this for in-workbook page jumps rather than an `open-url` to a page URL.
 
 ```yaml
 effect: select-tab
-tabbedContainer: tc            # the tabbed-container ELEMENT's id
+tabbedContainerElementId: tc   # the tabbed-container ELEMENT's id
 selectedTab: { type: tab, index: 1 }              # 0-BASED index into tabs[]
 # or:        { type: direction, direction: next } # next | previous
 ```
@@ -284,7 +288,7 @@ selector; `update-rows` also takes the same `values` map as `insert-rows`.
 ```yaml
 # Update every row matching a formula
 effect: update-rows
-table: itbl
+tableElementId: itbl
 whichRows: { type: formula, formula: '[note] = "x"' }
 values:
   amount: { type: constant, value: { type: number, value: 1 } }
@@ -293,7 +297,7 @@ values:
 ```yaml
 # Update exactly one row by primary key
 effect: update-rows
-table: itbl
+tableElementId: itbl
 whichRows:
   type: single-row
   primaryKeys:
@@ -305,7 +309,7 @@ values:
 ```yaml
 # Delete every row matching a formula
 effect: delete-rows
-table: itbl
+tableElementId: itbl
 whichRows: { type: formula, formula: '[note] = "x"' }
 ```
 
@@ -423,7 +427,7 @@ to capture what the user types, and a **button** that inserts a row.
       trigger: on-click
       effects:
         - effect: insert-rows
-          table: annotations
+          tableElementId: annotations
           values:
             an-note: { type: control, control: NoteCtl }
 
@@ -457,7 +461,9 @@ listed cause **first** before assuming the element kind itself is unsupported.
 |---|---|---|
 | `Invalid kind: "input-table"` | `inputMode` was omitted. | Always set `inputMode` (`view` is a safe structural default). It does not enable published editing; that is the UI-only “Set data entry permission” setting in `input-tables.md`. |
 | `Invalid kind: "control"` (on a `text`/`text-area` control used for **entry**, not filtering) | One or more of `mode`, `case`, `includeNulls`, `showOperators` was omitted. | Set all four — see `controls.md`'s "Entry (write) text controls" section. |
-| Button silently does nothing on click | An element/container-scoped `clear-control`. | Use `scope: { type: page, page: <id> }` only (see above). |
+| `Invalid kind: "button"` | `insert-rows` / `update-rows` / `delete-rows` used `table:` instead of `tableElementId`. The extra/missing property fails every `WorkbookElement` oneOf, so Sigma reports the kind as invalid. | Use `tableElementId: <input-table element id>`. |
+| `Error in Clear controls` / `No target page is selected in the action` | `clear-control` used `scope: { type: page, page: }` instead of `pageId`. GET drops the stale `page:` key. | Use `scope: { type: page, pageId: <page id> }`. |
+| Button silently does nothing on click | An element/container-scoped `clear-control`. | Use `scope: { type: page, pageId: <id> }` only (see above). |
 | `document.pages[0]: Invalid type: "page"` | An invalid entry in some element's `columns[]` — e.g. trying to author a row-action `kind: button` as an input-table column. The mismatch is reported against the **page** schema, not the offending column. | Check the `columns[]` you last touched, not the page `type`. Row-scoped action hosts aren't spec-authorable (see `delete-rows` / `current-row` above). |
 | `Duplicate layout element id '<id>'` | The layout **XML string**, not the elements — usually an unbounded `replace("</Page>", …)` that spliced the same element into every `<Page>`. | Bound the replacement (`count=1`) or append overlay pages after all element splicing. See the overlay layout gotcha above. |
 | `page-break 'X' must span exactly one grid row (got height N)` | A `page-break` given a multi-row `gridRow`. | Page breaks are fixed at height 1 — use a one-row span, e.g. `gridRow="24 / 25"`. |
@@ -469,8 +475,8 @@ listed cause **first** before assuming the element kind itself is unsupported.
 - `scripts/lib/actions.rb` — `Actions.button(id:, text:, effects:,
   appearance:)`, `Actions.input_table_empty(id:, connection_id:, columns:,
   name:, input_mode:)`, `Actions.input_table_linked(id:, from:,
-  connection_id:, columns:, name:, input_mode:)`, and the three effect builders `Actions.insert_rows_effect(table:,
-  values:)` / `Actions.clear_control_effect(page:)` /
+  connection_id:, columns:, name:, input_mode:)`, and the three effect builders `Actions.insert_rows_effect(table_element_id:,
+  values:)` / `Actions.clear_control_effect(page_id:)` /
   `Actions.set_control_value_effect(control:, text:)` build exactly the shapes
   above (`inputMode: "view"` by default with explicit `edit`/`explore`
   overrides; `clear_control_effect` only ever emits page scope). Gated behind

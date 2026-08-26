@@ -7,7 +7,7 @@
 #
 #   require_relative 'lib/actions'
 #   btn = Actions.button(id: 'btn-log', text: 'Log note',
-#                         effects: [Actions.insert_rows_effect(table: 'annotations', values: {...})])
+#                         effects: [Actions.insert_rows_effect(table_element_id: 'annotations', values: {...})])
 #   tbl = Actions.input_table_empty(id: 'annotations', connection_id: WRITE, columns: [...])
 #
 # Live-verified shape facts (verified live against a real Sigma org, building
@@ -36,7 +36,7 @@
 #     entries — this module does not reshape `values`, callers build it),
 #     clear-control (an ELEMENT-scoped clear-control masked-failed the button
 #     live — only page scope is verified, so this builder only emits
-#     scope:{type:"page",page:}), set-control-value (constant text value).
+#     scope:{type:"page",pageId:}), set-control-value (constant text value).
 #
 # All builders are gated through Actions::SURFACES (same discipline as
 # richness.rb/styling.rb): a NO-GO flip on `button`/`input_table_empty`/
@@ -134,29 +134,35 @@ module Actions
     out
   end
 
-  # Returns an `insert-rows` effect Hash: {effect, table, values}. `values`
-  # is a pass-through Hash of colId => {type:"control",control:} |
+  # Returns an `insert-rows` effect Hash: {effect, tableElementId, values}.
+  # The OpenAPI field is `tableElementId` (the target input-table element's
+  # id). A stale `table:` key fails every WorkbookElement oneOf and Sigma
+  # reports the masked `Invalid kind: "button"`. `values` is a pass-through
+  # Hash of colId => {type:"control",control:} |
   # {type:"constant",value:{type:"text",value:}} entries (or any other
   # already-shaped value descriptor) — never reshaped here; system columns
   # (CREATED_AT/CREATED_BY) are never included, Sigma auto-fills them.
   # NO-GO surface -> {} (never a faked effect spliced into a caller's
   # actions: array).
-  def self.insert_rows_effect(table:, values:, surfaces: SURFACES)
-    raise ArgumentError, 'table required' if table.to_s.empty?
+  def self.insert_rows_effect(table_element_id:, values:, surfaces: SURFACES)
+    raise ArgumentError, 'table_element_id required' if table_element_id.to_s.empty?
     return {} unless surfaces[:effects]
 
-    { 'effect' => 'insert-rows', 'table' => table, 'values' => values }
+    { 'effect' => 'insert-rows', 'tableElementId' => table_element_id, 'values' => values }
   end
 
-  # Returns a `clear-control` effect Hash: {effect, scope:{type:"page",page:},
-  # usePublishedValue:true}. Page scope ONLY — an element-scoped
-  # clear-control masked-failed the button live, so this builder never emits
-  # any other scope shape. NO-GO surface -> {}.
-  def self.clear_control_effect(page:, surfaces: SURFACES)
-    raise ArgumentError, 'page required' if page.to_s.empty?
+  # Returns a `clear-control` effect Hash: {effect,
+  # scope:{type:"page",pageId:}, usePublishedValue:true}. The OpenAPI field
+  # is `pageId` (not `page`). A stale `page:` key is dropped on GET
+  # readback, and click then fails with "No target page is selected in the
+  # action." Page scope ONLY — an element-scoped clear-control masked-failed
+  # the button live, so this builder never emits any other scope shape.
+  # NO-GO surface -> {}.
+  def self.clear_control_effect(page_id:, surfaces: SURFACES)
+    raise ArgumentError, 'page_id required' if page_id.to_s.empty?
     return {} unless surfaces[:effects]
 
-    { 'effect' => 'clear-control', 'scope' => { 'type' => 'page', 'page' => page }, 'usePublishedValue' => true }
+    { 'effect' => 'clear-control', 'scope' => { 'type' => 'page', 'pageId' => page_id }, 'usePublishedValue' => true }
   end
 
   # Returns a `set-control-value` effect Hash: {effect, control,

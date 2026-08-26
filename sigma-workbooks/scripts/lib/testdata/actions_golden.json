@@ -11,7 +11,7 @@
         "effects": [
           {
             "effect": "insert-rows",
-            "table": "annotations",
+            "tableElementId": "annotations",
             "values": {
               "an-note": {
                 "type": "control",
@@ -23,7 +23,7 @@
             "effect": "clear-control",
             "scope": {
               "type": "page",
-              "page": "pg"
+              "pageId": "pg"
             },
             "usePublishedValue": true
           }
@@ -92,7 +92,7 @@
   },
   "insert_rows_effect": {
     "effect": "insert-rows",
-    "table": "annotations",
+    "tableElementId": "annotations",
     "values": {
       "an-note": {
         "type": "control",
@@ -104,7 +104,7 @@
     "effect": "clear-control",
     "scope": {
       "type": "page",
-      "page": "pg"
+      "pageId": "pg"
     },
     "usePublishedValue": true
   },

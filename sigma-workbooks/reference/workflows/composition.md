@@ -49,6 +49,12 @@ Within a band, elements split the available width evenly (`band()`, the same hel
 
 Use this for the "dashboard" tier of the sizing ladder above: an exec overview, a sales dashboard, anything shaped like "a few headline numbers, one dominant chart, supporting detail." It is not the only shape a dashboard can take — it's the default starting point when nothing about the request argues for something else.
 
+Operational generate-app workbooks are **not** this pattern. Classify via
+`generate-apps.md` and compose from that type's job (the editable grid or
+queue is the page). Do not wrap a planning/approval/allocation/exception
+fixture in `pattern: :exec` + `Styling.header`, and do not substitute
+`styling.md`'s command-center KPI-in-hero idiom as "the exception look."
+
 Role → band, top to bottom (each optional; skipped if empty):
 
 | Role | Band height | Notes |

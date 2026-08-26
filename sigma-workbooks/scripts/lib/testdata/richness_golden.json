@@ -30,7 +30,7 @@
           {
             "kind": "effect",
             "effect": "insert-rows",
-            "table": "annotations",
+            "tableElementId": "annotations",
             "values": {
               "an-note": {
                 "type": "agent-input",

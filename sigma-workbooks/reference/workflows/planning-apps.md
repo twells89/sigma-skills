@@ -1,5 +1,7 @@
 # Planning apps — scenario-grain writeback pattern
 
+Entered via [`generate-apps.md`](generate-apps.md) when the user asked to generate an app.
+
 Use this pattern when a workbook is a model rather than only a report: actual
 periods followed by forecast periods, assumption tables, budget/scenario
 vocabulary, manual forecast cells, or review and approval.

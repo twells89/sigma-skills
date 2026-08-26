@@ -3,7 +3,7 @@ Auto-generated from SKILL.md by ~/sigma-skills/scripts/sync-targets.rb.
 Do not edit by hand — edit SKILL.md and re-run the script.
 -->
 
-> Build, edit, and iterate on Sigma workbook specs — the JSON definition you POST to /v2/workbooks/spec, covering pages, layout, controls, charts, KPIs, tables, formulas, and sources. The Sigma OpenAPI is the source of truth for every shape and field; this skill adds navigation, style guidance, and proven recipes for effective dashboards. Use when the user wants to construct a dashboard from a spec, reproduce a screenshot/mockup/Claude design artifact as a native Sigma app, add or modify pages / elements / controls / formulas, validate a spec before submission, or work through the workbook spec lifecycle programmatically. Requires an SIGMA_API_TOKEN — obtain via the sigma-api skill first.
+> Build, edit, and iterate on Sigma workbook specs — the JSON definition you POST to /v2/workbooks/spec, covering pages, layout, controls, charts, KPIs, tables, formulas, and sources. The Sigma OpenAPI is the source of truth for every shape and field; this skill adds navigation, style guidance, and proven recipes for effective dashboards and operational apps. Use when the user wants to construct a dashboard from a spec, generate a Sigma app (planning, approval, allocation, or exception), reproduce a screenshot/mockup/Claude design artifact as a native Sigma app, add or modify pages / elements / controls / formulas, validate a spec before submission, or work through the workbook spec lifecycle programmatically. Requires an SIGMA_API_TOKEN — obtain via the sigma-api skill first.
 
 # Sigma Workbooks (Spec via REST API)
 
@@ -120,6 +120,16 @@ render-diff, and iteration gates that happen *before and alongside* normal data
 discovery. The standard workflow alone tends to reproduce the data visuals
 while missing the app shell and behavior.
 
+If the user asked to generate / build / scaffold a Sigma **app** (planning,
+approval, allocation, exception, or an unspecified “app”) and did **not**
+supply a target image, pause here and load
+`reference/workflows/generate-apps.md` — it classifies the app type, records
+an intake manifest, and clones a best-practice **architecture** fixture.
+Design is a separate pass: load `styling.md` as a library and compose for
+this type (do not stamp the five-recipe dashboard *or* the navy-hero
+command-center example). A
+target image still wins: load `from-image.md` instead.
+
 ### Step 1 — Find a reference workbook to study
 
 Any existing workbook on the user's org doubles as a template. List and pick one with similar content:
@@ -159,6 +169,12 @@ Load `reference/workflows/discover.md`. Quick summary:
 ### Step 4 — Identify features and load only what you need
 
 Map the user's request to the **Reference Index** below. State the features you identified, then read the listed reference files before drafting. **If the user asks for a feature this skill doesn't cover**, fetch the OpenAPI and inspect the relevant schema.
+
+If the user asked to generate an app, run `generate-apps.md` first (Step 0)
+before choosing an input-table architecture here. Load
+`reference/specification/styling.md` as a library and compose for this
+app's job — do not stamp the five-pattern exec-dashboard stack or the
+navy-hero command-center example.
 
 If the request includes an input table, writeback, “populate,” “seed,” planning,
 approval, allocation, or exception workflow, load
@@ -280,7 +296,7 @@ The reference is feature-sliced — don't read every file up-front. The index ha
 | `reference/specification/controls.md` | Filter, dropdown, picker, multi-select, date range, date picker, text filter, number range, slider, segmented, hierarchy, legend, and drill controls. Also entry controls and formula handles. |
 | `reference/specification/content-elements.md` | The non-data elements — `text` (Markdown + inline styling), `image`, `divider`, `embed` (external URLs), `page-break` (PDF/print pagination), `form`, `progress`, `navigation`, `plugin`. Titles, callouts, logos, rules, embedded content. |
 | `reference/specification/input-tables.md` | **Load for every input-table or “populate/seed” request.** Operational supplement for `input-table`: supported row-arrival decision tree, write connection, UI-only published permission, publish gate, linked-key correlation, warehouse views, and why actions/unions/joins are not bulk seeding mechanisms. |
-| `reference/specification/styling.md` | **Load when building a dashboard from scratch.** Design recipe library — vetted color palette, hero header strip, gradient header/KPI cards + composite sparkline, KPI card row, section headers, divider rhythm, categorical chart colors. Turns a default-arrange workbook into a designed-looking one without UI editing. |
+| `reference/specification/styling.md` | **Load when composing a look from spec.** A library of options (hero bands, KPI cards, gradients, section headers, chart color, formats) plus an anti-pattern checklist. Not a house style — do not stamp the five-pattern exec dashboard onto every app. PNG fail: skill chrome, invisible entry controls, Dark-by-default on data-entry, 3-KPI status on operational apps. |
 | `reference/specification/agents.md` | Workbook AI agent, chat with your data, agent, chatbot, AI assistant. The workbook-top-level `agents:[]` array + page-level `chat` element; read-only analyst vs. write/action agent; the four `tools[]` kinds (`action`, `mcp-connector`, `warehouse-agent`, `search-service`), `greeting`, `requiresApproval`, why action sequences are referenceable but not authorable; org-feature gate + graceful degrade. |
 
 ### Sources
@@ -308,6 +324,7 @@ The reference is feature-sliced — don't read every file up-front. The index ha
 | `reference/workflows/discover.md` | Finding connections, tables, and column names. Load before composing a new spec. |
 | `reference/workflows/composition.md` | Open-ended design decisions — calibrating workbook complexity to the request, when to ask the user, what to ask, surfacing structural choices in the final summary, and a few safe defaults (hidden source pages, ranked-table sort direction). Load before drafting anything when the prompt leaves significant design choices unmade. |
 | `reference/workflows/actions.md` | Buttons, write-back, and **all twelve** action effects — insert/update/delete-rows, clear-control, set-control-value, open/close-overlay (modal **and** drawer), open-url, open-document (incl. passing `targetControls` into another workbook), navigate, select-tab, refresh-element — plus the append-only-log pattern and the masked-error catalog. Load when the user wants a button, a "log/save/submit" action, tab/page navigation, a deep link, or a write-back workflow. |
+| `reference/workflows/generate-apps.md` | **Generate a Sigma app.** Load first when the user asks to build a planning, approval, allocation, or exception app (and did not supply a target image). Classifies the type, asks structural questions, clones an architecture fixture, then **composes** a look from `styling.md` (library + anti-patterns). Fail the PNG pass on skill chrome, invisible entry controls, Dark-by-default on data-entry, or a 3-KPI status strip. |
 | `reference/workflows/planning-apps.md` | **Scenario planning, budgeting, and forecasting apps.** Scenario × Period × Planning Line grain, governed baseline, scenario matrix, linked override grid, financial sign, filter-propagation choices, approval/audit, and runtime gates. |
 | `reference/workflows/allocation-apps.md` | **Allocation and capacity apps.** Budget/target vs. baseline at Period × Allocation Dimension grain, linked editable units/uplifts, working allocation, request queue, and exact variance gates. |
 | `reference/workflows/approval-apps.md` | **Approval and decision apps.** Stable entity-key queues, counter-values, immutable audit logs, one-row status updates, agent boundaries, and runtime tests. |

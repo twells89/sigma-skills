@@ -1,5 +1,7 @@
 # Approval apps — decision queue and audit workflow
 
+Entered via [`generate-apps.md`](generate-apps.md) when the user asked to generate an app.
+
 Use this pattern when the source contains:
 
 - a stable entity key (Deal ID, Request ID, Case ID, Order ID);
