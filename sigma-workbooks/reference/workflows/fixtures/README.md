@@ -16,6 +16,8 @@ the starting specs.
 - `insert-rows` / `update-rows` / `delete-rows` take `tableElementId` (the
   input-table element's id). A stale `table:` key makes POST fail as
   `Invalid kind: "button"`.
+- `clear-control` page scope takes `pageId` (the page's id). A stale `page:`
+  key is dropped on GET and click fails with `No target page is selected`.
 - Key only deterministic, stable context — never status, owner, current user,
   `Now()`, or approval state.
 - Hidden source page for warehouse / baseline / join plumbing. The visible app

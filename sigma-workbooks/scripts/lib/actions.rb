@@ -36,7 +36,7 @@
 #     entries — this module does not reshape `values`, callers build it),
 #     clear-control (an ELEMENT-scoped clear-control masked-failed the button
 #     live — only page scope is verified, so this builder only emits
-#     scope:{type:"page",page:}), set-control-value (constant text value).
+#     scope:{type:"page",pageId:}), set-control-value (constant text value).
 #
 # All builders are gated through Actions::SURFACES (same discipline as
 # richness.rb/styling.rb): a NO-GO flip on `button`/`input_table_empty`/
@@ -151,15 +151,18 @@ module Actions
     { 'effect' => 'insert-rows', 'tableElementId' => table_element_id, 'values' => values }
   end
 
-  # Returns a `clear-control` effect Hash: {effect, scope:{type:"page",page:},
-  # usePublishedValue:true}. Page scope ONLY — an element-scoped
-  # clear-control masked-failed the button live, so this builder never emits
-  # any other scope shape. NO-GO surface -> {}.
-  def self.clear_control_effect(page:, surfaces: SURFACES)
-    raise ArgumentError, 'page required' if page.to_s.empty?
+  # Returns a `clear-control` effect Hash: {effect,
+  # scope:{type:"page",pageId:}, usePublishedValue:true}. The OpenAPI field
+  # is `pageId` (not `page`). A stale `page:` key is dropped on GET
+  # readback, and click then fails with "No target page is selected in the
+  # action." Page scope ONLY — an element-scoped clear-control masked-failed
+  # the button live, so this builder never emits any other scope shape.
+  # NO-GO surface -> {}.
+  def self.clear_control_effect(page_id:, surfaces: SURFACES)
+    raise ArgumentError, 'page_id required' if page_id.to_s.empty?
     return {} unless surfaces[:effects]
 
-    { 'effect' => 'clear-control', 'scope' => { 'type' => 'page', 'page' => page }, 'usePublishedValue' => true }
+    { 'effect' => 'clear-control', 'scope' => { 'type' => 'page', 'pageId' => page_id }, 'usePublishedValue' => true }
   end
 
   # Returns a `set-control-value` effect Hash: {effect, control,

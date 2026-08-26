@@ -148,7 +148,7 @@ document:
           rq-decision: { type: control, control: decisionControl }
           rq-note: { type: control, control: noteControl }
       - effect: clear-control
-        scope: { type: page, page: page-app }
+        scope: { type: page, pageId: page-app }
         usePublishedValue: true
   - id: kpi-impact
     kind: kpi-chart

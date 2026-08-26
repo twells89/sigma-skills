@@ -150,7 +150,7 @@ document:
           rl-decision: { type: control, control: decisionControl }
           rl-note: { type: control, control: noteControl }
       - effect: clear-control
-        scope: { type: page, page: page-app }
+        scope: { type: page, pageId: page-app }
         usePublishedValue: true
   - id: kpi-order-value
     kind: kpi-chart

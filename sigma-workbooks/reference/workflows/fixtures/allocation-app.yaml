@@ -148,7 +148,7 @@ document:
           rl-request: { type: control, control: requestControl }
           rl-note: { type: control, control: noteControl }
       - effect: clear-control
-        scope: { type: page, page: page-app }
+        scope: { type: page, pageId: page-app }
         usePublishedValue: true
   - id: kpi-variance
     kind: kpi-chart

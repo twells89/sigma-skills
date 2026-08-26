@@ -136,6 +136,11 @@ AppIntake::APP_TYPES.each do |app_type|
       raise "#{effect['effect']} still uses stale table: — OpenAPI requires tableElementId" if effect.key?('table')
       raise "#{effect['effect']} missing tableElementId" unless effect.key?('tableElementId')
     end
+    fx.select { |effect| effect['effect'] == 'clear-control' }.each do |effect|
+      scope = effect['scope'] || {}
+      raise 'clear-control still uses stale scope.page — OpenAPI requires pageId' if scope.key?('page')
+      raise 'clear-control page scope missing pageId' if scope['type'] == 'page' && !scope.key?('pageId')
+    end
 
     hidden = Array(doc.dig('document', 'pages')).any? { |page| page['visibility'] == 'hidden' }
     raise 'missing hidden source page' if req[:hidden_page] && !hidden

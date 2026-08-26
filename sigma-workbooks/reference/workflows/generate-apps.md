@@ -142,7 +142,9 @@ connection IDs, folder IDs, or workbook IDs into this skill.
    non-negotiable layers. Keep the fixture's `tableElementId` on
    `insert-rows` / `update-rows` / `delete-rows` (live OpenAPI). A stale
    `table:` key fails every element oneOf and Sigma reports the masked
-   `Invalid kind: "button"`.
+   `Invalid kind: "button"`. Keep `clear-control` as
+   `scope: { type: page, pageId: <page id> }` — a stale `page:` key is
+   dropped on GET and click fails with `No target page is selected`.
 4. Continue from SKILL.md Step 5: validate (`./scripts/validate-spec.sh`),
    POST, `./scripts/verify-workbook.sh`, then the recipe's runtime gates in
    `runtime-verification.md`.
