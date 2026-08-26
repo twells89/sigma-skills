@@ -145,7 +145,14 @@ connection IDs, folder IDs, or workbook IDs into this skill.
    `Invalid kind: "button"`. Keep `clear-control` as
    `scope: { type: page, pageId: <page id> }` — a stale `page:` key is
    dropped on GET and click fails with `No target page is selected`.
-4. Continue from SKILL.md Step 5: validate (`./scripts/validate-spec.sh`),
+4. Load `../specification/styling.md`. The fixture is architecture, not a
+   finished look. Apply the five recipes before POST: branded hero header,
+   KPI cards (container + colored label + `name: ' '`), section headers
+   between bands, chart color / theme `categoricalScheme`, and number
+   formats. Export the page PNG and check the anti-pattern list in
+   `styling.md`. Skipping this step is how generate-app clones land as a
+   default grid.
+5. Continue from SKILL.md Step 5: validate (`./scripts/validate-spec.sh`),
    POST, `./scripts/verify-workbook.sh`, then the recipe's runtime gates in
    `runtime-verification.md`.
 
@@ -155,11 +162,11 @@ version. The setting is absent from `GET /spec`.
 
 ## Fixtures
 
-The four files in `fixtures/` are architecture templates, not live org dumps.
-Each encodes the layers its recipe requires. Shared rules are in
-`fixtures/README.md`. Copy shapes from the matching fixture; do not assemble
-an operational app from `example-full.yaml` (that file is an analytical
-dashboard).
+The four files in `fixtures/` are architecture templates **plus** the
+`styling.md` skeleton (hero, KPI card wrap, section headers, Light theme).
+They are not live org dumps. Shared rules are in `fixtures/README.md`. Copy
+shapes from the matching fixture; do not assemble an operational app from
+`example-full.yaml` (that file is an analytical dashboard).
 
 | Type | Fixture | Required layers |
 |---|---|---|

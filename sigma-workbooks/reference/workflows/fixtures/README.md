@@ -18,6 +18,10 @@ the starting specs.
   `Invalid kind: "button"`.
 - `clear-control` page scope takes `pageId` (the page's id). A stale `page:`
   key is dropped on GET and click fails with `No target page is selected`.
+- Each fixture includes the `styling.md` skeleton: `settings.theme`, a hero
+  header, a KPI card wrap, and section headers. Bind sources, then finish
+  the rest of the design recipes (formats, chart colors, PNG anti-pattern
+  check) before POST.
 - Key only deterministic, stable context — never status, owner, current user,
   `Now()`, or approval state.
 - Hidden source page for warehouse / baseline / join plumbing. The visible app

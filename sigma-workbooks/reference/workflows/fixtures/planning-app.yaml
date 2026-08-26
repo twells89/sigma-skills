@@ -9,6 +9,30 @@ folderId: "<FOLDER_ID>"
 document:
   schemaVersion: 1
   kind: workbook
+  settings:
+    theme:
+      name: Light
+      overrides:
+        colors:
+          highlight: "#3B82F6"
+        borderRadius: round
+        hasCards: shown
+        space:
+          unit: medium
+          showElementPadding: shown
+        tableStyles:
+          preset: presentation
+          cellSpacing: small
+          gridLines: horizontal
+          banding: shown
+          bandingColor: "#F8FAFC"
+        categoricalScheme:
+        - "#3B82F6"
+        - "#F59E0B"
+        - "#EF4444"
+        - "#8B5CF6"
+        - "#06B6D4"
+        - "#10B981"
   elements:
   - id: source-plan
     kind: table
@@ -206,16 +230,21 @@ document:
         usePublishedValue: true
   - id: kpi-impact
     kind: kpi-chart
-    name: Profit Impact
+    name: ' '
     source:
       kind: table
       elementId: plan-grid
     columns:
     - id: kpi-impact-val
       formula: Sum([Plan Grid/Profit Impact])
-      name: Profit Impact
+      name: ' '
+      format:
+        kind: number
+        formatString: "$,.2s"
     value:
       columnId: kpi-impact-val
+      fontSize: 32
+      color: "#0F172A"
   - id: ctrl-scenario
     kind: control
     controlId: scenarioControl
@@ -240,6 +269,42 @@ document:
     controlId: noteControl
     name: Comment
     controlType: text
+  - id: hero
+    kind: container
+    style:
+      backgroundColor: "#0F172A"
+      borderRadius: round
+  - id: title
+    kind: text
+    verticalAlign: middle
+    body: |
+      # <span style="color: #FFFFFF">Planning app</span>
+      <p class="p-small"><span style="color: #94A3B8">Edit forecasts, compare scenarios, and log a decision</span></p>
+  - id: section-entry
+    kind: text
+    body: |
+      ## Log a decision
+  - id: kpi-impact-box
+    kind: container
+    style:
+      backgroundColor: "#FFFFFF"
+      borderRadius: round
+      borderColor: "#E2E8F0"
+      borderWidth: 1
+  - id: kpi-impact-label
+    kind: text
+    body: |
+      <p class="p-small"><span style="color: #3B82F6">**PROFIT IMPACT**</span></p>
+  - id: section-grid
+    kind: text
+    body: |
+      ## Plan grid
+  - id: divider-1
+    kind: divider
+  - id: section-log
+    kind: text
+    body: |
+      ## Decision log
   pages:
   - id: page-source
     name: Source
@@ -254,12 +319,24 @@ document:
       <Element elementId="plan-matrix" gridColumn="1 / 25" gridRow="19 / 28"/>
     </Page>
     <Page type="grid" gridTemplateColumns="repeat(24, 1fr)" gridTemplateRows="auto" id="page-app">
-      <Element elementId="ctrl-scenario" gridColumn="1 / 9" gridRow="1 / 3"/>
-      <Element elementId="ctrl-decision" gridColumn="9 / 17" gridRow="1 / 3"/>
-      <Element elementId="ctrl-note" gridColumn="17 / 25" gridRow="1 / 3"/>
-      <Element elementId="kpi-impact" gridColumn="1 / 9" gridRow="3 / 9"/>
-      <Element elementId="scenarios" gridColumn="9 / 25" gridRow="3 / 9"/>
-      <Element elementId="plan-grid" gridColumn="1 / 25" gridRow="9 / 21"/>
-      <Element elementId="decision-log" gridColumn="1 / 19" gridRow="21 / 30"/>
-      <Element elementId="btn-submit" gridColumn="19 / 25" gridRow="21 / 24"/>
+      <Container elementId="hero" type="grid" gridColumn="1 / 25" gridRow="1 / 4"
+                     gridTemplateColumns="repeat(24, 1fr)" gridTemplateRows="auto">
+        <Element elementId="title" gridColumn="1 / 25" gridRow="1 / 4"/>
+      </Container>
+      <Element elementId="section-entry" gridColumn="1 / 25" gridRow="4 / 5"/>
+      <Element elementId="ctrl-scenario" gridColumn="1 / 9" gridRow="5 / 7"/>
+      <Element elementId="ctrl-decision" gridColumn="9 / 17" gridRow="5 / 7"/>
+      <Element elementId="ctrl-note" gridColumn="17 / 25" gridRow="5 / 7"/>
+      <Element elementId="section-grid" gridColumn="1 / 25" gridRow="7 / 8"/>
+      <Container elementId="kpi-impact-box" type="grid" gridColumn="1 / 9" gridRow="8 / 15"
+                     gridTemplateColumns="repeat(24, 1fr)" gridTemplateRows="auto">
+        <Element elementId="kpi-impact-label" gridColumn="1 / 25" gridRow="1 / 3"/>
+        <Element elementId="kpi-impact" gridColumn="1 / 25" gridRow="3 / 8"/>
+      </Container>
+      <Element elementId="scenarios" gridColumn="9 / 25" gridRow="8 / 15"/>
+      <Element elementId="plan-grid" gridColumn="1 / 25" gridRow="15 / 27"/>
+      <Element elementId="divider-1" gridColumn="1 / 25" gridRow="27 / 28"/>
+      <Element elementId="section-log" gridColumn="1 / 25" gridRow="28 / 29"/>
+      <Element elementId="decision-log" gridColumn="1 / 19" gridRow="29 / 38"/>
+      <Element elementId="btn-submit" gridColumn="19 / 25" gridRow="29 / 32"/>
     </Page>

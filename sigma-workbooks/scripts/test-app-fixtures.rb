@@ -144,6 +144,11 @@ AppIntake::APP_TYPES.each do |app_type|
 
     hidden = Array(doc.dig('document', 'pages')).any? { |page| page['visibility'] == 'hidden' }
     raise 'missing hidden source page' if req[:hidden_page] && !hidden
+
+    raise 'missing hero container' unless elements(doc).any? { |el| el['id'] == 'hero' && el['kind'] == 'container' }
+    raise 'missing title text' unless elements(doc).any? { |el| el['id'] == 'title' && el['kind'] == 'text' }
+    raise 'missing settings.theme' unless doc.dig('document', 'settings', 'theme', 'name')
+    raise 'missing section header' unless elements(doc).any? { |el| el['kind'] == 'text' && el['id'].to_s.start_with?('section-') }
   end
 
   check("#{app_type} layout places every element", failures) do

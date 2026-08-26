@@ -9,6 +9,30 @@ folderId: "<FOLDER_ID>"
 document:
   schemaVersion: 1
   kind: workbook
+  settings:
+    theme:
+      name: Light
+      overrides:
+        colors:
+          highlight: "#3B82F6"
+        borderRadius: round
+        hasCards: shown
+        space:
+          unit: medium
+          showElementPadding: shown
+        tableStyles:
+          preset: presentation
+          cellSpacing: small
+          gridLines: horizontal
+          banding: shown
+          bandingColor: "#F8FAFC"
+        categoricalScheme:
+        - "#3B82F6"
+        - "#F59E0B"
+        - "#EF4444"
+        - "#8B5CF6"
+        - "#06B6D4"
+        - "#10B981"
   elements:
   - id: source-alloc
     kind: table
@@ -152,16 +176,21 @@ document:
         usePublishedValue: true
   - id: kpi-variance
     kind: kpi-chart
-    name: Vs Budget
+    name: ' '
     source:
       kind: table
       elementId: alloc-grid
     columns:
     - id: kpi-var-val
       formula: Sum([Allocation Grid/Vs Budget])
-      name: Vs Budget
+      name: ' '
+      format:
+        kind: number
+        formatString: "$,.2s"
     value:
       columnId: kpi-var-val
+      fontSize: 32
+      color: "#0F172A"
   - id: ctrl-period
     kind: control
     controlId: periodControl
@@ -182,6 +211,42 @@ document:
     controlId: noteControl
     name: Comment
     controlType: text
+  - id: hero
+    kind: container
+    style:
+      backgroundColor: "#0F172A"
+      borderRadius: round
+  - id: title
+    kind: text
+    verticalAlign: middle
+    body: |
+      # <span style="color: #FFFFFF">Allocation app</span>
+      <p class="p-small"><span style="color: #94A3B8">Redistribute across the dimension and log a request</span></p>
+  - id: section-entry
+    kind: text
+    body: |
+      ## Log a request
+  - id: kpi-variance-box
+    kind: container
+    style:
+      backgroundColor: "#FFFFFF"
+      borderRadius: round
+      borderColor: "#E2E8F0"
+      borderWidth: 1
+  - id: kpi-variance-label
+    kind: text
+    body: |
+      <p class="p-small"><span style="color: #3B82F6">**VS BUDGET**</span></p>
+  - id: section-grid
+    kind: text
+    body: |
+      ## Allocation grid
+  - id: divider-1
+    kind: divider
+  - id: section-log
+    kind: text
+    body: |
+      ## Request log
   pages:
   - id: page-source
     name: Source
@@ -195,12 +260,24 @@ document:
       <Element elementId="alloc-base" gridColumn="1 / 25" gridRow="10 / 19"/>
     </Page>
     <Page type="grid" gridTemplateColumns="repeat(24, 1fr)" gridTemplateRows="auto" id="page-app">
-      <Element elementId="ctrl-period" gridColumn="1 / 7" gridRow="1 / 3"/>
-      <Element elementId="ctrl-dim" gridColumn="7 / 13" gridRow="1 / 3"/>
-      <Element elementId="ctrl-request" gridColumn="13 / 19" gridRow="1 / 3"/>
-      <Element elementId="ctrl-note" gridColumn="19 / 25" gridRow="1 / 3"/>
-      <Element elementId="kpi-variance" gridColumn="1 / 9" gridRow="3 / 9"/>
-      <Element elementId="alloc-grid" gridColumn="9 / 25" gridRow="3 / 18"/>
-      <Element elementId="request-log" gridColumn="1 / 19" gridRow="18 / 27"/>
-      <Element elementId="btn-request" gridColumn="19 / 25" gridRow="18 / 21"/>
+      <Container elementId="hero" type="grid" gridColumn="1 / 25" gridRow="1 / 4"
+                     gridTemplateColumns="repeat(24, 1fr)" gridTemplateRows="auto">
+        <Element elementId="title" gridColumn="1 / 25" gridRow="1 / 4"/>
+      </Container>
+      <Element elementId="section-entry" gridColumn="1 / 25" gridRow="4 / 5"/>
+      <Element elementId="ctrl-period" gridColumn="1 / 7" gridRow="5 / 7"/>
+      <Element elementId="ctrl-dim" gridColumn="7 / 13" gridRow="5 / 7"/>
+      <Element elementId="ctrl-request" gridColumn="13 / 19" gridRow="5 / 7"/>
+      <Element elementId="ctrl-note" gridColumn="19 / 25" gridRow="5 / 7"/>
+      <Element elementId="section-grid" gridColumn="1 / 25" gridRow="7 / 8"/>
+      <Container elementId="kpi-variance-box" type="grid" gridColumn="1 / 9" gridRow="8 / 15"
+                     gridTemplateColumns="repeat(24, 1fr)" gridTemplateRows="auto">
+        <Element elementId="kpi-variance-label" gridColumn="1 / 25" gridRow="1 / 3"/>
+        <Element elementId="kpi-variance" gridColumn="1 / 25" gridRow="3 / 8"/>
+      </Container>
+      <Element elementId="alloc-grid" gridColumn="9 / 25" gridRow="8 / 22"/>
+      <Element elementId="divider-1" gridColumn="1 / 25" gridRow="22 / 23"/>
+      <Element elementId="section-log" gridColumn="1 / 25" gridRow="23 / 24"/>
+      <Element elementId="request-log" gridColumn="1 / 19" gridRow="24 / 33"/>
+      <Element elementId="btn-request" gridColumn="19 / 25" gridRow="24 / 27"/>
     </Page>
