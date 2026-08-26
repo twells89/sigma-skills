@@ -6,10 +6,12 @@ center, or an unspecified “app” — and they did **not** supply a target ima
 
 The general spec workflow ([the rest of SKILL.md](../../SKILL.md)) still
 applies. This document covers **only the intake steps** that come *before*
-discovery and spec drafting: classify the app type, ask the structural
-questions the matching recipe requires, record a local intake manifest, and
-clone a best-practice **architecture** fixture. Look is a later compose
-pass (`styling.md` as a library — not one house recipe).
+discovery and spec drafting: classify the app type, **interview** the user
+(editable fields, approvals, Sigma Agent), record a local intake manifest,
+state a build plan, and clone a best-practice **architecture** fixture.
+Look is a later compose pass (`styling.md` as a library — not one house
+recipe). The fixtures are the house standard to imitate; do not draft the
+first spec from memory.
 
 If the user supplied a screenshot, mockup, PDF, or design artifact, stop and
 load `from-image.md` instead. Image-driven reproduction is a different path.
@@ -25,6 +27,10 @@ linked to a governed source, or a “planning app” whose scenarios share one
 editable grid.
 
 This workflow makes classification, grain, and the starting spec explicit.
+It interviews **before** it clones: which fields users may edit, whether
+the workflow needs approvals, and whether to add a workbook agent (with a
+recommended purpose). Those answers become a short build plan for this
+workbook and the person who will use it.
 
 Do **not** invent a fifth operational type. Apps are still workbooks
 (`POST /v2/workbooks/spec`). Architecture details live in the matching recipe,
@@ -58,11 +64,12 @@ If the ask is mixed (for example, “planning *and* approvals”), follow the
 `from-image.md` boundary rule: **one workbook per app surface**. Confirm the
 split, then run this intake twice.
 
-### Step B — Type-specific questions
+### Step B — Interview before building
 
 Keep these few and structural. Do not expand into an open-ended UX interview.
 Load the matching recipe after classification so the answers map onto its
-grain and gates.
+grain and gates. Show the type's recommended answer for each question;
+confirm or override — do not invent a fifth operational type.
 
 **Every operational type** — the five input-table facts from
 `../specification/input-tables.md`:
@@ -99,6 +106,76 @@ Then the type-specific set:
 - One exception per entity, or a composite key (Exception Type / Observation Date)?
 - User override, or recommendation-only?
 
+Then the cross-cutting interview. These three questions apply to **every**
+type, including approval apps (that type is still a decision queue; the
+approvals question is whether to keep the submit / audit-log action).
+
+**Who uses this app?** — one line. Pre-fill the type's recommended audience
+(`FP&A planner` / `ops or finance owner` / `reviewer` / `ops owner`).
+Override if they named a role. The workbook still lands in the
+authenticated user's home folder (SKILL.md Step 0).
+
+**Editable fields (all types)** — which columns on the linked grid may
+users type into? Show the recommended `{ id, type }` list; they may subset
+or add names. Key columns and formula columns stay non-editable.
+
+| Type | Users edit (recommended) |
+|---|---|
+| planning | Method, Uplift %, Dollar Change, New Amount, Rationale |
+| allocation | Added Hires, Cost Uplift %, Rationale |
+| approval | Decision, Approved Discount, Reviewer, Decision Note |
+| exception | Override Order Qty, Decision, Owner, Resolution Note |
+
+```bash
+ruby -r ./scripts/lib/app_intake.rb -e 'p AppIntake.editable_fields_for("planning")'
+```
+
+**Approvals (all types)** — one question. Show the recommended purpose;
+do not reclassify the app.
+
+- Does this workflow need approvals? (yes / no)
+
+If **no**, keep the linked grid or queue and omit the fixture's submit /
+log-insert button and any status-update `whichRows` path. If **yes**, keep
+the recipe's approval/audit layer (planning: submit + scenario status;
+allocation: request log; approval: audit log + one-row status update;
+exception: resolution log).
+
+| Type | Recommended approval action |
+|---|---|
+| planning | submit the selected scenario: decision-log row + update only that scenario's status |
+| allocation | log a hiring or reallocation request (off the editable plan grid) |
+| approval | record Approve / Reject / Counter: audit-log row + `whichRows` on the stable entity key |
+| exception | log a resolution for the selected operational entity |
+
+```bash
+ruby -r ./scripts/lib/app_intake.rb -e 'puts AppIntake.approval_purpose_for("planning")'
+```
+
+**Sigma Agent (all types)** — one question. Show the recommended purpose
+for this type; do not invent a fifth operational type or an open-ended
+“what should the AI do?”
+
+- Add a workbook agent? (yes / no)
+
+If **no**, set `agent.include` false and omit `document.agents` and any
+`chat` element. If **yes**, set `agent.include` true and keep the type's
+recommended purpose unless they override it. Compose the agent in
+Step D.5 — do not draft `agents[]` during the interview.
+
+| Type | Analyze (`dataSources`) | Act (`tools`) |
+|---|---|---|
+| planning | plan grid, selected-plan ledger, all-scenario comparison, scenario directory, decision log — actual vs baseline vs selected plan | read-only unless they asked the agent to submit or log; any write tool sets `requiresApproval: true` |
+| allocation | allocation grid, working allocation, variance, request log — over/under, baseline vs added units, tradeoffs | read-only unless they asked the agent to log a request; any write tool sets `requiresApproval: true` |
+| approval | entity directory, review queue, decision log — prioritize by policy breach, value at risk, and age | do not record a decision unless they asked for that tool; any write tool sets `requiresApproval: true` |
+| exception | exception directory and action queue — rank unresolved items, skip already-logged resolutions | log-resolution (or equivalent) with `requiresApproval: true` |
+
+A helper prints the same purpose the manifest pre-fills:
+
+```bash
+ruby -r ./scripts/lib/app_intake.rb -e 'puts AppIntake.agent_purpose_for("exception")'
+```
+
 **Look (one optional question, all types)** — skip if they already named a
 brand, theme, or reference workbook. Do not turn this into a UX interview.
 
@@ -110,9 +187,23 @@ org theme**. Do **not** default to Dark on a page with text/list entry
 controls, and do **not** fall back to the `styling.md` exec-dashboard
 example.
 
-Do **not** proceed to spec draft until classification, grain keys, and a
-write-enabled connection are answered — or the user explicitly says to use
-the fixture defaults.
+Do **not** proceed to spec draft until classification, grain keys, a
+write-enabled connection, which fields users may edit, whether the
+workflow needs approvals, and whether to include a workbook agent are
+answered — or the user explicitly says to use the fixture defaults.
+
+Restate the answers as a **build plan** before cloning, then wait for
+confirmation:
+
+```text
+Build plan
+- App: <type> for <audience>
+- Grain: <keys>
+- Users edit: <editableFields>
+- Approvals: yes/no — <purpose>
+- Agent: yes/no — <purpose>
+- Fixture: <fixture>
+```
 
 ### Step C — Record a local intake manifest
 
@@ -121,14 +212,16 @@ is `/tmp/app-intake.json`.
 
 ```bash
 ruby scripts/lib/app_intake.rb init /tmp/app-intake.json planning
-# fill answers, sources, grain.expectedRows from Step B
+# fill answers, audience, editableFields, sources, approvals, agent,
+# grain.expectedRows from Step B
 ruby scripts/lib/app_intake.rb validate /tmp/app-intake.json
 ```
 
 `init` refuses to overwrite. Allowed `appType` values are `planning`,
 `allocation`, `approval`, and `exception`. The helper checks that `recipe`
 and `fixture` match the type, that `grain.keys` includes the required keys
-for that type, and that the fixture file exists on disk.
+for that type, that `editableFields`, `approvals`, and `agent` are present,
+and that the fixture file exists on disk.
 
 Use `--strict` only when sources are bound (write connection, source
 connection, table path, expected row count):
@@ -157,6 +250,22 @@ connection IDs, folder IDs, or workbook IDs into this skill.
    `Invalid kind: "button"`. Keep `clear-control` as
    `scope: { type: page, pageId: <page id> }` — a stale `page:` key is
    dropped on GET and click fails with `No target page is selected`.
+
+   Apply the interview:
+
+   - **Editable fields.** On the linked grid, keep only
+     `editableFields` as `{ id, type }` columns. Key columns stay keys;
+     formula columns stay formulas. If they named extra fields, add
+     `{ id, type }` columns after discovery — do not invent source
+     column names. If a formula referenced a dropped edit column,
+     rewrite it (usually `Coalesce` to the baseline) rather than leaving
+     a dangling `[Column]` ref.
+   - **Approvals.** If `approvals.include` is false, omit the fixture's
+     log-insert button and any status-update `whichRows` path. Keep the
+     linked grid. Log-only controls (comment/request inputs used only by
+     that button) go with the button. The empty log table may stay on a
+     hidden page. If `approvals.include` is true, keep the recipe's
+     approval/audit layer and the allowed decisions from Step B.
 4. Load `../specification/styling.md` as a **library**, not a stamp. A
    design pass is required — do not ship the fixture's default grid — but
    do **not** apply the five-pattern exec-dashboard stack (navy hero +
@@ -209,7 +318,29 @@ connection IDs, folder IDs, or workbook IDs into this skill.
 
    Name the design choices in the handoff summary (`composition.md`).
    Do not add a new composition to `styling.md` from a one-off app.
-5. Continue from SKILL.md Step 5: validate (`./scripts/validate-spec.sh`),
+5. **Workbook agent.** Fixtures stay agent-free; compose after clone.
+   If `agent.include` is false, omit `document.agents` and any `chat`
+   element. If **true**:
+
+   - Load `../specification/agents.md`. Confirm the org has workbook AI
+     agents enabled. If it does not, degrade to that file's static
+     sample-prompt text — never POST a cosmetic `chat` on a gated org.
+   - Build with `Richness.agent` + `Richness.chat`
+     (`scripts/lib/richness.rb`). `instructions` is the confirmed
+     `agent.purpose` plus the audience. `dataSources` are the type's
+     recommended element ids that exist on this spec:
+
+     ```bash
+     ruby -r ./scripts/lib/app_intake.rb -e 'p AppIntake.agent_data_sources_for("exception")'
+     ```
+
+   - **Read-only is the default:** omit `tools` entirely (not
+     `tools: []`). Add a write tool only if they overrode Act to include
+     one. Any write tool **must** set `requiresApproval: true`.
+   - Place `chat` as a **supporting rail**, not the focal work surface
+     (the grid or queue keeps the wide columns from Step D.4). Several
+     `chat` elements may share one `agents[]` id.
+6. Continue from SKILL.md Step 5: validate (`./scripts/validate-spec.sh`),
    POST, `./scripts/verify-workbook.sh`, then the recipe's runtime gates in
    `runtime-verification.md`.
 
@@ -224,6 +355,10 @@ system. They encode grain, writeback, and layout membership. Shared rules
 are in `fixtures/README.md`. Copy architecture from the matching fixture;
 compose the look in Step D.4. Do not assemble an operational app from
 `example-full.yaml` (that file is an analytical dashboard).
+
+Fixtures stay **agent-free** (`document.agents` and `chat` are composed in
+Step D.5 when `agent.include` is true). They **do** include the default
+approval/log layer; Step D.3 drops it when `approvals.include` is false.
 
 | Type | Fixture | Required layers |
 |---|---|---|

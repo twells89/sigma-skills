@@ -34,6 +34,25 @@ AppIntake::APP_TYPES.each do |app_type|
     raise 'missing write connection error' unless errors.any? { |error| error.include?('writeConnectionId') }
     raise 'missing expectedRows error' unless errors.any? { |error| error.include?('expectedRows') }
   end
+
+  check("#{app_type} template includes recommended editable fields", failures) do
+    fields = AppIntake.template_for(app_type).fetch('editableFields')
+    expected = AppIntake.editable_fields_for(app_type)
+    raise "expected #{expected.inspect}, got #{fields.inspect}" unless fields == expected
+  end
+
+  check("#{app_type} template pre-fills agent and approvals", failures) do
+    manifest = AppIntake.template_for(app_type)
+    agent = manifest.fetch('agent')
+    raise 'agent.include must default false' unless agent['include'] == false
+    raise 'agent.purpose missing' if agent['purpose'].to_s.strip.empty?
+    raise 'agent purpose mismatch' unless agent['purpose'] == AppIntake.agent_purpose_for(app_type)
+    approvals = manifest.fetch('approvals')
+    raise 'approvals.include must default true' unless approvals['include'] == true
+    raise 'approvals.purpose missing' if approvals['purpose'].to_s.strip.empty?
+    raise 'approvals purpose mismatch' unless approvals['purpose'] == AppIntake.approval_purpose_for(app_type)
+    raise 'audience missing' if manifest['audience'].to_s.strip.empty?
+  end
 end
 
 check('unknown appType is rejected', failures) do
@@ -67,6 +86,36 @@ check('completed manifest passes strict validation', failures) do
   manifest['grain']['expectedRows'] = 12
   errors = AppIntake.errors(manifest, strict: true)
   raise errors.join('; ') unless errors.empty?
+end
+
+check('agent.include true with blank purpose is rejected', failures) do
+  manifest = AppIntake.template_for('exception')
+  manifest['agent'] = { 'include' => true, 'purpose' => '  ' }
+  errors = AppIntake.errors(manifest)
+  raise 'blank agent purpose was accepted' unless errors.any? { |error| error.include?('agent.purpose') }
+end
+
+check('approvals.include true with blank purpose is rejected', failures) do
+  manifest = AppIntake.template_for('planning')
+  manifest['approvals'] = { 'include' => true, 'purpose' => '' }
+  errors = AppIntake.errors(manifest)
+  raise 'blank approvals purpose was accepted' unless errors.any? { |error| error.include?('approvals.purpose') }
+end
+
+check('empty editableFields is rejected', failures) do
+  manifest = AppIntake.template_for('allocation')
+  manifest['editableFields'] = []
+  errors = AppIntake.errors(manifest)
+  raise 'empty editableFields was accepted' unless errors.any? { |error| error.include?('editableFields') }
+end
+
+check('helpers return a purpose and data sources for every type', failures) do
+  AppIntake::APP_TYPES.each do |app_type|
+    raise "#{app_type} agent purpose blank" if AppIntake.agent_purpose_for(app_type).strip.empty?
+    raise "#{app_type} approval purpose blank" if AppIntake.approval_purpose_for(app_type).strip.empty?
+    raise "#{app_type} missing data sources" if AppIntake.agent_data_sources_for(app_type).empty?
+    raise "#{app_type} missing editable fields" if AppIntake.editable_fields_for(app_type).empty?
+  end
 end
 
 check('init refuses to overwrite an existing manifest', failures) do
