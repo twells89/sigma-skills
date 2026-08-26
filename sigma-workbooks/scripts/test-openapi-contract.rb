@@ -120,8 +120,12 @@ control_types = contract.dig('releasedVariants', 'controls').map { |entry| entry
 assert_contract(failures, 'create envelope requires name, folderId, and document') do
   create.fetch('required') == %w[document folderId name]
 end
-assert_contract(failures, 'update accepts only a required document') do
-  update.fetch('required') == ['document'] && update.fetch('properties') == ['document']
+assert_contract(failures, 'update requires document and now also accepts documentVersion') do
+  # `documentVersion` appeared alongside `document` (optimistic concurrency on
+  # PUT). It is OPTIONAL -- required is still exactly ['document'] -- so the old
+  # `properties == ['document']` assertion was pinning its absence.
+  update.fetch('required') == ['document'] &&
+    update.fetch('properties').sort == %w[document documentVersion]
 end
 assert_contract(failures, 'document owns every released top-level collection') do
   %w[elements overlays pages panels settings agents layout].all? do |key|
@@ -135,8 +139,12 @@ assert_contract(failures, 'pages are metadata-only and expose styling') do
   !page.fetch('properties').include?('elements') &&
     %w[backgroundColor backgroundImage].all? { |key| page.fetch('properties').include?(key) }
 end
-assert_contract(failures, 'readback requires layout even while create OpenAPI leaves it nullable') do
-  read_doc.fetch('required').include?('layout') && !create_doc.fetch('required').include?('layout')
+assert_contract(failures, 'layout is required on BOTH create and readback') do
+  # It used to be required on readback but nullable on create, and this assertion
+  # pinned that asymmetry. Create now requires it too (the 2026-08 layout
+  # contract), so a spec POSTed without `layout` is rejected outright rather than
+  # accepted and silently unplaced.
+  read_doc.fetch('required').include?('layout') && create_doc.fetch('required').include?('layout')
 end
 assert_contract(failures, 'released element kinds are pinned') do
   %w[
@@ -146,8 +154,24 @@ end
 assert_contract(failures, 'legend and drill controls are pinned') do
   %w[legend drill].all? { |control_type| control_types.include?(control_type) }
 end
-assert_contract(failures, 'box chart remains gated until it is published') do
-  (element_kinds & %w[box-chart box-plot]).empty?
+assert_contract(failures, 'box-chart is PUBLISHED (this assertion was inverted 2026-08-26)') do
+  # This asserted box-chart stayed gated. It shipped: verified live against a real
+  # org -- a box-chart with source/columns/yAxis returns {"valid": true} from
+  # /v2/workbooks/spec/verify. `box-plot` was never a Sigma kind and stays out.
+  element_kinds.include?('box-chart') && !element_kinds.include?('box-plot')
+end
+assert_contract(failures, 'the charts that shipped with box-chart are pinned too') do
+  # All live-verified 2026-08-26 against a real org. treemap-chart and
+  # sankey-chart matter most: converters were routing those to plugin fallbacks
+  # or dropping them entirely on the belief that Sigma had no native equivalent.
+  %w[treemap-chart sankey-chart funnel-chart gauge-chart pie-chart value-list code]
+    .all? { |kind| element_kinds.include?(kind) }
+end
+assert_contract(failures, 'the list + file-upload control types are pinned') do
+  # `file-upload` is genuinely new; `list` was always there but was dropped by the
+  # extractor's discriminator lookup (see discriminator_value) -- which is why the
+  # historical pin said 16 controls and not 18.
+  %w[list file-upload].all? { |type| control_types.include?(type) }
 end
 
 if ARGV[0]

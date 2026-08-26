@@ -42,14 +42,46 @@ def shape(schema)
   }
 end
 
+# Resolve a discriminator's enum, descending oneOf/anyOf as well as allOf.
+#
+# `property` deliberately descends ONLY allOf, because for shape() it would be
+# unsound to lift a property out of one oneOf branch and present it as the
+# schema's own. For a DISCRIMINATOR that reasoning inverts: every branch of a
+# variant union declares the same discriminator value, so reading it from a
+# branch is correct.
+#
+# This exists because `list` was silently missing from the controls pin. Control
+# variants are normally `{title, properties:{controlType}}`, but "List values" is
+# itself a oneOf of two untitled allOf branches, so its controlType sits a level
+# deeper than `property` reaches AND the branches carry no title to attribute it
+# to. The result was a 17-of-18 pin that looked complete. (This predates the
+# asset question -- `list` was dropped on the old asset too, which is part of why
+# the historical pin said 16.)
+def discriminator_value(schema, discriminator)
+  return nil unless schema.is_a?(Hash)
+
+  direct = property(schema, discriminator)
+  found = direct&.fetch('enum', nil)
+  return found if found
+
+  %w[oneOf anyOf].each do |combinator|
+    Array(schema[combinator]).each do |part|
+      nested = discriminator_value(part, discriminator)
+      return nested if nested
+    end
+  end
+  nil
+end
+
 def collect_discriminators(schema, discriminator, out = [])
   return out unless schema.is_a?(Hash)
 
-  values = property(schema, discriminator)&.fetch('enum', nil)
+  values = discriminator_value(schema, discriminator)
   if schema['title'] && values&.one?
     out << { 'title' => schema['title'], discriminator => values.first }
   end
   Array(schema['oneOf']).each { |part| collect_discriminators(part, discriminator, out) }
+  Array(schema['anyOf']).each { |part| collect_discriminators(part, discriminator, out) }
   Array(schema['allOf']).each { |part| collect_discriminators(part, discriminator, out) }
   out.uniq { |entry| entry[discriminator] }.sort_by { |entry| entry[discriminator] }
 end
@@ -172,7 +204,17 @@ contract = {
       collect_discriminators(schemas.fetch('WorkbookElement'), 'kind') +
       collect_discriminators(schemas.fetch('CommonElement'), 'kind')
     ).uniq { |entry| entry['kind'] }.sort_by { |entry| entry['kind'] },
-    'controls' => collect_discriminators(schemas.fetch('CommonElement'), 'controlType')
+    # Controls come from the dedicated `Control` schema, NOT CommonElement.
+    # This read CommonElement and returned ZERO on the canonical asset, which
+    # looked like "Sigma removed every control type" and was really the wrong
+    # schema: `controlType` appears 218x in the asset and Control.oneOf has 18
+    # members. Verified live 2026-08-26 -- `list` and `file-upload` (the two the
+    # old 16-control pin lacked) both verify valid:true against the API.
+    # Kept CommonElement in the union so a future reshuffle back is still seen.
+    'controls' => (
+      collect_discriminators(schemas.fetch('Control'), 'controlType') +
+      collect_discriminators(schemas.fetch('CommonElement'), 'controlType')
+    ).uniq { |entry| entry['controlType'] }.sort_by { |entry| entry['controlType'] }
   },
   # Per-effect property/required sets + the nested union shapes they reference.
   # A rename on either level is now a fixture diff instead of a silent 400.

@@ -179,9 +179,9 @@ holeValue:
 
 Related donut-only fields (all round-trip): `innerRadius` (hole size as a ratio of the outer radius, default 0.6) and `hole.value` styling (`fontWeight`, `color`, `visibility`) for the center label.
 
-## Element-level filters
+## Element-level filters (Top-N, etc.)
 
-Charts (and KPIs / maps) take the **same** element `filters` array as tables — all six `kind`s (`list`, `top-n`, `number-range`, `date-range`, `text-match`, `hierarchy`). Full field catalog and traps: `tables.md` → `filters`.
+Charts take the same `filters` array as tables — the top-N example in `tables.md` applies to `bar-chart`, `line-chart`, and `donut-chart` without changes.
 
 Top 10 regions by `Sales` on a bar chart:
 
@@ -196,7 +196,7 @@ filters:
     includeNulls: when-no-value-is-selected
 ```
 
-`rowCount` takes a number literal — it cannot be bound to a control (see `tables.md` and `controls.md`).
+`rowCount` takes a number literal — it cannot be bound to a control (see `controls.md`, "Where Control Bindings Apply").
 
 ## Cartesian-only optional features
 
@@ -435,3 +435,63 @@ no `box-chart` element kind. Keep requests for one pending or use an explicitly
 approved alternative; do not infer support from UI concepts or stale docs.
 
 For element-level reference of `kind: "text"` (free-form Markdown blocks), see `content-elements.md`.
+
+---
+
+## Natively supported chart kinds that converters still degrade (verified live 2026-08-26)
+
+**treemap, sankey, funnel, gauge and box charts are NATIVE.** Several converters
+still route them to a plugin, to a `bar-chart`, or drop them outright, on the
+belief that Sigma has no equivalent. That belief is out of date. Each shape below
+was confirmed against a real org via `POST /v2/workbooks/spec/verify`, and
+`treemap-chart` additionally via a real create + spec readback.
+
+| kind | required beyond `id`/`kind`/`source`/`columns` | shape |
+|---|---|---|
+| `treemap-chart` | `category` | `category: {id: <dim col>}` |
+| `gauge-chart`   | `value`    | `value: {id: <measure col>}` |
+| `sankey-chart`  | `stages`, `value` | `stages: [{id: <dim col>}]`, `value: {id: <measure col>}` |
+| `funnel-chart`  | `stage`, `series` | `stage: {id: <dim col>}`, `series: {id: <measure col>}` |
+| `box-chart`     | `yAxis`    | `yAxis: {columnIds: [<measure col>]}` |
+
+```yaml
+# live-verified: {"valid": true}, created, and read back intact
+- id: tm
+  kind: treemap-chart
+  source: { kind: data-model, dataModelId: <dm>, elementId: <el> }
+  columns:
+    - { id: cDim, formula: '[Master/Category]' }
+    - { id: cMea, formula: 'Sum([Master/Revenue])' }
+  category: { id: cDim }        # the ONLY pointer treemap accepts
+```
+
+### Three traps, all found by probing rather than reading
+
+**1. `treemap-chart` rejects `value` and silently DROPS `size`.** The API's own
+error says *"at least one of category or value is required"*, but sending `value`
+returns `Invalid kind: "treemap-chart"`. And `size` is accepted at create then
+absent from the readback — a classic silent drop. `category` is the only pointer
+that both validates and persists; sizing comes from the measure in `columns`.
+Assert the readback, not the status code.
+
+**2. `Invalid kind: "X"` does NOT mean the kind is unsupported.** It is a
+mislabeled UNION failure: `bar-chart`, unambiguously valid, returns the identical
+error the moment any sibling property has the wrong type. Four kinds read as
+"unsupported" purely because the probe sent `value: "cA"` where the schema wants
+`value: {id: "cA"}`. To test whether a kind exists, satisfy its required
+properties first, then A/B against a known-good kind with the SAME body shape.
+
+**3. The OpenAPI under-documents these kinds.** `treemap-chart`'s union member
+lists only `columns`/`id`/`kind`/`source` — `category` appears nowhere, yet it is
+required in practice. `donut-chart` is likewise absent from the asset's `kind`
+list despite being a real, working chart. So the asset is authoritative for what
+EXISTS but not always for what a kind ACCEPTS; probe before trusting a field list.
+
+### Emitting these from a converter
+
+Re-routing a source treemap/sankey/funnel/gauge needs the builder to emit that
+kind's own pointer above -- swapping only the `kind` token ships a
+`treemap-chart` carrying bar-chart axis/stacking props, which is invalid. The
+downstream converter plugins (sigma-migration-skills) still route several of
+these to a plugin, to a `bar-chart`, or drop them; that re-routing is tracked
+there, not here.

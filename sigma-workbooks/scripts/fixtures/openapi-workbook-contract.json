@@ -2,7 +2,7 @@
   "source": {
     "openapiVersion": "3.1.0",
     "apiVersion": "2.0.0",
-    "capturedAt": "2026-08-08"
+    "capturedAt": "2026-08-26"
   },
   "schemas": {
     "CreateWorkbookSpec": {
@@ -22,11 +22,13 @@
       "required": [
         "elements",
         "kind",
+        "layout",
         "pages",
         "schemaVersion"
       ],
       "properties": [
         "agents",
+        "automatedActions",
         "elements",
         "kind",
         "layout",
@@ -42,18 +44,21 @@
         "document"
       ],
       "properties": [
-        "document"
+        "document",
+        "documentVersion"
       ]
     },
     "UpdateWorkbookSpec.document": {
       "required": [
         "elements",
         "kind",
+        "layout",
         "pages",
         "schemaVersion"
       ],
       "properties": [
         "agents",
+        "automatedActions",
         "elements",
         "kind",
         "layout",
@@ -105,6 +110,7 @@
       ],
       "properties": [
         "agents",
+        "automatedActions",
         "elements",
         "kind",
         "layout",
@@ -142,12 +148,20 @@
         "kind": "bar-chart"
       },
       {
+        "title": "Box Chart",
+        "kind": "box-chart"
+      },
+      {
         "title": "Button",
         "kind": "button"
       },
       {
         "title": "Chat",
         "kind": "chat"
+      },
+      {
+        "title": "Code",
+        "kind": "code"
       },
       {
         "title": "Combo Chart",
@@ -158,10 +172,6 @@
         "kind": "container"
       },
       {
-        "title": "Checkbox",
-        "kind": "control"
-      },
-      {
         "title": "Divider",
         "kind": "divider"
       },
@@ -170,8 +180,12 @@
         "kind": "embed"
       },
       {
-        "title": "Form",
-        "kind": "form"
+        "title": "Funnel Chart",
+        "kind": "funnel-chart"
+      },
+      {
+        "title": "Gauge Chart",
+        "kind": "gauge-chart"
       },
       {
         "title": "Geography Map",
@@ -186,7 +200,7 @@
         "kind": "input-table"
       },
       {
-        "title": "KPI",
+        "title": "Data elements",
         "kind": "kpi-chart"
       },
       {
@@ -194,12 +208,16 @@
         "kind": "line-chart"
       },
       {
-        "title": "Manual navigation",
+        "title": "Navigation",
         "kind": "navigation"
       },
       {
         "title": "Page break",
         "kind": "page-break"
+      },
+      {
+        "title": "Donut/Pie Chart",
+        "kind": "pie-chart"
       },
       {
         "title": "Pivot Table",
@@ -226,6 +244,10 @@
         "kind": "repeated-container"
       },
       {
+        "title": "Sankey Chart",
+        "kind": "sankey-chart"
+      },
+      {
         "title": "Scatter Chart",
         "kind": "scatter-chart"
       },
@@ -234,12 +256,16 @@
         "kind": "tabbed-container"
       },
       {
-        "title": "Table",
-        "kind": "table"
-      },
-      {
         "title": "Text",
         "kind": "text"
+      },
+      {
+        "title": "Treemap Chart",
+        "kind": "treemap-chart"
+      },
+      {
+        "title": "Value list",
+        "kind": "value-list"
       },
       {
         "title": "Waterfall Chart",
@@ -264,12 +290,20 @@
         "controlType": "drill"
       },
       {
+        "title": "File Upload",
+        "controlType": "file-upload"
+      },
+      {
         "title": "Hierarchy",
         "controlType": "hierarchy"
       },
       {
         "title": "Legend",
         "controlType": "legend"
+      },
+      {
+        "title": "List values",
+        "controlType": "list"
       },
       {
         "title": "Number",
@@ -868,6 +902,6 @@
         ]
       }
     },
-    "_note": "Actions coverage added 2026-08-26 after Sigma's action field rename shipped with zero coverage here -- the pin could not move, so the gate stayed green while emitters carried dead keys. Extracted from the CANONICAL asset (assets.sigmacomputing.com/openapi/public-rest-api/sigma-computing-public-rest-api.json). The sections above were captured 2026-08-08 from a DIFFERENT asset; re-running the extractor over the canonical one also moves releasedVariants (elements 28->32, controls 16->0) and breaks 4 existing assertions, so they are deliberately NOT refreshed here. Reconciling the two assets is separate work."
+    "_note": "Actions coverage added 2026-08-26 (the field rename shipped with zero coverage here). releasedVariants + schemas refreshed the same day from the CANONICAL asset after live-verifying the diff against a real org: elements 28->33 and controls 16->18 are REAL and a strict superset. The controls collapse to 0 was TWO extractor bugs, not an API change -- see extract-openapi-contract.rb: controls were read from CommonElement instead of the dedicated Control schema, and discriminator_value now descends oneOf/anyOf so a union member that is itself a union ('List values', 'Navigation') is no longer silently dropped. That second bug is why the historical pin said 16 controls, not 18."
   }
 }
