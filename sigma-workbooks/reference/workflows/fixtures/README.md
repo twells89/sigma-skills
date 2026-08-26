@@ -13,6 +13,9 @@ the starting specs.
 - Every `input-table` has `inputMode: view`. Published data entry is UI-only
   (element kebab → Set data entry permission → Only in published version) and
   is absent from `GET /spec`.
+- Entry `text` / `text-area` controls include `mode`, `case`, `includeNulls`,
+  and `showOperators` (see `controls.md`). Omitting them POSTs as
+  `Invalid kind: "control"`.
 - `insert-rows` / `update-rows` / `delete-rows` take `tableElementId` (the
   input-table element's id). A stale `table:` key makes POST fail as
   `Invalid kind: "button"`.

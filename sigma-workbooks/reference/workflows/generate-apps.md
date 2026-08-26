@@ -242,7 +242,13 @@ connection IDs, folder IDs, or workbook IDs into this skill.
 2. Load `discover.md`. Replace placeholders (`<FOLDER_ID>`,
    `<WRITE_CONNECTION_ID>`, `<SOURCE_CONNECTION_ID>`,
    `[Source/…]` column names) with values the API actually returned.
-   **Never invent column names.**
+   **Never invent column names.** If the warehouse is not already at the
+   recipe grain (for example people rows instead of Period × Department),
+   derive grain with formulas and a grouping from columns that exist —
+   a constant Period formula is fine. Probe `DISTINCT` before writing
+   status/closed predicates (`discover.md`). Do not rename a formula
+   column to a label that contains `$`; later `[Plan $]` refs compile as
+   `Unknown column`.
 3. Load the matching recipe and `../specification/input-tables.md`. Adjust
    grain columns and formulas to the answers; do not skip the recipe's
    non-negotiable layers. Keep the fixture's `tableElementId` on
@@ -251,6 +257,10 @@ connection IDs, folder IDs, or workbook IDs into this skill.
    `Invalid kind: "button"`. Keep `clear-control` as
    `scope: { type: page, pageId: <page id> }` — a stale `page:` key is
    dropped on GET and click fails with `No target page is selected`.
+   Entry `text` / `text-area` controls in the fixtures already carry
+   `mode` / `case` / `includeNulls` / `showOperators`. Copy that block
+   onto any new entry control (`controls.md`); omit it and POST fails as
+   `Invalid kind: "control"`.
 
    Apply the interview:
 
@@ -317,7 +327,13 @@ connection IDs, folder IDs, or workbook IDs into this skill.
      text boxes. A tinted well behind controls on Light is one verified
      way to show field chrome; it is not a look to clone;
    - **`settings.theme.name: Dark` on a data-entry app** unless the user
-     asked for dark.
+     asked for dark;
+   - **empty work surface** — Build the Plan / allocation grid / review
+     queue showing `No data` when the governed source has rows. Planning:
+     create one scenario before this pass (the spec cannot seed an empty
+     input table). Approval: cap the queue; do not link every open entity;
+   - **broken compile in the PNG** — `null` KPI, `Unknown column`, or
+     `Invalid Query` on a measure the page is for.
 
    Name the design choices in the handoff summary (`composition.md`).
    Do not add a new composition to `styling.md` from a one-off app.
@@ -345,8 +361,11 @@ connection IDs, folder IDs, or workbook IDs into this skill.
      on Build the Plan keeps the wide columns from Step D.4. Several
      `chat` elements may share one `agents[]` id.
 6. Continue from SKILL.md Step 5: validate (`./scripts/validate-spec.sh`),
-   POST, `./scripts/verify-workbook.sh`, then the recipe's runtime gates in
-   `runtime-verification.md`.
+   POST, GET the spec, `./scripts/verify-workbook.sh`, then the recipe's
+   runtime gates in `runtime-verification.md`. Union `name` may not
+   round-trip (`Ledger Union` → `Union of 2 Sources`); later PUTs use the
+   GET prefix. `validate-spec.sh` can flag `[scenario]`-style control
+   handles as unqualified refs — inspect before rewriting them.
 
 Published data entry cannot be set from the spec. Before handoff, for every
 input table: element kebab → Set data entry permission → Only in published

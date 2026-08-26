@@ -54,6 +54,11 @@ keys and store only user-entered decisions or overrides. Actions append
 resolution events; they do not initialize the queue. Unions and joins may
 compose the read model but cannot populate the input table.
 
+Cap a large exception directory before linking (severity, open flag, or SQL
+`QUALIFY ROW_NUMBER() … <= N`). A `top-n` filter on the directory does not
+flow through to the linked input table (`input-tables.md`). Probe `DISTINCT`
+on flag columns — they may be text `"true"` / `"false"`, not booleans.
+
 ## Agent
 
 Generate-apps Step B offers this agent and pre-fills the recommended

@@ -148,6 +148,18 @@ AppIntake::APP_TYPES.each do |app_type|
     raise 'missing hidden source page' if req[:hidden_page] && !hidden
   end
 
+  check("#{app_type} entry text controls carry the four required fields", failures) do
+    elements(doc).select { |el| el['kind'] == 'control' }.each do |control|
+      type = control['controlType'].to_s
+      next unless %w[text text-area].include?(type)
+
+      %w[mode case includeNulls showOperators].each do |field|
+        raise "#{control['id']} (#{type}) missing #{field} — POST is Invalid kind: \"control\"" if
+          control[field].nil? || (control[field].is_a?(String) && control[field].strip.empty?)
+      end
+    end
+  end
+
   check("#{app_type} fixture is architecture, not a stamped dashboard look", failures) do
     raise 'stamped hero container — fixtures must not ship the exec-dashboard chrome' if
       elements(doc).any? { |el| el['id'] == 'hero' && el['kind'] == 'container' }
@@ -281,7 +293,7 @@ end
 check('generate-apps PNG fail list encodes input and Dark constraints', failures) do
   path = File.join(SKILL_ROOT, 'reference/workflows/generate-apps.md')
   text = File.read(path)
-  %w[white-on-white Dark-on-dark 3-KPI strip data-entry app plan measures].each do |needle|
+  %w[white-on-white Dark-on-dark 3-KPI strip data-entry app plan measures empty work surface Unknown column].each do |needle|
     raise "missing constraint #{needle.inspect}" unless text.include?(needle)
   end
 end

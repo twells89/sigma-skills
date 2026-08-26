@@ -48,6 +48,13 @@ The governed entity directory supplies the queue grain. Link editable decision
 fields to its stable key. Do not recreate source entities through one action
 per row, and do not expect a union or join to write them into the input table.
 
+A directory of every open entity is not a review queue. Cap before linking
+(open stage, amount band, or SQL `QUALIFY ROW_NUMBER() … <= N`). Probe
+`DISTINCT` on the closed flag — it may be text `"true"` / `"false"`, not a
+boolean. A `top-n` filter on the directory did not flow through to the
+linked input table in live generate-app verification; cap the warehouse or
+SQL source (or a child table) *before* the linked queue.
+
 ## Action pattern
 
 One click can perform two distinct writes:
@@ -76,7 +83,8 @@ decision was written unless the user approved the action.
 
 ## Runtime gates
 
-- queue row count and key uniqueness match the governed directory;
+- queue row count and key uniqueness match the **capped** review set, not
+  every open source row;
 - published edit accepts a counter value;
 - calculated outcome and impact tie arithmetically;
 - KPI changes by the exact impact;

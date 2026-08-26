@@ -75,6 +75,11 @@ so after the first real rows land, **query the table** (don't just inspect
 versions linked tables were also dropped from `/spec` entirely; if inherited
 columns misbehave, suspect an older org/API first.
 
+A `top-n` (or other element filter) on the **parent** did not flow through
+to the linked input table in live generate-app verification. Cap the
+warehouse or SQL source, or insert a child table, *before* linking. Do not
+expect `filters: [{ kind: top-n, … }]` on the directory to cap the queue.
+
 **Column validation is now spec-authorable (2026-06-18 release)** — see the
 "Editable data column" shapes in `tables.md`. Confirmed round-tripping live:
 - **Single-select** dropdown — a scalar column (`type: text|number|datetime`) plus

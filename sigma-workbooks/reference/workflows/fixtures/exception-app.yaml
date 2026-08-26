@@ -183,11 +183,19 @@ document:
     controlId: decisionControl
     name: Decision
     controlType: text
+    mode: equals
+    case: insensitive
+    includeNulls: when-no-value-is-selected
+    showOperators: false
   - id: ctrl-note
     kind: control
     controlId: noteControl
     name: Comment
     controlType: text
+    mode: equals
+    case: insensitive
+    includeNulls: when-no-value-is-selected
+    showOperators: false
   pages:
   - id: page-source
     name: Source
