@@ -26,15 +26,19 @@ the starting specs.
   generate-apps Step D.5 when intake says to include an agent.
 - Key only deterministic, stable context — never status, owner, current user,
   `Now()`, or approval state.
-- Hidden source page for warehouse / baseline / join plumbing. The visible app
-  page holds the editable grid, log, and actions.
+- Hidden source page for warehouse / baseline / join plumbing. Planning is a
+  multi-page studio (Workspace / Scenarios / Build / Review); the other
+  types still put the editable grid, log, and actions on one visible page.
 - Formulas that read another element use qualified `[SourceName/column]` refs.
+- Planning may show a few **plan measures** on Workspace. Do not add a
+  status-count KPI strip (SCENARIOS / IN REVIEW / APPROVED). Do not copy
+  branded headers, logos, or a Guide page into the fixture.
 
 ## Files
 
 | File | App type |
 |---|---|
-| `planning-app.yaml` | Scenario × Period × Planning Line writeback |
+| `planning-app.yaml` | Planning Studio shell: Scenario × Period × Line Item, ledger, overlay, review writes |
 | `allocation-app.yaml` | Period × Allocation Dimension writeback |
 | `approval-app.yaml` | One editable row per entity key |
 | `exception-app.yaml` | One editable row per operational entity |
