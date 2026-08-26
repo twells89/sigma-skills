@@ -135,7 +135,8 @@ supply a target image, pause here and load
 `reference/workflows/generate-apps.md` — it classifies the app type, records
 an intake manifest, and clones a best-practice **architecture** fixture.
 Design is a separate pass: load `styling.md` as a library and compose for
-this type (do not stamp the five-recipe dashboard). A
+this type (do not stamp the five-recipe dashboard *or* the navy-hero
+command-center example). A
 target image still wins: load `from-image.md` instead.
 
 ### Step 1 — Find a reference workbook to study
@@ -181,7 +182,8 @@ Map the user's request to the **Reference Index** below. State the features you 
 If the user asked to generate an app, run `generate-apps.md` first (Step 0)
 before choosing an input-table architecture here. Load
 `reference/specification/styling.md` as a library and compose for this
-app's job — do not stamp the five-pattern exec-dashboard stack.
+app's job — do not stamp the five-pattern exec-dashboard stack or the
+navy-hero command-center example.
 
 If the request includes an input table, writeback, “populate,” “seed,” planning,
 approval, allocation, or exception workflow, load
@@ -331,7 +333,7 @@ The reference is feature-sliced — don't read every file up-front. The index ha
 | `reference/workflows/discover.md` | Finding connections, tables, and column names. Load before composing a new spec. |
 | `reference/workflows/composition.md` | Open-ended design decisions — calibrating workbook complexity to the request, when to ask the user, what to ask, surfacing structural choices in the final summary, and a few safe defaults (hidden source pages, ranked-table sort direction). Load before drafting anything when the prompt leaves significant design choices unmade. |
 | `reference/workflows/actions.md` | Buttons, write-back, and **all twelve** action effects — insert/update/delete-rows, clear-control, set-control-value, open/close-overlay (modal **and** drawer), open-url, open-document (incl. passing `targetControls` into another workbook), navigate, select-tab, refresh-element — plus the append-only-log pattern and the masked-error catalog. Load when the user wants a button, a "log/save/submit" action, tab/page navigation, a deep link, or a write-back workflow. |
-| `reference/workflows/generate-apps.md` | **Generate a Sigma app.** Load first when the user asks to build a planning, approval, allocation, or exception app (and did not supply a target image). Classifies the type, asks structural questions, clones an architecture fixture, then **composes** a look from `styling.md` (library + anti-patterns, not a five-recipe stamp). |
+| `reference/workflows/generate-apps.md` | **Generate a Sigma app.** Load first when the user asks to build a planning, approval, allocation, or exception app (and did not supply a target image). Classifies the type, asks structural questions, clones an architecture fixture, then **composes** a look from `styling.md` (library + anti-patterns). Fail the PNG pass if the page is recognizable skill chrome (navy hero, 3-KPI strip, `#3B82F6` CTA). |
 | `reference/workflows/planning-apps.md` | **Scenario planning, budgeting, and forecasting apps.** Scenario × Period × Planning Line grain, governed baseline, scenario matrix, linked override grid, financial sign, filter-propagation choices, approval/audit, and runtime gates. |
 | `reference/workflows/allocation-apps.md` | **Allocation and capacity apps.** Budget/target vs. baseline at Period × Allocation Dimension grain, linked editable units/uplifts, working allocation, request queue, and exact variance gates. |
 | `reference/workflows/approval-apps.md` | **Approval and decision apps.** Stable entity-key queues, counter-values, immutable audit logs, one-row status updates, agent boundaries, and runtime tests. |

@@ -176,17 +176,25 @@ connection IDs, folder IDs, or workbook IDs into this skill.
    this type, or start from the fixture's architecture layout and restyle
    it.
 
-   | Type | The page is for | Starting composition (not a template) |
+   | Type | The page is for | What has to be true (not chrome) |
    |---|---|---|
-   | planning | editing and comparing a grid | The plan grid is the focal element. Scenario control first. One impact KPI is enough. |
-   | allocation | redistributing against a budget | Variance KPI + the allocation grid. Don't hide the grid under dashboard chrome. |
-   | approval | reviewing rows and recording a decision | The queue opens the page. Quiet surfaces. The audit log is a trail. |
-   | exception | triaging urgency | Command center: status in the opening band, queue as the work surface, log last. Reserve red for genuinely critical. |
+   | planning | editing and comparing a grid | The plan grid is the first thing you can work in. Scenario control nearby. Status is optional and small. |
+   | allocation | redistributing against a budget | The allocation grid is usable without scrolling past dashboard chrome. Variance is visible, not a 3-KPI strip. |
+   | approval | reviewing rows and recording a decision | The queue is the page. The audit log is a trail, not a second dashboard. |
+   | exception | triaging urgency | The exception queue is the page. Status belongs in the title line or a single chip — not a branded hero and not a 3-KPI strip. Red only if a value is actually critical. |
+
+   Do **not** reuse a composition from `styling.md` as this type's look.
+   Navy/slate hero + KPI strip (in or under the hero) + quiet uppercase
+   QUEUE/LOG labels + Tailwind `#3B82F6` is skill chrome. It still reads
+   as a template when you move the KPIs *into* the hero. Pick palette,
+   density, and what opens the page from **this** domain and org (GET a
+   live workbook's `settings.theme`, or none — most orgs are unthemed).
 
    Export the page PNG and read it against the anti-pattern list. Fail the
-   pass if the page is a default grid *or* if it is a clone of the
-   `styling.md` "Putting it together" dashboard. Name the design choices in
-   the handoff summary (`composition.md`).
+   pass if the page is a default grid, a clone of the `styling.md`
+   exec-dashboard example, **or** recognizable skill chrome (dark hero,
+   equal KPI strip, `#3B82F6` CTA, `##` / uppercase section labels). Name
+   the design choices in the handoff summary (`composition.md`).
 5. Continue from SKILL.md Step 5: validate (`./scripts/validate-spec.sh`),
    POST, `./scripts/verify-workbook.sh`, then the recipe's runtime gates in
    `runtime-verification.md`.

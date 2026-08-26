@@ -32,6 +32,10 @@ never an override of a user's stated branding or a migration's source fidelity.*
       planning grid, an approval queue, *and* an exception command center. That stack is the
       exec-dashboard example later in this file, not a house style. Compose from the type's job in
       `generate-apps.md` Step D.4.
+- [ ] **Recognizable skill chrome** — dark slate/navy band, Tailwind `#3B82F6`, a 3-up KPI strip
+      (even *inside* the hero), quiet uppercase QUEUE/LOG labels. Moving KPIs into the hero is still
+      this file's command-center example, not a custom app. If a screenshot would identify the skill
+      before the domain, fail the pass.
 - [ ] **No grid breaks** — the same 2–3-column chart row repeats down the whole page ("spreadsheet of
       cards"). Change the layout when the section's purpose changes: hero row → section header → paired
       charts → full-width detail. See Recipe 3 (section headers) and the composition pattern.
@@ -138,7 +142,7 @@ it onto a planning grid, approval queue, or exception command center:
 
 Other compositions that also read as designed, using recipes later in this file:
 
-- **Command center** — KPIs *inside* a dark opening band (`KPI strip inside a dark hero` under *Field-observed idioms*), queue as the work surface, log last. Reserve red/amber for genuinely critical values.
+- **Command center** — one option, not the exception-app default. KPIs *inside* a dark opening band is a demo idiom (`KPI strip inside a dark hero` below). A triage app should usually open on the queue; putting status in the title line avoids this file's chrome. Reserve red/amber for genuinely critical values.
 - **Working grid** — the editable table is the hero (wide `gridColumn`, tall `gridRow`). One impact/variance KPI. Controls first. No decorative chrome competing with the cells.
 - **Review queue** — the queue opens the page. Quiet surfaces. The audit log is a trail, not a second dashboard.
 
