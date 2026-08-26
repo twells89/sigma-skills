@@ -23,6 +23,7 @@ def chk(c, m)
   $f += 1 unless c
 end
 chk(HTML.include?('@sigmacomputing/plugin'), 'loads the @sigmacomputing/plugin SDK')
+chk(HTML.match?(%r{@sigmacomputing/plugin@\d+\.\d+\.\d+}), 'SDK version is PINNED (unpinned @latest crossed the 1.1.1 -> 1.2.0 React break)')
 chk(HTML.include?('configureEditorPanel'),   'configures an editor panel')
 chk(HTML =~ /['"]value['"]/ && HTML =~ /['"]target['"]/, 'declares value + target bindings')
 chk(HTML.include?('ResizeObserver'),         'attaches a ResizeObserver (redraw-on-resize)')
