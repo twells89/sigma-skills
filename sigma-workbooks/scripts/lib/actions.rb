@@ -34,9 +34,14 @@
 #   - Effects verified live: insert-rows (values is a pass-through Hash of
 #     colId => {type:"control",control:} | {type:"constant",value:{type:"text",value:}}
 #     entries — this module does not reshape `values`, callers build it),
-#     clear-control (an ELEMENT-scoped clear-control masked-failed the button
-#     live — only page scope is verified, so this builder only emits
+#     clear-control (this builder emits page scope only —
 #     scope:{type:"page",pageId:}), set-control-value (constant text value).
+#
+# NOT renamed in the 2026-08-26 action field rename — probe-confirmed that the
+# `*Id` form is REJECTED and the bare name is still required, so do not "fix"
+# these: `set-control-value.control`, `navigate` target.page,
+# `refresh-element` target.element, and the {type:"control",control:} value
+# source used inside `values`.
 #
 # All builders are gated through Actions::SURFACES (same discipline as
 # richness.rb/styling.rb): a NO-GO flip on `button`/`input_table_empty`/
@@ -155,8 +160,13 @@ module Actions
   # scope:{type:"page",pageId:}, usePublishedValue:true}. The OpenAPI field
   # is `pageId` (not `page`). A stale `page:` key is dropped on GET
   # readback, and click then fails with "No target page is selected in the
-  # action." Page scope ONLY — an element-scoped clear-control masked-failed
-  # the button live, so this builder never emits any other scope shape.
+  # action." Page scope only — but note the reason has changed: the old
+  # "an element-scoped clear-control masked-failed the button live" finding
+  # was recorded while this builder still emitted the PRE-RENAME key names.
+  # Re-probed 2026-08-26, control scope ({type:"control",controlId:}) and
+  # container scope ({type:"container",containerElementId:}) BOTH create and
+  # read back cleanly, so what masked-failed was the rejected key, not the
+  # scope type. Widening this builder to those scopes is a safe follow-up.
   # NO-GO surface -> {}.
   def self.clear_control_effect(page_id:, surfaces: SURFACES)
     raise ArgumentError, 'page_id required' if page_id.to_s.empty?

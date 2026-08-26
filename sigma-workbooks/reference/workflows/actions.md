@@ -4,6 +4,27 @@ Buttons wire a user click to one or more **effects** — insert rows into an
 input table, reset a control, set a control's value, or open/close a modal.
 They live in flat `document.elements[]`; layout places them.
 
+> **Action identifier fields — which ones carry an `Id` suffix.** The
+> 2026-08-26 rename gave identifier properties the referenced resource type
+> plus an `Id` suffix. Verified by A/B creates plus `GET .../spec` readback
+> diffs against a live org. The renamed ones are documented per-effect below;
+> what follows is the part that is easy to get wrong.
+>
+> **These were deliberately NOT renamed.** The bare name is still the only
+> accepted spelling and the `*Id` form is **rejected** — so don't "regularise"
+> them for consistency:
+>
+> | still bare | not this |
+> |---|---|
+> | `set-control-value.control` | ~~`controlId`~~ |
+> | `navigate` `target: {type: page, page:}` | ~~`pageId`~~ |
+> | `refresh-element` `target: {type: element, element:}` | ~~`elementId`~~ |
+> | value source `{type: control, control:}` | ~~`controlId`~~ |
+>
+> Note `clear-control`'s scope *does* use `controlId`, while
+> `set-control-value` keeps a bare `control`. That asymmetry is real, not a
+> documentation slip.
+
 ## Button shape
 
 ```yaml
@@ -316,8 +337,8 @@ whichRows: { type: formula, formula: '[note] = "x"' }
 `whichRows` has **four** variants (re-verified 2026-08-08 against the live
 codec — an earlier pass here missed the fourth) — `{type: formula, formula}`,
 `{type: single-row, primaryKeys}`, `{type: current-row}`, and `{type:
-column-match, column, condition, value?}`: a column where-clause, e.g. `{
-type: column-match, column: status, condition: "=", value: {...} }`.
+column-match, columnId, condition, value?}`: a column where-clause, e.g. `{
+type: column-match, columnId: status, condition: "=", value: {...} }`.
 `condition` is one of `IsNull` / `IsNotNull` (no `value`), `=` / `!=` / `>` /
 `>=` / `<` / `<=` / `Contains` / `NotContains` / `StartsWith` / `EndsWith`
 (`value` required), or `Between` / `NotBetween` (`low`/`high` required instead
@@ -342,7 +363,7 @@ derived table/chart that reads from the input table; Sigma may report those as
 
 ```yaml
 effect: open-document
-document: <inodeId>            # the target workbook/report inode id
+documentId: <inodeId>          # the target workbook/report inode id
 documentType: workbook         # workbook | report  (REQUIRED — selects the route)
 openTarget: _blank             # _self | _blank | _parent  (REQUIRED)
 targetControls:                # optional: seed the target's controls
