@@ -525,6 +525,10 @@ document:
     controlId: reviewComment
     name: Reviewer comment
     controlType: text
+    mode: equals
+    case: insensitive
+    includeNulls: when-no-value-is-selected
+    showOperators: false
   - id: btn-submit
     kind: button
     text: Submit for review
@@ -593,21 +597,37 @@ document:
     controlId: newName
     name: Scenario name
     controlType: text
+    mode: equals
+    case: insensitive
+    includeNulls: when-no-value-is-selected
+    showOperators: false
   - id: ctl-new-owner
     kind: control
     controlId: newOwner
     name: Owner
     controlType: text
+    mode: equals
+    case: insensitive
+    includeNulls: when-no-value-is-selected
+    showOperators: false
   - id: ctl-new-notes
     kind: control
     controlId: newNotes
     name: What is this scenario testing?
     controlType: text
+    mode: equals
+    case: insensitive
+    includeNulls: when-no-value-is-selected
+    showOperators: false
   - id: ctl-new-strategy
     kind: control
     controlId: newStrategy
     name: Strategy
     controlType: text
+    mode: equals
+    case: insensitive
+    includeNulls: when-no-value-is-selected
+    showOperators: false
   - id: btn-create
     kind: button
     text: Create scenario

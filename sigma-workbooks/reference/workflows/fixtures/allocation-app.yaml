@@ -167,21 +167,37 @@ document:
     controlId: periodControl
     name: Period
     controlType: text
+    mode: equals
+    case: insensitive
+    includeNulls: when-no-value-is-selected
+    showOperators: false
   - id: ctrl-dim
     kind: control
     controlId: dimControl
     name: Department
     controlType: text
+    mode: equals
+    case: insensitive
+    includeNulls: when-no-value-is-selected
+    showOperators: false
   - id: ctrl-request
     kind: control
     controlId: requestControl
     name: Request
     controlType: text
+    mode: equals
+    case: insensitive
+    includeNulls: when-no-value-is-selected
+    showOperators: false
   - id: ctrl-note
     kind: control
     controlId: noteControl
     name: Comment
     controlType: text
+    mode: equals
+    case: insensitive
+    includeNulls: when-no-value-is-selected
+    showOperators: false
   pages:
   - id: page-source
     name: Source

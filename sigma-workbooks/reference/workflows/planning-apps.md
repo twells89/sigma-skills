@@ -31,10 +31,19 @@ If the org has a data model for actuals and baseline, rebind `source-actual`
 and `source-base` to `kind: data-model`. Otherwise keep the warehouse-table
 placeholders. Union actuals + plan lines into a named ledger (`Ledger Union`
 in the fixture) so KPIs can distinguish `(actual)` from the selected plan.
+After POST, GET the ledger formulas: Sigma may drop `source.name` and rewrite
+the prefix to `Union of 2 Sources`. Later PUTs must use the readback prefix.
 
 The active-scenario control filters the plan grid (Option B). Ledger and
 Workspace KPIs must still include actuals with formulas, not as descendants
-of the filtered grid alone.
+of the filtered grid alone. When the scenario control is empty, Workspace
+goes actuals-only with a `null` profit-impact KPI. Create one scenario
+before the PNG pass, or add a boolean on the ledger
+(`[ledger/scenario-name] = Coalesce([scenario], "Board Plan")`) and scope
+KPIs/charts with `If([Active Flag], …)`. Do not splice `Coalesce([scenario],
+…)` into an existing `If(...)` via string replace — extra commas become
+new `If` arguments (`formulas.md`). A list-control `values: ["Board Plan"]`
+does not stick when the bound column is still empty (`controls.md`).
 
 ## Non-negotiable grain
 
@@ -101,7 +110,11 @@ columns:
 
 Creating one scenario is an appropriate `insert-rows` action (the fixture's
 New Scenario overlay). Creating every scenario-period-line row through
-actions is not.
+actions is not. The spec cannot seed an empty input table, so **Build the
+Plan is 0 rows until at least one scenario exists**. Create one (overlay, or
+a SQL default directory the matrix joins — do not union an empty input table
+with that SQL as the first attempt) before the PNG pass. `expected rows =
+scenarios × forecast periods × planning lines` is 0 when scenarios is 0.
 
 Scenario strategy is descriptive unless explicit formulas implement it. Never
 give scenarios different labels but identical math and imply the labels changed

@@ -51,6 +51,10 @@ controlType: list
 mode: include            # include | exclude   (TOP-LEVEL, not nested)
 selectionMode: multiple  # single | multiple   (TOP-LEVEL)
 values: []               # default selection, [] = all   (TOP-LEVEL)
+                         # authored defaults drop on GET when the bound
+                         # column has no matching members yet (empty
+                         # input table / unseeded directory). PNG then
+                         # shows "Select value"; create a row first.
 source:                  # where the control's VALUE LIST comes from (note the double nesting)
   kind: source
   source:
