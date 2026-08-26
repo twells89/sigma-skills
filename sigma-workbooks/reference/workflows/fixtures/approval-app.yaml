@@ -134,13 +134,13 @@ document:
       trigger: on-click
       effects:
       - effect: insert-rows
-        table: decision-log
+        tableElementId: decision-log
         values:
           dl-deal: { type: control, control: dealControl }
           dl-decision: { type: control, control: decisionControl }
           dl-note: { type: control, control: noteControl }
       - effect: update-rows
-        table: review-queue
+        tableElementId: review-queue
         whichRows:
           type: formula
           formula: "[Deal ID] = [dealControl]"

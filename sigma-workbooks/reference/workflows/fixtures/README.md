@@ -13,6 +13,9 @@ the starting specs.
 - Every `input-table` has `inputMode: view`. Published data entry is UI-only
   (element kebab → Set data entry permission → Only in published version) and
   is absent from `GET /spec`.
+- `insert-rows` / `update-rows` / `delete-rows` take `tableElementId` (the
+  input-table element's id). A stale `table:` key makes POST fail as
+  `Invalid kind: "button"`.
 - Key only deterministic, stable context — never status, owner, current user,
   `Now()`, or approval state.
 - Hidden source page for warehouse / baseline / join plumbing. The visible app

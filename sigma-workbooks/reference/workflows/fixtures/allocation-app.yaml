@@ -141,7 +141,7 @@ document:
       trigger: on-click
       effects:
       - effect: insert-rows
-        table: request-log
+        tableElementId: request-log
         values:
           rl-period: { type: control, control: periodControl }
           rl-dim: { type: control, control: dimControl }

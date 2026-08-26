@@ -130,6 +130,12 @@ AppIntake::APP_TYPES.each do |app_type|
     raise 'missing insert-rows' if req[:insert_rows] && fx.none? { |effect| effect['effect'] == 'insert-rows' }
     raise 'missing update-rows' if req[:update_rows] && fx.none? { |effect| effect['effect'] == 'update-rows' }
     raise 'missing whichRows on the stable entity key' if req[:which_rows] && fx.none? { |effect| effect.key?('whichRows') }
+    fx.each do |effect|
+      next unless %w[insert-rows update-rows delete-rows].include?(effect['effect'])
+
+      raise "#{effect['effect']} still uses stale table: — OpenAPI requires tableElementId" if effect.key?('table')
+      raise "#{effect['effect']} missing tableElementId" unless effect.key?('tableElementId')
+    end
 
     hidden = Array(doc.dig('document', 'pages')).any? { |page| page['visibility'] == 'hidden' }
     raise 'missing hidden source page' if req[:hidden_page] && !hidden

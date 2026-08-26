@@ -196,7 +196,7 @@ document:
       trigger: on-click
       effects:
       - effect: insert-rows
-        table: decision-log
+        tableElementId: decision-log
         values:
           dl-scenario: { type: control, control: scenarioControl }
           dl-decision: { type: control, control: decisionControl }

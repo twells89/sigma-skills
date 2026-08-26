@@ -144,7 +144,7 @@ document:
       trigger: on-click
       effects:
       - effect: insert-rows
-        table: resolution-log
+        tableElementId: resolution-log
         values:
           rl-sku: { type: control, control: skuControl }
           rl-decision: { type: control, control: decisionControl }

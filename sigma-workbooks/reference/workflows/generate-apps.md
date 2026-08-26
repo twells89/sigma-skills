@@ -139,7 +139,10 @@ connection IDs, folder IDs, or workbook IDs into this skill.
    **Never invent column names.**
 3. Load the matching recipe and `../specification/input-tables.md`. Adjust
    grain columns and formulas to the answers; do not skip the recipe's
-   non-negotiable layers.
+   non-negotiable layers. Keep the fixture's `tableElementId` on
+   `insert-rows` / `update-rows` / `delete-rows` (live OpenAPI). A stale
+   `table:` key fails every element oneOf and Sigma reports the masked
+   `Invalid kind: "button"`.
 4. Continue from SKILL.md Step 5: validate (`./scripts/validate-spec.sh`),
    POST, `./scripts/verify-workbook.sh`, then the recipe's runtime gates in
    `runtime-verification.md`.

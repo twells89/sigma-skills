@@ -119,7 +119,7 @@ agents:
         steps:
           - kind: effect
             effect: insert-rows
-            table: annotations          # an input-table element id (see actions.md)
+            tableElementId: annotations  # an input-table element id (see actions.md)
             values:
               an-note:
                 type: agent-input
