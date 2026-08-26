@@ -1,0 +1,29 @@
+# Operational app fixtures
+
+Parameterized workbook specs for the four operational app types. Clone the
+matching file when generating an app via [`../generate-apps.md`](../generate-apps.md).
+Architecture details live in the sibling `*-apps.md` recipes; these files are
+the starting specs.
+
+## Rules
+
+- Placeholders only. Replace `<FOLDER_ID>`, `<WRITE_CONNECTION_ID>`, and
+  `<SOURCE_CONNECTION_ID>` (and `[Source/…]` column names) from live discovery
+  before POST. Do not commit real org, user, folder, or workbook IDs.
+- Every `input-table` has `inputMode: view`. Published data entry is UI-only
+  (element kebab → Set data entry permission → Only in published version) and
+  is absent from `GET /spec`.
+- Key only deterministic, stable context — never status, owner, current user,
+  `Now()`, or approval state.
+- Hidden source page for warehouse / baseline / join plumbing. The visible app
+  page holds the editable grid, log, and actions.
+- Formulas that read another element use qualified `[SourceName/column]` refs.
+
+## Files
+
+| File | App type |
+|---|---|
+| `planning-app.yaml` | Scenario × Period × Planning Line writeback |
+| `allocation-app.yaml` | Period × Allocation Dimension writeback |
+| `approval-app.yaml` | One editable row per entity key |
+| `exception-app.yaml` | One editable row per operational entity |

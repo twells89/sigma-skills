@@ -23,7 +23,7 @@ See [Installation](#installation) below for the install helper.
 |-------|---------|
 | [`sigma-api`](sigma-api/) | Configure Sigma API credentials and mint short-lived bearer tokens with client credentials or interactive browser OAuth. Prerequisite for skills that call the REST API. |
 | [`sigma-data-models`](sigma-data-models/) | Author Sigma data models from existing warehouse tables — sources, columns, metrics, relationships, filters, calc columns, CLS. Covers spec shape, discovery, CRUD, validation, and authoring judgment calls. **Out of scope: converting from another BI tool's format** (use the converter MCP / browser tool). |
-| [`sigma-workbooks`](sigma-workbooks/) | Build, edit, and iterate on Sigma workbook specs — pages, layout, controls, charts (line/bar/area/combo/donut), KPIs, tables, pivot tables, formulas, sources. Canonical reference for the workbook spec; other skills cross-link here for spec shape. |
+| [`sigma-workbooks`](sigma-workbooks/) | Build, edit, and iterate on Sigma workbook specs — pages, layout, controls, charts (line/bar/area/combo/donut), KPIs, tables, pivot tables, formulas, sources, and question-driven operational apps (planning / approval / allocation / exception). Canonical reference for the workbook spec; other skills cross-link here for spec shape. |
 | [`sigma-reports`](sigma-reports/) | Build, validate, and safely update private-beta Sigma report code representations: fixed pixel pages, header/footer panels, common elements, PDF-oriented validation, and workbook-to-report conversion. Use for invoices, statements, regulatory documents, and other pixel-perfect output, not responsive dashboards. |
 | [`sigma-plugin-authoring`](sigma-plugin-authoring/) | Recreate a source viz that has no native Sigma equivalent — a radial gauge, custom heatmap, sankey — as a bespoke `@sigmacomputing/plugin`: build, register, host, embed, bind, verify. Includes a worked gauge example. |
 | [`custom-sql-to-data-model`](custom-sql-to-data-model/) | Scan Sigma workbooks for custom SQL elements, dedupe across workbooks, build or reuse data models, then repoint via the v3alpha `:swapSources` endpoint. Handles many workbooks pointing at one shared model. |
@@ -39,6 +39,7 @@ See [Installation](#installation) below for the install helper.
 | "Add a metric / relationship / column to my existing data model" | `sigma-data-models` |
 | "Convert this dbt / LookML / Tableau / Power BI / Alteryx model to Sigma" | The **converter MCP** or the **browser converter tool** — *not* a skill. The skills cover authoring, not source-format parsing. |
 | "Build me a sales dashboard / workbook from this data model" | `sigma-workbooks` |
+| "Build me a Sigma app / planning / approval / allocation / exception workflow" | `sigma-workbooks` (`reference/workflows/generate-apps.md`) |
 | "Add a KPI / chart / control to an existing workbook" | `sigma-workbooks` |
 | "Build a pixel-perfect invoice / statement / printable report" | `sigma-reports` |
 | "Convert this workbook to a fixed-layout report" | `sigma-reports` |

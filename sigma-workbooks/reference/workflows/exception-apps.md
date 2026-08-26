@@ -1,5 +1,7 @@
 # Exception apps — operational triage and resolution
 
+Entered via [`generate-apps.md`](generate-apps.md) when the user asked to generate an app.
+
 Use this pattern when the source contains:
 
 - a stable operational key (SKU, Account ID, Job ID, Ticket ID);

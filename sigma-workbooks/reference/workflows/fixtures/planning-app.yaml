@@ -1,0 +1,265 @@
+# Best-practice fixture for a planning app.
+# Replace <FOLDER_ID>, <WRITE_CONNECTION_ID>, <SOURCE_CONNECTION_ID>, and
+# [Source/…] column names from live discovery before POST.
+# Published data entry is UI-only: element kebab → Set data entry permission
+# → Only in published version. That setting is absent from GET /spec.
+# Architecture: ../planning-apps.md. Intake: ../generate-apps.md.
+name: Planning app
+folderId: "<FOLDER_ID>"
+document:
+  schemaVersion: 1
+  kind: workbook
+  elements:
+  - id: source-plan
+    kind: table
+    name: Source
+    source:
+      kind: warehouse-table
+      connectionId: "<SOURCE_CONNECTION_ID>"
+      path:
+      - "<SOURCE_DATABASE>"
+      - "<SOURCE_SCHEMA>"
+      - Source
+    columns:
+    - id: src-month
+      formula: "[Source/Month]"
+      name: Month
+    - id: src-line
+      formula: "[Source/Line Item]"
+      name: Line Item
+    - id: src-section
+      formula: "[Source/Section]"
+      name: Section
+    - id: src-base
+      formula: "[Source/Baseline]"
+      name: Baseline
+  - id: plan-base
+    kind: table
+    name: Plan Base
+    source:
+      kind: table
+      elementId: source-plan
+    columns:
+    - id: pb-period
+      formula: "[Source/Month]"
+      name: Month
+    - id: pb-line
+      formula: "[Source/Line Item]"
+      name: Line Item
+    - id: pb-section
+      formula: "[Source/Section]"
+      name: Section
+    - id: pb-base
+      formula: "[Source/Baseline]"
+      name: Baseline
+    - id: pb-key
+      formula: "1"
+      name: Join Key
+  - id: scenarios
+    kind: input-table
+    inputMode: view
+    name: Scenarios
+    source:
+      kind: empty
+      connectionId: "<WRITE_CONNECTION_ID>"
+    columns:
+    - id: ID
+    - id: sc-name
+      type: text
+      name: Scenario Name
+    - id: sc-status
+      type: text
+      name: Status
+      values: [Draft, In Review, Approved]
+      pills: color-by-option
+    - id: sc-owner
+      type: text
+      name: Owner
+    - id: sc-notes
+      type: text
+      name: Notes
+    - id: sc-key
+      formula: "1"
+      name: Join Key
+  - id: plan-matrix
+    kind: table
+    name: Plan Matrix
+    source:
+      kind: join
+      name: Plan Matrix
+      primarySource:
+        kind: table
+        elementId: scenarios
+      joins:
+      - name: Base
+        joinType: inner
+        left:
+          kind: table
+          elementId: scenarios
+        right:
+          kind: table
+          elementId: plan-base
+        columns:
+        - left: "[Join Key]"
+          right: "[Join Key]"
+    columns:
+    - id: mx-scenario
+      formula: "[Scenarios/Scenario Name]"
+      name: Scenario
+    - id: mx-period
+      formula: "[Base/Month]"
+      name: Period
+    - id: mx-line
+      formula: "[Base/Line Item]"
+      name: Planning Line
+    - id: mx-section
+      formula: "[Base/Section]"
+      name: Section
+    - id: mx-baseline
+      formula: "[Base/Baseline]"
+      name: Baseline
+  - id: plan-grid
+    kind: input-table
+    inputMode: view
+    name: Plan Grid
+    source:
+      kind: linked
+      from: plan-matrix
+      connectionId: "<WRITE_CONNECTION_ID>"
+    columns:
+    - id: pg-scenario
+      key: mx-scenario
+      name: Scenario
+    - id: pg-period
+      key: mx-period
+      name: Period
+    - id: pg-line
+      key: mx-line
+      name: Planning Line
+    - id: pg-section
+      key: mx-section
+      name: Section
+    - id: pg-baseline
+      key: mx-baseline
+      name: Baseline
+    - id: pg-method
+      type: text
+      name: Method
+      values: ["Uplift %", "Adjust $", "Set amount"]
+    - id: pg-percent
+      type: number
+      name: Uplift %
+    - id: pg-dollars
+      type: number
+      name: Dollar Change
+    - id: pg-new
+      type: number
+      name: New Amount
+    - id: pg-plan
+      formula: If([Method] = "Uplift %", [Baseline] * (1 + Coalesce([Uplift %], 0)), If([Method] = "Adjust $", [Baseline] + Coalesce([Dollar Change], 0), If([Method] = "Set amount", Coalesce([New Amount], [Baseline]), [Baseline])))
+      name: Plan Amount
+    - id: pg-delta
+      formula: "[Plan Amount] - [Baseline]"
+      name: Plan Delta
+    - id: pg-impact
+      formula: If([Section] = "Revenue", [Plan Amount] - [Baseline], -([Plan Amount] - [Baseline]))
+      name: Profit Impact
+    - id: pg-note
+      type: text
+      name: Rationale
+  - id: decision-log
+    kind: input-table
+    inputMode: view
+    name: Decision log
+    source:
+      kind: empty
+      connectionId: "<WRITE_CONNECTION_ID>"
+    columns:
+    - id: ID
+    - id: dl-scenario
+      type: text
+      name: Scenario
+    - id: dl-decision
+      type: text
+      name: Decision
+    - id: dl-note
+      type: text
+      name: Comment
+    - id: CREATED_AT
+    - id: CREATED_BY
+  - id: btn-submit
+    kind: button
+    text: Submit decision
+    appearance: filled
+    actions:
+    - id: a-plan-submit
+      trigger: on-click
+      effects:
+      - effect: insert-rows
+        table: decision-log
+        values:
+          dl-scenario: { type: control, control: scenarioControl }
+          dl-decision: { type: control, control: decisionControl }
+          dl-note: { type: control, control: noteControl }
+      - effect: clear-control
+        scope: { type: page, page: page-app }
+        usePublishedValue: true
+  - id: kpi-impact
+    kind: kpi-chart
+    name: Profit Impact
+    source:
+      kind: table
+      elementId: plan-grid
+    columns:
+    - id: kpi-impact-val
+      formula: Sum([Plan Grid/Profit Impact])
+      name: Profit Impact
+    value:
+      columnId: kpi-impact-val
+  - id: ctrl-scenario
+    kind: control
+    controlId: scenarioControl
+    name: Scenario
+    controlType: list
+    mode: include
+    selectionMode: single
+    values: []
+    source:
+      kind: source
+      source:
+        kind: table
+        elementId: scenarios
+      columnId: sc-name
+  - id: ctrl-decision
+    kind: control
+    controlId: decisionControl
+    name: Decision
+    controlType: text
+  - id: ctrl-note
+    kind: control
+    controlId: noteControl
+    name: Comment
+    controlType: text
+  pages:
+  - id: page-source
+    name: Source
+    visibility: hidden
+  - id: page-app
+    name: Plan
+  layout: |
+    <?xml version="1.0" encoding="utf-8"?>
+    <Page type="grid" gridTemplateColumns="repeat(24, 1fr)" gridTemplateRows="auto" id="page-source">
+      <Element elementId="source-plan" gridColumn="1 / 25" gridRow="1 / 10"/>
+      <Element elementId="plan-base" gridColumn="1 / 25" gridRow="10 / 19"/>
+      <Element elementId="plan-matrix" gridColumn="1 / 25" gridRow="19 / 28"/>
+    </Page>
+    <Page type="grid" gridTemplateColumns="repeat(24, 1fr)" gridTemplateRows="auto" id="page-app">
+      <Element elementId="ctrl-scenario" gridColumn="1 / 9" gridRow="1 / 3"/>
+      <Element elementId="ctrl-decision" gridColumn="9 / 17" gridRow="1 / 3"/>
+      <Element elementId="ctrl-note" gridColumn="17 / 25" gridRow="1 / 3"/>
+      <Element elementId="kpi-impact" gridColumn="1 / 9" gridRow="3 / 9"/>
+      <Element elementId="scenarios" gridColumn="9 / 25" gridRow="3 / 9"/>
+      <Element elementId="plan-grid" gridColumn="1 / 25" gridRow="9 / 21"/>
+      <Element elementId="decision-log" gridColumn="1 / 19" gridRow="21 / 30"/>
+      <Element elementId="btn-submit" gridColumn="19 / 25" gridRow="21 / 24"/>
+    </Page>
