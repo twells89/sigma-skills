@@ -4,7 +4,7 @@
 > design polish or you're composing from scratch with no brand direction. Never impose them on
 > a migration (fidelity to the source dashboard wins) or over a user's stated branding.
 
-Recipe library for moving a workbook from "default auto-arrange" to "looks designed." Every pattern below is built from fields that already exist in the workbook spec — no external CSS, no theme JSON, no UI editing required.
+Recipe library for moving a workbook from "default auto-arrange" to "looks designed." Every pattern below is built from fields that already exist in the workbook spec — no external CSS, no theme JSON, no UI editing required. **Compose from this file; do not stamp it.** The five-pattern stack under *What "designed" looks like* is one exec-dashboard composition — not a house style, and not the generate-app look. An exception command center, a planning grid, and an approval queue should not all open with the same navy hero and three white KPI cards. The **anti-pattern list** is the bar (no focal point, equal-width everything, flat type). Pick the recipes that serve this page's job, the org's theme, and any branding the user stated.
 
 The recipes were extracted from a 2026-05-29 design experiment that built 6 versions of the same dashboard (default → polished) and compared screenshots via the `/v2/workbooks/{id}/export` PNG endpoint. The findings caught two silent-failure bugs (see `charts.md` donut section) and 4 undocumented container `style` knobs (see `layout.md`).
 
@@ -28,6 +28,10 @@ never an override of a user's stated branding or a migration's source fidelity.*
 - [ ] **Every page opens the same way** — each page of a multi-page workbook leads with an identical
       KPI band. Lead each page with the thing it's *for*; vary the opening. (Launcher/landing pattern and
       `visibility: hidden` data pages help — see *Interaction patterns*.)
+- [ ] **Same chrome on every operational app** — navy hero + three white KPI cards + `##` headers on a
+      planning grid, an approval queue, *and* an exception command center. That stack is the
+      exec-dashboard example later in this file, not a house style. Compose from the type's job in
+      `generate-apps.md` Step D.4.
 - [ ] **No grid breaks** — the same 2–3-column chart row repeats down the whole page ("spreadsheet of
       cards"). Change the layout when the section's purpose changes: hero row → section header → paired
       charts → full-width detail. See Recipe 3 (section headers) and the composition pattern.
@@ -118,7 +122,13 @@ Every field below **round-trips and renders** — verified live 2026-06-26 (POST
 
 ## What "designed" looks like via spec
 
-You can ship a dashboard that looks legitimately professional from the spec by stacking five patterns:
+There is no single designed page. A page looks designed when it has a **focal
+point**, a **type scale**, and **one accent system** — and when it does not
+match the anti-pattern list above.
+
+For an **exec dashboard**, stacking these five patterns is a proven composition
+(the original experiment). Use it when the page *is* a dashboard. Do not clone
+it onto a planning grid, approval queue, or exception command center:
 
 1. **Branded hero header strip** — full-width container with a dark background and a colored Markdown title sitting inside.
 2. **KPI cards** — each KPI inside its own white container with rounded corners + a thin border + a colored Markdown category label.
@@ -126,7 +136,15 @@ You can ship a dashboard that looks legitimately professional from the spec by s
 4. **Categorical chart colors** — `color.scheme` on bar/line/area/combo (not donut/pie — those use the workbook theme).
 5. **Number formatting on everything** — `$,.2s` for KPI values (yields `$103k`), `$,.0f` for table cells, never raw numbers.
 
-If you do all five, the dashboard reads as designed. Skip any one and it reads as "the LLM didn't try."
+Other compositions that also read as designed, using recipes later in this file:
+
+- **Command center** — KPIs *inside* a dark opening band (`KPI strip inside a dark hero` under *Field-observed idioms*), queue as the work surface, log last. Reserve red/amber for genuinely critical values.
+- **Working grid** — the editable table is the hero (wide `gridColumn`, tall `gridRow`). One impact/variance KPI. Controls first. No decorative chrome competing with the cells.
+- **Review queue** — the queue opens the page. Quiet surfaces. The audit log is a trail, not a second dashboard.
+
+Prefer the org's existing `settings.theme` (GET a live workbook, or the theme
+registry) over the sample Tailwind palette below. The palette is a fallback
+when there is no brand and no org theme.
 
 ---
 
@@ -227,7 +245,7 @@ elements:
 </Container>
 ```
 
-Repeat the container + label + KPI triple for each metric, switching the label color (green for growth, purple for averages, amber for trailing-indicator metrics). Three across at columns `1/9`, `9/17`, `17/25` is the standard layout.
+Repeat the container + label + KPI triple for each metric, switching the label color (green for growth, purple for averages, amber for trailing-indicator metrics). Three across at columns `1/9`, `9/17`, `17/25` is the usual **dashboard** KPI-row split — not a requirement for operational apps.
 
 > **Set the value column's `name: ' '` (a single space)** when a colored Markdown label sits above the KPI — otherwise you get a **duplicate title**: the card label (`NET REVENUE`) *and* the KPI's own title (`Net Revenue`) stacked in the same card. The title comes from the element `name` **and, when that's absent, the bound value column's `name`** — so with no element name (the usual case here) the *column* name is what leaks through. There's no `showTitle: false` field, and **omitting the name does NOT work** — an empty/absent name is stripped and the title re-derives. Only a single space persists. (Verified live + rendered; this is the #1 KPI-card mistake.)
 
@@ -330,9 +348,10 @@ See `formatting.md` for the full d3-format / strftime reference.
 
 ---
 
-## Putting it together — page composition pattern
+## Putting it together — example exec-dashboard composition
 
-The 24-column grid layout that pulls all six recipes into one dashboard:
+One 24-column layout that stacks the five dashboard patterns. **Example only** —
+for a sales/exec overview. Do not ship this page as the generate-app default.
 
 ```
 Row 1-5      Hero header (full width)
@@ -548,10 +567,12 @@ value: Week
 The recipes above are written to hand-author; the same moves are also available as a small
 shared helper library — `scripts/lib/styling.rb` — for applying a professional look on top of
 a layout built with the `Composition` engine (`reference/workflows/composition.md`) instead of
-re-transcribing hex codes and container shapes into every dashboard. Every field these helpers
-emit is one of the live-verified GO surfaces above; each helper is gated behind an internal
-`SURFACES` map so a future regression can flip a surface off in one place instead of emitting
-an unverified (or now-rejected) shape at every call site.
+re-transcribing hex codes and container shapes into every **dashboard**. `Styling.header`,
+`section_card`, and `gradient_header` emit the exec-dashboard composition. On the generate-app
+path, do **not** call them as the default look — compose from `generate-apps.md` Step D.4.
+Every field these helpers emit is one of the live-verified GO surfaces above; each helper is
+gated behind an internal `SURFACES` map so a future regression can flip a surface off in one
+place instead of emitting an unverified (or now-rejected) shape at every call site.
 
 ### Theme
 

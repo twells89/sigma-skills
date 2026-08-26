@@ -18,10 +18,9 @@ the starting specs.
   `Invalid kind: "button"`.
 - `clear-control` page scope takes `pageId` (the page's id). A stale `page:`
   key is dropped on GET and click fails with `No target page is selected`.
-- Each fixture includes the `styling.md` skeleton: `settings.theme`, a hero
-  header, a KPI card wrap, and section headers. Bind sources, then finish
-  the rest of the design recipes (formats, chart colors, PNG anti-pattern
-  check) before POST.
+- Fixtures are architecture, not a visual system. Do not clone a navy hero
+  + KPI-card stack onto every app; compose the look in `generate-apps.md`
+  Step D.4 from `styling.md`.
 - Key only deterministic, stable context — never status, owner, current user,
   `Now()`, or approval state.
 - Hidden source page for warehouse / baseline / join plumbing. The visible app

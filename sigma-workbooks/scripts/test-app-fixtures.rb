@@ -144,11 +144,13 @@ AppIntake::APP_TYPES.each do |app_type|
 
     hidden = Array(doc.dig('document', 'pages')).any? { |page| page['visibility'] == 'hidden' }
     raise 'missing hidden source page' if req[:hidden_page] && !hidden
+  end
 
-    raise 'missing hero container' unless elements(doc).any? { |el| el['id'] == 'hero' && el['kind'] == 'container' }
-    raise 'missing title text' unless elements(doc).any? { |el| el['id'] == 'title' && el['kind'] == 'text' }
-    raise 'missing settings.theme' unless doc.dig('document', 'settings', 'theme', 'name')
-    raise 'missing section header' unless elements(doc).any? { |el| el['kind'] == 'text' && el['id'].to_s.start_with?('section-') }
+  check("#{app_type} fixture is architecture, not a stamped dashboard look", failures) do
+    raise 'stamped hero container — fixtures must not ship the exec-dashboard chrome' if
+      elements(doc).any? { |el| el['id'] == 'hero' && el['kind'] == 'container' }
+    raise 'stamped settings.theme — compose theme in generate-apps Step D.4' if
+      doc.dig('document', 'settings', 'theme')
   end
 
   check("#{app_type} layout places every element", failures) do

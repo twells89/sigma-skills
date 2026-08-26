@@ -8,7 +8,8 @@ The general spec workflow ([the rest of SKILL.md](../../SKILL.md)) still
 applies. This document covers **only the intake steps** that come *before*
 discovery and spec drafting: classify the app type, ask the structural
 questions the matching recipe requires, record a local intake manifest, and
-clone a best-practice fixture.
+clone a best-practice **architecture** fixture. Look is a later compose
+pass (`styling.md` as a library — not one house recipe).
 
 If the user supplied a screenshot, mockup, PDF, or design artifact, stop and
 load `from-image.md` instead. Image-driven reproduction is a different path.
@@ -98,6 +99,15 @@ Then the type-specific set:
 - One exception per entity, or a composite key (Exception Type / Observation Date)?
 - User override, or recommendation-only?
 
+**Look (one optional question, all types)** — skip if they already named a
+brand, theme, or reference workbook. Do not turn this into a UX interview.
+
+- Any existing workbook look to match, org theme, or brand colors?
+
+If none, compose from the type table in Step D.4 and the org's most-used
+theme (GET a live workbook, or the theme registry). Do **not** fall back to
+the `styling.md` exec-dashboard example.
+
 Do **not** proceed to spec draft until classification, grain keys, and a
 write-enabled connection are answered — or the user explicitly says to use
 the fixture defaults.
@@ -145,13 +155,38 @@ connection IDs, folder IDs, or workbook IDs into this skill.
    `Invalid kind: "button"`. Keep `clear-control` as
    `scope: { type: page, pageId: <page id> }` — a stale `page:` key is
    dropped on GET and click fails with `No target page is selected`.
-4. Load `../specification/styling.md`. The fixture is architecture, not a
-   finished look. Apply the five recipes before POST: branded hero header,
-   KPI cards (container + colored label + `name: ' '`), section headers
-   between bands, chart color / theme `categoricalScheme`, and number
-   formats. Export the page PNG and check the anti-pattern list in
-   `styling.md`. Skipping this step is how generate-app clones land as a
-   default grid.
+4. Load `../specification/styling.md` as a **library**, not a stamp. A
+   design pass is required — do not ship the fixture's default grid — but
+   do **not** apply the five-pattern exec-dashboard stack (navy hero +
+   three white KPI cards + `##` section headers) to every app. That stack
+   is one composition in `styling.md`, for dashboards.
+
+   Compose from:
+
+   - the type's visual job (table below);
+   - the org's existing theme (GET a live workbook's `settings.theme`, or
+     the theme registry) rather than the sample Tailwind palette;
+   - any branding the user stated in Step B;
+   - the **anti-pattern list** in `styling.md` (no focal point, equal-width
+     everything, flat type, accent sprayed on every card).
+
+   `Styling.header` / `section_card` / `gradient_header` and
+   `Composition.compose(pattern: :exec)` emit the **dashboard** composition.
+   Do not call them as the generate-app default. Hand-compose layout for
+   this type, or start from the fixture's architecture layout and restyle
+   it.
+
+   | Type | The page is for | Starting composition (not a template) |
+   |---|---|---|
+   | planning | editing and comparing a grid | The plan grid is the focal element. Scenario control first. One impact KPI is enough. |
+   | allocation | redistributing against a budget | Variance KPI + the allocation grid. Don't hide the grid under dashboard chrome. |
+   | approval | reviewing rows and recording a decision | The queue opens the page. Quiet surfaces. The audit log is a trail. |
+   | exception | triaging urgency | Command center: status in the opening band, queue as the work surface, log last. Reserve red for genuinely critical. |
+
+   Export the page PNG and read it against the anti-pattern list. Fail the
+   pass if the page is a default grid *or* if it is a clone of the
+   `styling.md` "Putting it together" dashboard. Name the design choices in
+   the handoff summary (`composition.md`).
 5. Continue from SKILL.md Step 5: validate (`./scripts/validate-spec.sh`),
    POST, `./scripts/verify-workbook.sh`, then the recipe's runtime gates in
    `runtime-verification.md`.
@@ -162,10 +197,10 @@ version. The setting is absent from `GET /spec`.
 
 ## Fixtures
 
-The four files in `fixtures/` are architecture templates **plus** the
-`styling.md` skeleton (hero, KPI card wrap, section headers, Light theme).
-They are not live org dumps. Shared rules are in `fixtures/README.md`. Copy
-shapes from the matching fixture; do not assemble an operational app from
+The four files in `fixtures/` are **architecture** templates, not a visual
+system. They encode grain, writeback, and layout membership. Shared rules
+are in `fixtures/README.md`. Copy architecture from the matching fixture;
+compose the look in Step D.4. Do not assemble an operational app from
 `example-full.yaml` (that file is an analytical dashboard).
 
 | Type | Fixture | Required layers |
