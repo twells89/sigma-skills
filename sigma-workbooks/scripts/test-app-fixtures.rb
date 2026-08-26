@@ -221,5 +221,13 @@ end
   end
 end
 
+check('generate-apps PNG fail list encodes input and Dark constraints', failures) do
+  path = File.join(SKILL_ROOT, 'reference/workflows/generate-apps.md')
+  text = File.read(path)
+  %w[white-on-white Dark-on-dark 3-KPI strip data-entry app].each do |needle|
+    raise "missing constraint #{needle.inspect}" unless text.include?(needle)
+  end
+end
+
 abort "#{failures.length} failure(s)" unless failures.empty?
 puts 'All app-fixture tests passed.'

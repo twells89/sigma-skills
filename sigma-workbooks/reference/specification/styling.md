@@ -36,6 +36,13 @@ never an override of a user's stated branding or a migration's source fidelity.*
       (even *inside* the hero), quiet uppercase QUEUE/LOG labels. Moving KPIs into the hero is still
       this file's command-center example, not a custom app. If a screenshot would identify the skill
       before the domain, fail the pass.
+- [ ] **Invisible entry controls** — text / text-area / list controls that vanish in the PNG (white
+      field on a white band, or Dark theme with no field chrome). If the page takes typed input, the
+      export must show where to type. A light canvas + a slightly tinted well behind the control row
+      is one verified fix; do not treat that well as a template. Full Dark is not the default for a
+      data-entry app unless the user asked for it. See `generate-apps.md` Step D.4.
+- [ ] **Status as a 3-KPI strip on an operational app** — three equal tiles for counts that belong in
+      the title line or one chip. Recipe 2 is for dashboards where the KPIs *are* the page.
 - [ ] **No grid breaks** — the same 2–3-column chart row repeats down the whole page ("spreadsheet of
       cards"). Change the layout when the section's purpose changes: hero row → section header → paired
       charts → full-width detail. See Recipe 3 (section headers) and the composition pattern.
@@ -148,7 +155,8 @@ Other compositions that also read as designed, using recipes later in this file:
 
 Prefer the org's existing `settings.theme` (GET a live workbook, or the theme
 registry) over the sample Tailwind palette below. The palette is a fallback
-when there is no brand and no org theme.
+when there is no brand and no org theme. For generate-app workbooks with
+entry controls, prefer Light or that org theme — do not default to Dark.
 
 ---
 

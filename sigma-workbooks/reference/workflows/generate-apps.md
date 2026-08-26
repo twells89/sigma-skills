@@ -105,8 +105,10 @@ brand, theme, or reference workbook. Do not turn this into a UX interview.
 - Any existing workbook look to match, org theme, or brand colors?
 
 If none, compose from the type table in Step D.4 and the org's most-used
-theme (GET a live workbook, or the theme registry). Do **not** fall back to
-the `styling.md` exec-dashboard example.
+theme (GET a live workbook, or the theme registry). Prefer **Light or an
+org theme**. Do **not** default to Dark on a page with text/list entry
+controls, and do **not** fall back to the `styling.md` exec-dashboard
+example.
 
 Do **not** proceed to spec draft until classification, grain keys, and a
 write-enabled connection are answered — or the user explicitly says to use
@@ -190,11 +192,23 @@ connection IDs, folder IDs, or workbook IDs into this skill.
    density, and what opens the page from **this** domain and org (GET a
    live workbook's `settings.theme`, or none — most orgs are unthemed).
 
-   Export the page PNG and read it against the anti-pattern list. Fail the
-   pass if the page is a default grid, a clone of the `styling.md`
-   exec-dashboard example, **or** recognizable skill chrome (dark hero,
-   equal KPI strip, `#3B82F6` CTA, `##` / uppercase section labels). Name
-   the design choices in the handoff summary (`composition.md`).
+   Export the page PNG and read it as a user of this app, then against the
+   anti-pattern list. Fail the pass if any of:
+
+   - a default auto-arrange grid;
+   - a clone of the `styling.md` exec-dashboard example;
+   - recognizable skill chrome (dark hero, equal KPI strip, `#3B82F6` CTA,
+     `##` / uppercase QUEUE/LOG labels);
+   - **status as a 3-KPI strip** — counts belong in the title line or one
+     chip;
+   - **entry controls you cannot see** — white-on-white or Dark-on-dark
+     text boxes. A tinted well behind controls on Light is one verified
+     way to show field chrome; it is not a look to clone;
+   - **`settings.theme.name: Dark` on a data-entry app** unless the user
+     asked for dark.
+
+   Name the design choices in the handoff summary (`composition.md`).
+   Do not add a new composition to `styling.md` from a one-off app.
 5. Continue from SKILL.md Step 5: validate (`./scripts/validate-spec.sh`),
    POST, `./scripts/verify-workbook.sh`, then the recipe's runtime gates in
    `runtime-verification.md`.
