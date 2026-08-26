@@ -228,6 +228,10 @@ active-scenario comparison. Never leave a one-bar “all scenarios” chart.
 
 ## Approval and audit
 
+Generate-apps Step B asks whether this workflow needs approvals. If they
+declined, keep the plan grid and omit the submit / status-update path
+below.
+
 Approval requires two writes:
 
 1. append an immutable decision row;
@@ -238,6 +242,9 @@ unchanged. Reset modal controls with ordered `set-control-value` effects after
 the insert; see `actions.md`.
 
 ## Agent contract
+
+Generate-apps Step B offers this agent and pre-fills the recommended
+purpose; skip this section if they declined.
 
 Give the agent the selected plan ledger, all-scenario comparison, plan grid,
 scenario directory, and decision log. Instruct it to:

@@ -28,7 +28,9 @@ Observation Date to the composite key.
    Override, Owner, and Resolution Note.
 3. **Recommended action** — deterministic formula from source policy.
 4. **Final action** — user override or recommendation.
-5. **Resolution log** — append-only action evidence.
+5. **Resolution log** — append-only action evidence. Generate-apps Step B
+   asks whether this workflow needs that log action; if they declined,
+   keep the action queue and omit the log-resolution button.
 
 Inventory example:
 
@@ -53,6 +55,9 @@ resolution events; they do not initialize the queue. Unions and joins may
 compose the read model but cannot populate the input table.
 
 ## Agent
+
+Generate-apps Step B offers this agent and pre-fills the recommended
+purpose; skip this section if they declined.
 
 The agent should:
 

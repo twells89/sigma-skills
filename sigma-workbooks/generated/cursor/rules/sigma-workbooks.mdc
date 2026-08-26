@@ -128,8 +128,11 @@ while missing the app shell and behavior.
 If the user asked to generate / build / scaffold a Sigma **app** (planning,
 approval, allocation, exception, or an unspecified “app”) and did **not**
 supply a target image, pause here and load
-`reference/workflows/generate-apps.md` — it classifies the app type, records
-an intake manifest, and clones a best-practice **architecture** fixture.
+`reference/workflows/generate-apps.md` — it classifies the app type,
+**interviews** before it builds (which fields users may edit, whether the
+workflow needs approvals, whether to add a Sigma Agent and what it is
+for), records an intake manifest, states a build plan, and clones a
+best-practice **architecture** fixture.
 Design is a separate pass: load `styling.md` as a library and compose for
 this type (do not stamp the five-recipe dashboard *or* the navy-hero
 command-center example). A
@@ -176,7 +179,9 @@ Load `reference/workflows/discover.md`. Quick summary:
 Map the user's request to the **Reference Index** below. State the features you identified, then read the listed reference files before drafting. **If the user asks for a feature this skill doesn't cover**, fetch the OpenAPI and inspect the relevant schema.
 
 If the user asked to generate an app, run `generate-apps.md` first (Step 0)
-before choosing an input-table architecture here. Load
+before choosing an input-table architecture here. That interview already
+recorded which fields users may edit, whether the workflow needs
+approvals, and whether to include a workbook agent. Load
 `reference/specification/styling.md` as a library and compose for this
 app's job — do not stamp the five-pattern exec-dashboard stack or the
 navy-hero command-center example.
@@ -329,7 +334,7 @@ The reference is feature-sliced — don't read every file up-front. The index ha
 | `reference/workflows/discover.md` | Finding connections, tables, and column names. Load before composing a new spec. |
 | `reference/workflows/composition.md` | Open-ended design decisions — calibrating workbook complexity to the request, when to ask the user, what to ask, surfacing structural choices in the final summary, and a few safe defaults (hidden source pages, ranked-table sort direction). Load before drafting anything when the prompt leaves significant design choices unmade. |
 | `reference/workflows/actions.md` | Buttons, write-back, and **all twelve** action effects — insert/update/delete-rows, clear-control, set-control-value, open/close-overlay (modal **and** drawer), open-url, open-document (incl. passing `targetControls` into another workbook), navigate, select-tab, refresh-element — plus the append-only-log pattern and the masked-error catalog. Load when the user wants a button, a "log/save/submit" action, tab/page navigation, a deep link, or a write-back workflow. |
-| `reference/workflows/generate-apps.md` | **Generate a Sigma app.** Load first when the user asks to build a planning, approval, allocation, or exception app (and did not supply a target image). Classifies the type, asks structural questions, clones an architecture fixture, then **composes** a look from `styling.md` (library + anti-patterns). Fail the PNG pass on skill chrome, invisible entry controls, Dark-by-default on data-entry, or a 3-KPI status strip. |
+| `reference/workflows/generate-apps.md` | **Generate a Sigma app.** Load first when the user asks to build a planning, approval, allocation, or exception app (and did not supply a target image). Classifies the type, **interviews** for editable fields / approvals / a workbook agent (with a recommended purpose), clones an architecture fixture, then **composes** a look from `styling.md` (library + anti-patterns). Fail the PNG pass on skill chrome, invisible entry controls, Dark-by-default on data-entry, or a 3-KPI status strip. |
 | `reference/workflows/planning-apps.md` | **Scenario planning, budgeting, and forecasting apps.** Scenario × Period × Planning Line grain, governed baseline, scenario matrix, linked override grid, financial sign, filter-propagation choices, approval/audit, and runtime gates. |
 | `reference/workflows/allocation-apps.md` | **Allocation and capacity apps.** Budget/target vs. baseline at Period × Allocation Dimension grain, linked editable units/uplifts, working allocation, request queue, and exact variance gates. |
 | `reference/workflows/approval-apps.md` | **Approval and decision apps.** Stable entity-key queues, counter-values, immutable audit logs, one-row status updates, agent boundaries, and runtime tests. |

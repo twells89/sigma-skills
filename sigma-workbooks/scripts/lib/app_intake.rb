@@ -58,6 +58,61 @@ module AppIntake
     'exception' => %w[override]
   }.freeze
 
+  # Recommended `{ id, type }` columns on the linked grid. Keys and
+  # formulas stay non-editable. See generate-apps.md Step B.
+  EDITABLE_FIELDS = {
+    'planning' => ['Method', 'Uplift %', 'Dollar Change', 'New Amount', 'Rationale'],
+    'allocation' => ['Added Hires', 'Cost Uplift %', 'Rationale'],
+    'approval' => ['Decision', 'Approved Discount', 'Reviewer', 'Decision Note'],
+    'exception' => ['Override Order Qty', 'Decision', 'Owner', 'Resolution Note']
+  }.freeze
+
+  # Recommended approval/submit/log layer per type. Fixtures include this
+  # layer; generate-apps Step B asks whether to keep it.
+  APPROVAL_PURPOSES = {
+    'planning' => 'submit the selected scenario: append an immutable decision-log row and update only that scenario status',
+    'allocation' => 'log a hiring or reallocation request to the request log (approvals stay off the editable plan grid)',
+    'approval' => 'record Approve / Reject / Counter: append an audit-log row and update only the selected entity via whichRows on the stable key',
+    'exception' => 'log a resolution: append an immutable resolution-log row for the selected operational entity'
+  }.freeze
+
+  AUDIENCES = {
+    'planning' => 'FP&A planner',
+    'allocation' => 'ops or finance owner',
+    'approval' => 'reviewer',
+    'exception' => 'ops owner'
+  }.freeze
+
+  # Fixture element ids the type's agent may query (dataSources).
+  AGENT_DATA_SOURCES = {
+    'planning' => %w[plan-grid plan-matrix scenarios decision-log],
+    'allocation' => %w[alloc-grid request-log],
+    'approval' => %w[deal-directory review-queue decision-log],
+    'exception' => %w[exception-directory action-queue resolution-log]
+  }.freeze
+
+  # Recommended workbook-agent purpose per type. Analyze = dataSources;
+  # Act = tools[] (omit for read-only). Write tools always require
+  # requiresApproval: true — see reference/specification/agents.md.
+  AGENT_PURPOSES = {
+    'planning' => {
+      'analyze' => 'plan grid, selected-plan ledger, all-scenario comparison, scenario directory, and decision log — distinguish actual vs baseline vs selected plan; compare only scenario-keyed rows',
+      'act' => 'read-only unless they asked the agent to submit or log; any write tool sets requiresApproval: true and must not claim a write without that confirmation'
+    },
+    'allocation' => {
+      'analyze' => 'allocation grid, working allocation, variance, and request log — which dimension is over/under, whether variance is baseline underfunding vs added units, concentration and tradeoffs',
+      'act' => 'read-only unless they asked the agent to log a request; any write tool sets requiresApproval: true'
+    },
+    'approval' => {
+      'analyze' => 'entity directory, review queue, and decision log — prioritize by policy breach, value at risk, and age; name the highest-risk pending entity',
+      'act' => 'do not record a decision unless they asked for that tool; any write tool sets requiresApproval: true and must not claim a decision was written without confirmation'
+    },
+    'exception' => {
+      'analyze' => 'exception directory and action queue — rank unresolved items by urgency and impact, skip already-logged resolutions, distinguish source risk from the user-entered override',
+      'act' => 'log-resolution (or equivalent) action tool with requiresApproval: true'
+    }
+  }.freeze
+
   module_function
 
   def recipe_for(app_type)
@@ -66,6 +121,27 @@ module AppIntake
 
   def fixture_for(app_type)
     FIXTURES[app_type]
+  end
+
+  def agent_purpose_for(app_type)
+    purpose = AGENT_PURPOSES.fetch(app_type)
+    "Analyze: #{purpose['analyze']}. Act: #{purpose['act']}."
+  end
+
+  def editable_fields_for(app_type)
+    EDITABLE_FIELDS.fetch(app_type).dup
+  end
+
+  def approval_purpose_for(app_type)
+    APPROVAL_PURPOSES.fetch(app_type)
+  end
+
+  def audience_for(app_type)
+    AUDIENCES.fetch(app_type)
+  end
+
+  def agent_data_sources_for(app_type)
+    AGENT_DATA_SOURCES.fetch(app_type).dup
   end
 
   def route_for(app_type)
@@ -125,10 +201,20 @@ module AppIntake
       'recipe' => recipe_for(app_type),
       'fixture' => fixture_for(app_type),
       'answers' => answers,
+      'audience' => audience_for(app_type),
+      'editableFields' => editable_fields_for(app_type),
       'sources' => {
         'connectionId' => nil,
         'tablePath' => nil,
         'writeConnectionId' => nil
+      },
+      'approvals' => {
+        'include' => true,
+        'purpose' => approval_purpose_for(app_type)
+      },
+      'agent' => {
+        'include' => false,
+        'purpose' => agent_purpose_for(app_type)
       },
       'grain' => {
         'keys' => GRAIN_KEYS.fetch(app_type).dup,
@@ -190,6 +276,42 @@ module AppIntake
       end
     else
       out << 'sources must be an object'
+    end
+
+    audience = manifest['audience']
+    out << 'audience must be a non-empty string' unless
+      audience.is_a?(String) && !audience.strip.empty?
+
+    fields = manifest['editableFields']
+    out << 'editableFields must be a non-empty array of field names' unless
+      fields.is_a?(Array) && !fields.empty? && fields.all? { |name| name.is_a?(String) && !name.strip.empty? }
+
+    approvals = manifest['approvals']
+    if approvals.is_a?(Hash)
+      unless [true, false].include?(approvals['include'])
+        out << 'approvals.include must be true or false'
+      end
+      if approvals['include'] == true
+        purpose = approvals['purpose']
+        out << 'approvals.purpose must be a non-empty string when include is true' if
+          purpose.nil? || (purpose.is_a?(String) && purpose.strip.empty?)
+      end
+    else
+      out << 'approvals must be an object'
+    end
+
+    agent = manifest['agent']
+    if agent.is_a?(Hash)
+      unless [true, false].include?(agent['include'])
+        out << 'agent.include must be true or false'
+      end
+      if agent['include'] == true
+        purpose = agent['purpose']
+        out << 'agent.purpose must be a non-empty string when include is true' if
+          purpose.nil? || (purpose.is_a?(String) && purpose.strip.empty?)
+      end
+    else
+      out << 'agent must be an object'
     end
 
     grain = manifest['grain']

@@ -22,6 +22,8 @@ the starting specs.
   + KPI-card stack onto every app; compose the look in `generate-apps.md`
   Step D.4 from `styling.md`. Fail that pass on invisible entry controls
   and Dark-by-default; do not copy a one-off app's look back into fixtures.
+  Fixtures stay agent-free; compose `document.agents` / `chat` in
+  generate-apps Step D.5 when intake says to include an agent.
 - Key only deterministic, stable context — never status, owner, current user,
   `Now()`, or approval state.
 - Hidden source page for warehouse / baseline / join plumbing. The visible app
