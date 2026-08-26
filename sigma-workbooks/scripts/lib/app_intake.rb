@@ -61,7 +61,7 @@ module AppIntake
   # Recommended `{ id, type }` columns on the linked grid. Keys and
   # formulas stay non-editable. See generate-apps.md Step B.
   EDITABLE_FIELDS = {
-    'planning' => ['Method', 'Uplift %', 'Dollar Change', 'New Amount', 'Rationale'],
+    'planning' => ['Method', 'Pct Change', 'Dollar Change', 'New Amount', 'Rationale'],
     'allocation' => ['Added Hires', 'Cost Uplift %', 'Rationale'],
     'approval' => ['Decision', 'Approved Discount', 'Reviewer', 'Decision Note'],
     'exception' => ['Override Order Qty', 'Decision', 'Owner', 'Resolution Note']
@@ -70,7 +70,7 @@ module AppIntake
   # Recommended approval/submit/log layer per type. Fixtures include this
   # layer; generate-apps Step B asks whether to keep it.
   APPROVAL_PURPOSES = {
-    'planning' => 'submit the selected scenario: append an immutable decision-log row and update only that scenario status',
+    'planning' => 'submit, approve, or request changes: append an immutable decision-log row and update only that scenario status via whichRows',
     'allocation' => 'log a hiring or reallocation request to the request log (approvals stay off the editable plan grid)',
     'approval' => 'record Approve / Reject / Counter: append an audit-log row and update only the selected entity via whichRows on the stable key',
     'exception' => 'log a resolution: append an immutable resolution-log row for the selected operational entity'
@@ -85,7 +85,7 @@ module AppIntake
 
   # Fixture element ids the type's agent may query (dataSources).
   AGENT_DATA_SOURCES = {
-    'planning' => %w[plan-grid plan-matrix scenarios decision-log],
+    'planning' => %w[plan-grid plan-ledger scenarios decision-log],
     'allocation' => %w[alloc-grid request-log],
     'approval' => %w[deal-directory review-queue decision-log],
     'exception' => %w[exception-directory action-queue resolution-log]
@@ -96,7 +96,7 @@ module AppIntake
   # requiresApproval: true — see reference/specification/agents.md.
   AGENT_PURPOSES = {
     'planning' => {
-      'analyze' => 'plan grid, selected-plan ledger, all-scenario comparison, scenario directory, and decision log — distinguish actual vs baseline vs selected plan; compare only scenario-keyed rows',
+      'analyze' => 'plan grid, plan ledger (actuals vs plan), scenario directory, and decision log — distinguish actual vs baseline vs selected plan; compare only scenario-keyed rows',
       'act' => 'read-only unless they asked the agent to submit or log; any write tool sets requiresApproval: true and must not claim a write without that confirmation'
     },
     'allocation' => {
