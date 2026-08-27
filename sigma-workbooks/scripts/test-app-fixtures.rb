@@ -316,6 +316,9 @@ check('generate-apps interviews for fields, approvals, and agent', failures) do
     Act
     agent_capabilities_for
     agent_action_tool
+    authoritative audit/read path
+    zero-row delta
+    exactly-one-row delta
     supporting rail
   ].each do |needle|
     raise "missing interview #{needle.inspect}" unless text.include?(needle)

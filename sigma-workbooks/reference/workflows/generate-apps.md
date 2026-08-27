@@ -428,6 +428,12 @@ connection IDs, folder IDs, or workbook IDs into this skill.
      `Open review tab`) over one generic “operate workbook” tool. State
      sequencing constraints in both agent instructions and tool descriptions.
      For unrelated page jobs, use separate module-specialist agents.
+   - Include every Act target (or its authoritative audit/read path) in
+     Analyze. After both approved and declined actions, instruct the agent to
+     query that source before claiming current state or row counts. Acceptance
+     is a zero-row delta after decline and exactly-one-row delta after one
+     approved write — conversation history and a tool-success card are not
+     data evidence.
    - Place `chat` as a **supporting rail**, not the focal work surface.
      On planning, replace `txt-agent-rail` on Review & Approve. The grid
      on Build the Plan keeps the wide columns from Step D.4. Several

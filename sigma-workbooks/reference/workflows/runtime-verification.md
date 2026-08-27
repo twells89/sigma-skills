@@ -170,8 +170,18 @@ Ask a question whose answer is known from entered data. Verify the scenario or
 entity, period, baseline, override, and signed impact. The agent must not claim
 an action ran unless the user approved it.
 
-If the agent has an action tool, approve one test action and inspect the
-resulting row or status.
+If the agent has an action tool:
+
+1. capture the authoritative target/log row count;
+2. trigger the tool and **decline** approval — re-query and require delta `0`;
+3. trigger it once and **approve** — re-query and require delta `1`;
+4. verify the exact key, values, and attributed user on the new row/status.
+
+The write target or its audit/read path must be in the agent's `dataSources`
+so the agent can ground its own post-action response. A tool-success card and
+conversation history prove neither row count nor persisted state. If the agent
+claims a different count from the queried log, fail the agent test even when
+the write itself behaved correctly.
 
 ## 9. Record evidence
 
