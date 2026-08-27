@@ -188,6 +188,19 @@ org theme**. Do **not** default to Dark on a page with text/list entry
 controls, and do **not** fall back to the `styling.md` exec-dashboard
 example.
 
+**Composition (one forced choice, all types)** — load
+[`app-compositions.md`](app-compositions.md). App type is the semantic
+architecture; composition is the visual work mode:
+
+- `workbench` — context beside a wider editable grid;
+- `queue-rail` — a wide queue beside narrow filters/detail/guidance;
+- `builder-preview` — compact input rail beside a wider live result.
+
+Recommend one from the user's job, then confirm or use it as an explicit
+default. This does **not** create a fifth app type. Write the selected work
+surface, primary action, supporting context, density, visual tone, and
+above-fold elements to `/tmp/app-design-manifest.yaml`.
+
 Do **not** proceed to spec draft until classification, grain keys, a
 write-enabled connection, which fields users may edit, whether the
 workflow needs approvals, and whether to include a workbook agent are
@@ -203,6 +216,8 @@ Build plan
 - Users edit: <editableFields>
 - Approvals: yes/no — <purpose>
 - Agent: yes/no — <purpose>
+- Composition: <workbench | queue-rail | builder-preview>
+- Work surface: <element> — primary action: <action>
 - Fixture: <fixture>
 ```
 
@@ -278,9 +293,11 @@ connection IDs, folder IDs, or workbook IDs into this skill.
      the review buttons. The empty log table may stay on a hidden page. If
      `approvals.include` is true, keep the recipe's approval/audit layer and
      the allowed decisions from Step B.
-4. Load `../specification/styling.md` as a **library**, not a stamp. A
-   design pass is required — do not ship the fixture's default grid — but
-   do **not** apply the five-pattern exec-dashboard stack (navy hero +
+4. Load [`app-compositions.md`](app-compositions.md), then
+   `../specification/styling.md` as a **library**, not a stamp. Apply the
+   selected design manifest and one operational composition before paint.
+   A design pass is required — do not ship the fixture's default grid —
+   but do **not** apply the five-pattern exec-dashboard stack (navy hero +
    three white KPI cards + `##` section headers) to every app. That stack
    is one composition in `styling.md`, for dashboards.
 
@@ -295,9 +312,11 @@ connection IDs, folder IDs, or workbook IDs into this skill.
 
    `Styling.header` / `section_card` / `gradient_header` and
    `Composition.compose(pattern: :exec)` emit the **dashboard** composition.
-   Do not call them as the generate-app default. Hand-compose layout for
-   this type, or start from the fixture's architecture layout and restyle
-   it.
+   Do not call them as the generate-app default. Use
+   `Composition.compose(pattern: :workbench | :queue_rail |
+   :builder_preview)` or hand-compose layout when none fits. Keep the
+   architecture fixture's element semantics; the composition only changes
+   hierarchy and placement.
 
    | Type | The page is for | What has to be true (not chrome) |
    |---|---|---|
@@ -313,8 +332,11 @@ connection IDs, folder IDs, or workbook IDs into this skill.
    density, and what opens the page from **this** domain and org (GET a
    live workbook's `settings.theme`, or none — most orgs are unthemed).
 
-   Export the page PNG and read it as a user of this app, then against the
-   anti-pattern list. Fail the pass if any of:
+   Run all three passes from `app-compositions.md`: functional,
+   composition, then polish. Export every visible page PNG and read it as a
+   user of this app, then against the anti-pattern list. **Inspect at least
+   two renders**; the second must re-check defects found in the first.
+   Fail the pass if any of:
 
    - a default auto-arrange grid;
    - a clone of the `styling.md` exec-dashboard example;
@@ -334,6 +356,15 @@ connection IDs, folder IDs, or workbook IDs into this skill.
      input table). Approval: cap the queue; do not link every open entity;
    - **broken compile in the PNG** — `null` KPI, `Unknown column`, or
      `Invalid Query` on a measure the page is for.
+   - **truncated primary headers/values**, fewer than roughly six useful
+     queue rows, a row action detached from the selected key, or a large
+     unexplained blank region;
+   - **empty audit/log table as a focal panel** — an append-only log may
+     correctly have zero rows before first use, but keep it hidden, tabbed,
+     compact, or below fold;
+   - controls far from the surface they affect, a decorative chart with no
+     baseline/variance/risk/preview job, or no visually dominant work
+     surface.
 
    Name the design choices in the handoff summary (`composition.md`).
    Do not add a new composition to `styling.md` from a one-off app.

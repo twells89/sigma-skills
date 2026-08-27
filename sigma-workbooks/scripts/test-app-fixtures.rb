@@ -293,7 +293,11 @@ end
 check('generate-apps PNG fail list encodes input and Dark constraints', failures) do
   path = File.join(SKILL_ROOT, 'reference/workflows/generate-apps.md')
   text = File.read(path)
-  %w[white-on-white Dark-on-dark 3-KPI strip data-entry app plan measures empty work surface Unknown column].each do |needle|
+  %w[
+    white-on-white Dark-on-dark 3-KPI strip data-entry app plan measures
+    empty work surface Unknown column truncated primary headers
+    empty audit/log table visually dominant work surface
+  ].each do |needle|
     raise "missing constraint #{needle.inspect}" unless text.include?(needle)
   end
 end
@@ -309,6 +313,41 @@ check('generate-apps interviews for fields, approvals, and agent', failures) do
     supporting rail
   ].each do |needle|
     raise "missing interview #{needle.inspect}" unless text.include?(needle)
+  end
+end
+
+check('generate-apps selects an operational composition and writes a design manifest', failures) do
+  path = File.join(SKILL_ROOT, 'reference/workflows/generate-apps.md')
+  text = File.read(path)
+  [
+    'app-compositions.md',
+    'workbench',
+    'queue-rail',
+    'builder-preview',
+    '/tmp/app-design-manifest.yaml',
+    'Inspect at least two renders'
+  ].each do |needle|
+    raise "missing operational composition requirement #{needle.inspect}" unless text.include?(needle)
+  end
+end
+
+check('app-compositions separates visual work mode from semantic architecture', failures) do
+  path = File.join(SKILL_ROOT, 'reference/workflows/app-compositions.md')
+  text = File.read(path)
+  [
+    'semantic architecture',
+    'visual composition',
+    'workSurface',
+    'primaryAction',
+    'aboveFold',
+    'workbench',
+    'queue_rail',
+    'builder_preview',
+    'Three-pass build',
+    'truncated headers',
+    'empty audit/log table'
+  ].each do |needle|
+    raise "missing app-composition contract #{needle.inspect}" unless text.include?(needle)
   end
 end
 

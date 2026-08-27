@@ -17,6 +17,17 @@ Always write explicit layout for authored workbooks. In particular:
 - There's a `kind: "container"` element on the page. Containers without a matching `<Container>` are functionally no-ops.
 - The workbook has more than ~4 elements on a page. Auto-arrange becomes a long scroll.
 
+For operational apps, do not evenly split the primary row by default. Load
+`reference/workflows/app-compositions.md` and use the tested
+`Composition.compose` patterns:
+
+- `:workbench` — supporting context 8/24, editable work surface 16/24;
+- `:queue_rail` — queue 17/24, rail 7/24;
+- `:builder_preview` — input builder 7/24, result preview 17/24.
+
+The asymmetry encodes priority. If a supporting side is omitted, the primary
+surface expands to full width.
+
 Although the OpenAPI marks the string optional, the current API rejects a flat
 element that has no placement. Do not rely on auto-arrange, and do not derive
 membership from the order of `document.elements`.

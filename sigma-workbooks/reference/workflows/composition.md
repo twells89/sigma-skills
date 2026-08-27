@@ -37,7 +37,19 @@ Example: *"Built a single-page dashboard with 4 KPIs across the top, a revenue-b
 
 ## Patterns
 
-Two layout patterns are wired into a shared composition engine (`scripts/lib/composition.rb`). Both take a flat array of elements — each `{ id:, role: }` or `{ id:, kind: }` — and emit the `<Element elementId="..." gridColumn="a / b" gridRow="c / d"/>` lines for a single `<Page>`'s worth of layout XML. Wrap the engine's output in a `<Page id="<pageId>" ...>` block, then place the assembled XML — one shared prolog plus one `<Page>` block per page — in **`document.layout`**, NOT `pages[].layout` (which silently no-ops and falls back to auto-arrange). See `reference/specification/layout.md` for the `<Page>`/`<Container>` wrapper and this document-level placement. Elements are grouped into horizontal bands by `role`; a band with no elements is skipped and the next band simply starts where the last one left off, so array order doesn't matter — only the role tag does.
+Several layout patterns are wired into a shared composition engine
+(`scripts/lib/composition.rb`). They take a flat array of elements — each
+`{ id:, role: }` or `{ id:, kind: }` — and emit the `<Element
+elementId="..." gridColumn="a / b" gridRow="c / d"/>` lines for a single
+`<Page>`'s worth of layout XML. Wrap the engine's output in a `<Page
+id="<pageId>" ...>` block, then place the assembled XML — one shared prolog
+plus one `<Page>` block per page — in **`document.layout`**, NOT
+`pages[].layout` (which silently no-ops and falls back to auto-arrange). See
+`reference/specification/layout.md` for the `<Page>`/`<Container>` wrapper
+and this document-level placement. Elements are grouped into horizontal
+bands by `role`; a band with no elements is skipped and the next band simply
+starts where the last one left off, so array order doesn't matter — only the
+role tag does.
 
 Role resolution: give an element an explicit `role:`, or let `kind:` infer one — `kpi-chart` → `:kpi`; `table` / `pivot-table` / `input-table` → `:table`; any other kind (every chart kind) defaults to `:supporting`. `:hero`, `:control`, `:insight`, `:master`, and `:detail` are **never** inferred — tag those explicitly. An untagged element infers to `:supporting` — `:exec` places that (merged into its final `:supporting`+`:table` band), but `:master_detail` does NOT: it only consumes `:control`, `:master`, and `:detail`, so an untagged (or explicitly `:kpi`/`:hero`/`:insight`/`:supporting`/`:table`) element passed to `:master_detail` is a role the pattern doesn't place.
 
@@ -112,6 +124,27 @@ Composition.compose(elements, pattern: :master_detail)
 - **The master stays whole.** It is the selection surface the viewer picks from, not a filtered view of the current pick — it must keep rendering every category/row, not just the selected one. Live proof: setting the control's value and exporting the master still returns every category with its correct (unfiltered) totals. This is the intended shape, not a bug to "fix" by also filtering the master.
 - **Put the underlying source table on a hidden page** (`pages[].visibility: hidden`, `reference/specification/schema.md`) and have both the master and the detail `source` from it via `elementId` — same rationale as any base table: it's plumbing the pattern needs, not a deliverable the viewer should see directly.
 - **Clicking the master to set the control's value is a manual UI step — there is no spec node for it.** The spec-authorable half of this pattern is only the control → detail `filters[]` binding above; "clicking a mark sets a control's value" has no representation in the workbook spec and has to be wired by hand in the Sigma UI after the workbook is built. (For automated verification instead of a manual click, the control's value can be driven programmatically through the export API's `parameters` map — see `reference/workflows/validate.md` — but that's a test-time convenience, not a substitute for the real UI interaction.)
+
+### Operational app patterns
+
+`workbench`, `queue_rail`, and `builder_preview` are asymmetric,
+work-surface-first patterns for generate-app. They deliberately do not use
+kind inference or even-split the primary row:
+
+- `:workbench` — `:context` gets 8/24 columns and `:work_surface` 16/24;
+- `:queue_rail` — `:queue` gets 17/24 and `:rail` 7/24;
+- `:builder_preview` — `:builder` gets 7/24 and `:preview` 17/24.
+
+Each optional side expands to full width when its partner is absent.
+`:app_header`, `:action_bar`, `:summary`, and `:footer` provide the
+surrounding bands supported by the relevant pattern. These roles are
+explicit; passing a dashboard role such as `:kpi` or `:hero` raises instead
+of silently dropping it.
+
+Load [`app-compositions.md`](app-compositions.md) for the design manifest,
+role/height tables, visual-language rules, and PNG failure gate. The semantic
+planning/allocation/approval/exception fixture remains separate from the
+visual pattern.
 
 ### Other defaults
 
