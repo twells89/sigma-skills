@@ -3,13 +3,13 @@ Auto-generated from SKILL.md by ~/sigma-skills/scripts/sync-targets.rb.
 Do not edit by hand — edit SKILL.md and re-run the script.
 -->
 
-> Author, retrieve, or modify a Sigma data model spec (the JSON/YAML semantic-layer definition with sources, columns, metrics, relationships, filters, controls, folder groupings, and column-level security) by calling the Sigma REST API directly. Use when the user wants to build a new data model from existing warehouse tables, add metrics or relationships to an existing model, change a model's source, edit columns, or round-trip a data model spec through code. **Out of scope: converting from another BI tool's format (dbt, LookML, Tableau, Power BI, Alteryx, etc.).** Those conversions are handled by the Sigma data-model converter (browser tool + MCP) — point users there when they paste source-format input. Requires an SIGMA_API_TOKEN — obtain via the sigma-api skill first.
+> Author, retrieve, or modify a Sigma data model spec (the JSON/YAML semantic-layer definition with sources, columns, metrics, relationships, filters, controls, folder groupings, and column-level security) by calling the Sigma REST API directly. Use when the user wants to build a new data model from existing warehouse tables, add metrics or relationships to an existing model, change a model's source, edit columns, or round-trip a data model spec through code. **Out of scope: converting from another BI tool's format (dbt, LookML, Tableau, Power BI, Alteryx, etc.).** Those conversions are handled by the matching `*-to-sigma` skill in sigma-migration-skills (Alteryx `.yxmd` → `alteryx-to-sigma`, local converter, never a hosted MCP) or, for dbt / LookML / Tableau / Power BI / Snowflake semantic views, the Sigma data-model converter MCP / browser tool. Point users there when they paste source-format input. Requires an SIGMA_API_TOKEN — obtain via the sigma-api skill first.
 
 # Sigma Data Models (Author / Get / Update)
 
 Build a Sigma data model spec — the JSON definition of pages, sources, columns, metrics, relationships, filters, controls, folder groupings, and column-level security — and round-trip it through the Sigma REST API.
 
-This skill is for **authoring from existing warehouse tables**: a user knows their warehouse, wants to expose specific tables as a Sigma data model with the right joins, metrics, and governance, and needs help composing the spec. Conversions from other BI-tool formats (dbt schema.yml, LookML views, Tableau TDS, Power BI PBIT, Alteryx YXMD, etc.) are **not in this skill** — direct users to the Sigma data-model converter MCP / browser tool, which already handles those mappings.
+This skill is for **authoring from existing warehouse tables**: a user knows their warehouse, wants to expose specific tables as a Sigma data model with the right joins, metrics, and governance, and needs help composing the spec. Conversions from other BI-tool formats are **not in this skill** — Alteryx `.yxmd` → `alteryx-to-sigma` (local converter in sigma-migration-skills; never a hosted MCP). dbt schema.yml, LookML views, Tableau TDS, Power BI PBIT, Snowflake semantic views → the Sigma data-model converter MCP / browser tool.
 
 **Auth:** Authenticate via the `sigma-api` skill first to set `$SIGMA_BASE_URL` and `$SIGMA_API_TOKEN`. That skill offers two options — **client credentials** (`SIGMA_CLIENT_ID`/`SIGMA_CLIENT_SECRET`) or **interactive browser login** (`browser-login.sh`, no client ID/secret) — either of which exports the token this skill assumes is already present.
 
@@ -68,5 +68,6 @@ Call out any of these before presenting the final spec:
 
 ## Out of Scope (use a different tool)
 
-- **Converting from dbt / LookML / Tableau / Power BI / Alteryx / Snowflake semantic views** → the Sigma data-model converter (browser tool at `~/sigma-skills/.../sigma-data-model-manager` and the `sigma-data-model` MCP) handles these. Don't re-implement converter logic in this skill.
+- **Converting an Alteryx workflow (.yxmd)** → `alteryx-to-sigma` in sigma-migration-skills. Local converter; never a hosted MCP. ETL Sigma should not fake is a dbt/warehouse offramp.
+- **Converting from dbt / LookML / Tableau / Power BI / Snowflake semantic views** → the Sigma data-model converter (browser tool and the `sigma-data-model` MCP) handles these. Don't re-implement converter logic in this skill.
 - **Tableau-to-Sigma full pipeline** (datasource + workbook + repoint) → use the `tableau-to-sigma` skill.
