@@ -8,7 +8,7 @@ The skills split along the surfaces of the Sigma REST API: data models, responsi
 
 | Agent | Format | How it loads |
 |---|---|---|
-| Claude Code | `SKILL.md` (canonical) | Symlink the skill into `~/.claude/skills/` |
+| Claude Code | `SKILL.md` (canonical) | `/plugin install sigma-skills@sigma-skills`, or symlink into `~/.claude/skills/` |
 | Cortex Code (Snowflake) | `SKILL.md` (same as Claude Code) | Symlink into `~/.snowflake/cortex/skills/` or rely on its `~/.claude/skills/` fallback |
 | Codex (OpenAI CLI) | `AGENTS.md` | Drop `generated/codex/AGENTS.md` into project root or `~/.codex/AGENTS.md` |
 | Cursor | `.cursor/rules/<name>.mdc` | Drop `generated/cursor/rules/<skill>.mdc` into `<project>/.cursor/rules/` |
@@ -99,14 +99,34 @@ for the full flow.
 
 ## Installation
 
-### Claude Code & Cortex Code (use SKILL.md directly)
+### Claude Code (plugin marketplace)
+
+This repo is a Claude Code marketplace. Skill directories stay at the repo
+root (so Cursor / Codex / symlink installs do not change); `skills/` is a
+set of relative links Claude Code uses when it copies the plugin.
+
+```text
+/plugin marketplace add twells89/sigma-skills
+/plugin install sigma-skills@sigma-skills
+```
+
+After install, invoke a skill as `/sigma-skills:<skill-name>` (for example
+`/sigma-skills:sigma-workbooks`). Run scripts from that skill directory —
+paths in each `SKILL.md` are relative.
+
+Refresh later with `/plugin marketplace update sigma-skills`.
+
+### Claude Code & Cortex Code (symlink SKILL.md)
+
+Use this when you want a clone on disk instead of (or in addition to) the
+plugin. Do not glob every top-level directory — `scripts/` and `skills/`
+are not skills.
 
 ```bash
 git clone https://github.com/twells89/sigma-skills.git ~/sigma-skills
 mkdir -p ~/.claude/skills
-for d in ~/sigma-skills/*/; do
-  name=$(basename "$d")
-  ln -sf "$d" ~/.claude/skills/"$name"
+for name in sigma-api sigma-data-models sigma-workbooks sigma-reports sigma-plugin-authoring custom-sql-to-data-model; do
+  ln -sf ~/sigma-skills/"$name" ~/.claude/skills/"$name"
 done
 ```
 
@@ -152,6 +172,12 @@ agents:end -->
 ## Updating
 
 These skills are maintained against current Sigma API behavior. When the API evolves and a skill returns a "schema mismatch" error (`unknown field`, `unexpected property`, `invalid argument` on shape), pull the latest:
+
+```text
+/plugin marketplace update sigma-skills
+```
+
+Or, if you cloned the repo:
 
 ```bash
 cd ~/sigma-skills && git pull

@@ -26,6 +26,8 @@ jobs:
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.3'
+      - name: Validate Claude plugin marketplace
+        run: ruby scripts/test-plugin-manifest.rb
       - name: Run every test-*.rb / test_*.rb (glob, aggregate failures)
         run: |
           set -uo pipefail
