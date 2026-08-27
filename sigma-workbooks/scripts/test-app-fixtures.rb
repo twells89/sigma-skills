@@ -344,6 +344,8 @@ check('app-compositions separates visual work mode from semantic architecture', 
     'queue_rail',
     'builder_preview',
     'Three-pass build',
+    'Styling.app_shell',
+    'oversized report title',
     'truncated headers',
     'empty audit/log table'
   ].each do |needle|

@@ -60,6 +60,37 @@ Rules:
 - Derive `accentBasis` from the domain or the org theme. Do not default every
   app to the same blue, mint, or navy.
 
+## Application shell header
+
+`app_header` is **not** permission to float one oversized report title above
+the page. Most multi-page operational apps need a compact shell before the
+page task:
+
+```text
+[app identity]       [page navigation / active state]       [utility context]
+```
+
+Examples of utility context are selected plan, queue count, user role, or one
+global action. Put the smaller task title/subtitle inside the content below the
+shell. A single-page app may use the reduced identity + utility variant.
+
+Author the identity/navigation/utility as real `text`, `navigation`, or
+`button` elements, then wrap their ids with the API-safe light shell helper:
+
+```ruby
+Styling.app_shell(
+  id: 'app-shell',
+  identity_id: 'app-identity',
+  navigation_id: 'app-nav',
+  utility_id: 'app-context'
+)
+```
+
+The helper emits a square light container and 6/11/7 column split. It does not
+fake navigation: use a real `kind: navigation` element when destinations are
+available. Do not use `Styling.header` or `gradient_header` here — those are
+dark dashboard/hero treatments, not app chrome.
+
 ## API-safe layout emitters
 
 `scripts/lib/composition.rb` emits sibling `<Element>` nodes for all three
@@ -195,6 +226,8 @@ Fail and revise when any visible page has:
 - decorative charts that do not explain baseline, variance, risk, or preview;
 - identical pastel section bands or the same accent on every surface;
 - no single visually dominant work surface;
+- a large standalone page title with no app identity/navigation/context shell
+  when the workbook has multiple visible work pages;
 - any existing `generate-apps.md` failure (invisible entry controls, Dark
   data-entry default, generic 3-KPI status strip, empty work surface, or query
   error).

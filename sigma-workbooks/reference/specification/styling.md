@@ -10,6 +10,8 @@ For operational apps, choose hierarchy first in
 `reference/workflows/app-compositions.md`: `workbench`, `queue-rail`, or
 `builder-preview`. Styling supplies paint and local grouping after the primary
 work surface, supporting context, and action path have fixed positions.
+Use `Styling.app_shell` for compact light identity/navigation/utility chrome;
+do not reuse `Styling.header` / `gradient_header` as an app shell.
 
 The recipes were extracted from a 2026-05-29 design experiment that built 6 versions of the same dashboard (default → polished) and compared screenshots via the `/v2/workbooks/{id}/export` PNG endpoint. The findings caught two silent-failure bugs (see `charts.md` donut section) and 4 undocumented container `style` knobs (see `layout.md`).
 

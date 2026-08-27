@@ -326,6 +326,13 @@ connection IDs, folder IDs, or workbook IDs into this skill.
    architecture fixture's element semantics; the composition only changes
    hierarchy and placement.
 
+   For multiple visible work pages, `:app_header` means the compact
+   identity/navigation/utility shell from `app-compositions.md`, not one
+   oversized title floating above the page. Wrap caller-authored identity,
+   navigation, and utility elements with `Styling.app_shell`; keep the
+   page-task title/subtitle smaller inside the content. Single-page apps may
+   use the identity + utility variant.
+
    | Type | The page is for | What has to be true (not chrome) |
    |---|---|---|
    | planning | building and reviewing a plan | Workspace may show a few **plan measures** (revenue, EBITDA, profit impact). The grid lives on Build the Plan and is the thing you can work in. Status counts are not a KPI strip. |
@@ -373,6 +380,8 @@ connection IDs, folder IDs, or workbook IDs into this skill.
    - controls far from the surface they affect, a decorative chart with no
      baseline/variance/risk/preview job, or no visually dominant work
      surface.
+   - a large standalone report title instead of app identity/navigation/
+     utility chrome on a workbook with multiple visible work pages.
 
    Name the design choices in the handoff summary (`composition.md`).
    Do not add a new composition to `styling.md` from a one-off app.
