@@ -201,6 +201,14 @@ default. This does **not** create a fifth app type. Write the selected work
 surface, primary action, supporting context, density, visual tone, and
 above-fold elements to `/tmp/app-design-manifest.yaml`.
 
+The intake helper exposes page-level recommendations for the fixture shells:
+
+```bash
+ruby -r ./scripts/lib/app_intake.rb \
+  -e 'p AppIntake.composition_pattern_for("planning", "pg-build")'
+# => :builder_preview
+```
+
 Do **not** proceed to spec draft until classification, grain keys, a
 write-enabled connection, which fields users may edit, whether the
 workflow needs approvals, and whether to include a workbook agent are

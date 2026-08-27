@@ -118,6 +118,36 @@ check('helpers return a purpose and data sources for every type', failures) do
   end
 end
 
+check('composition recommendations stay separate from app type', failures) do
+  expected = {
+    ['planning', 'pg-home'] => :workbench,
+    ['planning', 'pg-build'] => :builder_preview,
+    ['planning', 'pg-review'] => :queue_rail,
+    ['allocation', 'page-app'] => :builder_preview,
+    ['approval', 'page-app'] => :queue_rail,
+    ['exception', 'page-app'] => :queue_rail
+  }
+  expected.each do |(app_type, page_id), pattern|
+    actual = AppIntake.composition_pattern_for(app_type, page_id)
+    raise "#{app_type}/#{page_id}: expected #{pattern}, got #{actual}" unless actual == pattern
+  end
+end
+
+check('composition recommendation rejects unknown app/page instead of guessing', failures) do
+  begin
+    AppIntake.composition_pattern_for('planning', 'missing-page')
+    raise 'unknown page was accepted'
+  rescue KeyError
+    # expected
+  end
+  begin
+    AppIntake.composition_pattern_for('crm')
+    raise 'unknown app type was accepted'
+  rescue KeyError
+    # expected
+  end
+end
+
 check('init refuses to overwrite an existing manifest', failures) do
   Dir.mktmpdir do |dir|
     path = File.join(dir, 'app-intake.json')

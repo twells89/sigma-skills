@@ -34,6 +34,21 @@ module AppIntake
     'exception' => 'reference/workflows/fixtures/exception-app.yaml'
   }.freeze
 
+  # Visual work mode is deliberately separate from semantic app type. Planning
+  # has different page jobs; the other fixture shells currently have one
+  # visible app page. Callers may override this recommendation after writing
+  # the local app-design manifest.
+  COMPOSITION_BY_PAGE = {
+    'planning' => {
+      'pg-home' => :workbench,
+      'pg-build' => :builder_preview,
+      'pg-review' => :queue_rail
+    },
+    'allocation' => { 'page-app' => :builder_preview },
+    'approval' => { 'page-app' => :queue_rail },
+    'exception' => { 'page-app' => :queue_rail }
+  }.freeze
+
   REDIRECT_LOAD = {
     'dashboard' => 'reference/workflows/composition.md',
     'report' => 'sigma-reports'
@@ -121,6 +136,13 @@ module AppIntake
 
   def fixture_for(app_type)
     FIXTURES[app_type]
+  end
+
+  def composition_pattern_for(app_type, page_id = nil)
+    pages = COMPOSITION_BY_PAGE.fetch(app_type)
+    return pages.fetch(page_id) if page_id
+
+    pages.values.first
   end
 
   def agent_purpose_for(app_type)
