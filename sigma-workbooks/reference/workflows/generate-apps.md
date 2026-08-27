@@ -153,16 +153,26 @@ exception: resolution log).
 ruby -r ./scripts/lib/app_intake.rb -e 'puts AppIntake.approval_purpose_for("planning")'
 ```
 
-**Sigma Agent (all types)** — one question. Show the recommended purpose
-for this type; do not invent a fifth operational type or an open-ended
-“what should the AI do?”
+**Sigma Agent (all types)** — first ask whether to add one. If **no**, set
+`agent.include` false and omit `document.agents` and `chat`. If **yes**, do
+not stop at “what should the AI do?” Confirm the four-part capability
+contract below. Prefill it from
+`AppIntake.agent_capabilities_for(<appType>)`; let the user remove or add
+specific targets:
 
 - Add a workbook agent? (yes / no)
 
-If **no**, set `agent.include` false and omit `document.agents` and any
-`chat` element. If **yes**, set `agent.include` true and keep the type's
-recommended purpose unless they override it. Compose the agent in
-Step D.5 — do not draft `agents[]` during the interview.
+1. **Analyze** — which table elements may it query?
+2. **Configure** — which controls may it set, including multi-select `add`?
+3. **Navigate** — which pages or tabbed-container tabs may it open?
+4. **Act** — which direct record/log writes may it perform, always with
+   `requiresApproval: true`?
+
+This distinguishes a read-only analyst (Analyze only), UI orchestrator
+(Analyze + Configure/Navigate), and operator (all four). For a multi-module
+workbook, prefer one module specialist per work surface over one mega-agent.
+Compose agents in Step D.5 — the interview records capabilities, not raw
+`agents[]` JSON.
 
 | Type | Analyze (`dataSources`) | Act (`tools`) |
 |---|---|---|
@@ -171,10 +181,11 @@ Step D.5 — do not draft `agents[]` during the interview.
 | approval | entity directory, review queue, decision log — prioritize by policy breach, value at risk, and age | do not record a decision unless they asked for that tool; any write tool sets `requiresApproval: true` |
 | exception | exception directory and action queue — rank unresolved items, skip already-logged resolutions | log-resolution (or equivalent) with `requiresApproval: true` |
 
-A helper prints the same purpose the manifest pre-fills:
+A helper prints the same purpose and capability plan the manifest pre-fills:
 
 ```bash
 ruby -r ./scripts/lib/app_intake.rb -e 'puts AppIntake.agent_purpose_for("exception")'
+ruby -r ./scripts/lib/app_intake.rb -e 'p AppIntake.agent_capabilities_for("exception")'
 ```
 
 **Look (one optional question, all types)** — skip if they already named a
@@ -393,17 +404,30 @@ connection IDs, folder IDs, or workbook IDs into this skill.
      agents enabled. If it does not, degrade to that file's static
      sample-prompt text — never POST a cosmetic `chat` on a gated org.
    - Build with `Richness.agent` + `Richness.chat`
-     (`scripts/lib/richness.rb`). `instructions` is the confirmed
-     `agent.purpose` plus the audience. `dataSources` are the type's
-     recommended element ids that exist on this spec:
+     (`scripts/lib/richness.rb`). `instructions` must encode the confirmed
+     Analyze / Configure / Navigate / Act boundaries and any required tool
+     order. `dataSources` are only confirmed Analyze targets that still
+     exist on this spec:
 
      ```bash
      ruby -r ./scripts/lib/app_intake.rb -e 'p AppIntake.agent_data_sources_for("exception")'
      ```
 
-   - **Read-only is the default:** omit `tools` entirely (not
-     `tools: []`). Add a write tool only if they overrode Act to include
-     one. Any write tool **must** set `requiresApproval: true`.
+   - **Analyze only:** omit `tools` entirely (not `tools: []`).
+   - **Configure / Navigate:** add granular direct action tools — one named
+     task per control group or destination. Use `set-control-value`
+     (`selectionMode: add` for a multi-select), `navigate`, or `select-tab`.
+     These UI-state tools normally do not need approval.
+   - **Act:** inline direct `insert-rows` / `update-rows` / `delete-rows`
+     effect steps and set `requiresApproval: true`. Build them with
+     `Richness.agent_action_tool`, which refuses an unapproved write.
+     Never emit `{kind: sequence, sequenceId: ...}` for a spec-created
+     workbook: sequences can be referenced after a human creates one in the
+     UI, but cannot be defined by the spec and a dangling id rejects POST.
+   - Prefer several narrow tool descriptions (`Set region filters`, then
+     `Open review tab`) over one generic “operate workbook” tool. State
+     sequencing constraints in both agent instructions and tool descriptions.
+     For unrelated page jobs, use separate module-specialist agents.
    - Place `chat` as a **supporting rail**, not the focal work surface.
      On planning, replace `txt-agent-rail` on Review & Approve. The grid
      on Build the Plan keeps the wide columns from Step D.4. Several

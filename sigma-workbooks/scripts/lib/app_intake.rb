@@ -128,6 +128,44 @@ module AppIntake
     }
   }.freeze
 
+  # Prefilled Analyze / Configure / Navigate / Act interview. Element/control
+  # ids match the architecture fixtures; the builder must remove capabilities
+  # whose targets were dropped or renamed after discovery. `act.tools` are
+  # intent labels, not already-shaped tool specs.
+  AGENT_CAPABILITY_PROFILES = {
+    'planning' => {
+      'profile' => 'operator',
+      'analyze' => { 'dataSources' => %w[plan-grid plan-ledger scenarios decision-log] },
+      'configure' => { 'controls' => %w[scenario] },
+      'navigate' => { 'pages' => %w[pg-home pg-scenarios pg-build pg-review], 'tabs' => [] },
+      'act' => {
+        'tools' => %w[submit-plan record-review-decision],
+        'requiresApproval' => true
+      }
+    },
+    'allocation' => {
+      'profile' => 'operator',
+      'analyze' => { 'dataSources' => %w[alloc-grid request-log] },
+      'configure' => { 'controls' => %w[periodControl dimControl] },
+      'navigate' => { 'pages' => [], 'tabs' => [] },
+      'act' => { 'tools' => %w[log-allocation-request], 'requiresApproval' => true }
+    },
+    'approval' => {
+      'profile' => 'operator',
+      'analyze' => { 'dataSources' => %w[deal-directory review-queue decision-log] },
+      'configure' => { 'controls' => %w[dealControl decisionControl noteControl] },
+      'navigate' => { 'pages' => [], 'tabs' => [] },
+      'act' => { 'tools' => %w[record-decision], 'requiresApproval' => true }
+    },
+    'exception' => {
+      'profile' => 'operator',
+      'analyze' => { 'dataSources' => %w[exception-directory action-queue resolution-log] },
+      'configure' => { 'controls' => %w[skuControl decisionControl noteControl] },
+      'navigate' => { 'pages' => [], 'tabs' => [] },
+      'act' => { 'tools' => %w[log-resolution], 'requiresApproval' => true }
+    }
+  }.freeze
+
   module_function
 
   def recipe_for(app_type)
@@ -164,6 +202,10 @@ module AppIntake
 
   def agent_data_sources_for(app_type)
     AGENT_DATA_SOURCES.fetch(app_type).dup
+  end
+
+  def agent_capabilities_for(app_type)
+    Marshal.load(Marshal.dump(AGENT_CAPABILITY_PROFILES.fetch(app_type)))
   end
 
   def route_for(app_type)
@@ -236,7 +278,8 @@ module AppIntake
       },
       'agent' => {
         'include' => false,
-        'purpose' => agent_purpose_for(app_type)
+        'purpose' => agent_purpose_for(app_type),
+        'capabilities' => agent_capabilities_for(app_type)
       },
       'grain' => {
         'keys' => GRAIN_KEYS.fetch(app_type).dup,
@@ -331,6 +374,27 @@ module AppIntake
         purpose = agent['purpose']
         out << 'agent.purpose must be a non-empty string when include is true' if
           purpose.nil? || (purpose.is_a?(String) && purpose.strip.empty?)
+      end
+      capabilities = agent['capabilities']
+      if capabilities.is_a?(Hash)
+        %w[profile analyze configure navigate act].each do |key|
+          out << "agent.capabilities.#{key} must be present" unless capabilities.key?(key)
+        end
+        data_sources = capabilities.dig('analyze', 'dataSources')
+        out << 'agent.capabilities.analyze.dataSources must be an array' unless data_sources.is_a?(Array)
+        controls = capabilities.dig('configure', 'controls')
+        out << 'agent.capabilities.configure.controls must be an array' unless controls.is_a?(Array)
+        pages = capabilities.dig('navigate', 'pages')
+        tabs = capabilities.dig('navigate', 'tabs')
+        out << 'agent.capabilities.navigate.pages must be an array' unless pages.is_a?(Array)
+        out << 'agent.capabilities.navigate.tabs must be an array' unless tabs.is_a?(Array)
+        tools = capabilities.dig('act', 'tools')
+        out << 'agent.capabilities.act.tools must be an array' unless tools.is_a?(Array)
+        if tools.is_a?(Array) && !tools.empty? && capabilities.dig('act', 'requiresApproval') != true
+          out << 'agent.capabilities.act.requiresApproval must be true when write tools are proposed'
+        end
+      else
+        out << 'agent.capabilities must be an object'
       end
     else
       out << 'agent must be an object'

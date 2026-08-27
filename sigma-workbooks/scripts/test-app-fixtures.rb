@@ -310,6 +310,12 @@ check('generate-apps interviews for fields, approvals, and agent', failures) do
     Editable fields (all types)
     Does this workflow need approvals?
     Add a workbook agent?
+    Analyze
+    Configure
+    Navigate
+    Act
+    agent_capabilities_for
+    agent_action_tool
     supporting rail
   ].each do |needle|
     raise "missing interview #{needle.inspect}" unless text.include?(needle)
