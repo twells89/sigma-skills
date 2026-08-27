@@ -334,8 +334,8 @@ connection IDs, folder IDs, or workbook IDs into this skill.
 
    Run all three passes from `app-compositions.md`: functional,
    composition, then polish. Export every visible page PNG and read it as a
-   user of this app, then against the anti-pattern list. **Inspect at least
-   two renders**; the second must re-check defects found in the first.
+   user of this app, then against the anti-pattern list. **Inspect at least two renders**;
+   the second must re-check defects found in the first.
    Fail the pass if any of:
 
    - a default auto-arrange grid;
