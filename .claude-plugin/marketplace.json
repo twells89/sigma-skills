@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-marketplace-manifest.json",
+  "name": "sigma-skills",
+  "description": "Sigma Computing authoring skills: API auth, data models, workbooks, reports, custom plugins, and custom-SQL promotion. Skills stay at the repo root so Cursor / Codex / symlink installs keep working; Claude Code installs the same tree as a marketplace plugin.",
+  "version": "1.0.0",
+  "owner": {
+    "name": "TJ Wells",
+    "url": "https://github.com/twells89"
+  },
+  "plugins": [
+    {
+      "name": "sigma-skills",
+      "source": "./",
+      "description": "Author Sigma data models, workbooks, reports, and custom plugins via the REST API. Includes sigma-api (auth), sigma-data-models, sigma-workbooks, sigma-reports, sigma-plugin-authoring, and custom-sql-to-data-model.",
+      "category": "productivity",
+      "keywords": [
+        "sigma",
+        "workbooks",
+        "data-models",
+        "reports",
+        "api",
+        "authoring"
+      ]
+    }
+  ]
+}

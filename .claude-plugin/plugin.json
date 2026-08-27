@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "sigma-skills",
+  "displayName": "Sigma Skills",
+  "version": "1.0.0",
+  "description": "Author Sigma data models, workbooks, reports, and custom plugins via the REST API. Bundles sigma-api, sigma-data-models, sigma-workbooks, sigma-reports, sigma-plugin-authoring, and custom-sql-to-data-model.",
+  "author": {
+    "name": "TJ Wells",
+    "url": "https://github.com/twells89"
+  },
+  "homepage": "https://github.com/twells89/sigma-skills",
+  "repository": "https://github.com/twells89/sigma-skills",
+  "keywords": [
+    "sigma",
+    "api",
+    "authentication",
+    "workbooks",
+    "data-models",
+    "reports",
+    "authoring",
+    "spec"
+  ],
+  "skills": "./skills/"
+}
