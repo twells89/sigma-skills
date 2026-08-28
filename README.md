@@ -37,7 +37,8 @@ See [Installation](#installation) below for the install helper.
 | "Authenticate to Sigma / get or refresh an API token" | `sigma-api` |
 | "Build me a Sigma data model from the `ORDERS` table in Snowflake" | `sigma-data-models` |
 | "Add a metric / relationship / column to my existing data model" | `sigma-data-models` |
-| "Convert this dbt / LookML / Tableau / Power BI / Alteryx model to Sigma" | The **converter MCP** or the **browser converter tool** — *not* a skill. The skills cover authoring, not source-format parsing. |
+| "Convert this Alteryx workflow (.yxmd) to Sigma" | **`alteryx-to-sigma`** in sigma-migration-skills — local converter, never MCP. ETL Sigma cannot represent honestly is a dbt/warehouse offramp. |
+| "Convert this dbt / LookML / Tableau / Power BI model to Sigma" | The **converter MCP** or the **browser converter tool** — *not* a skill. The skills cover authoring, not source-format parsing. |
 | "Build me a sales dashboard / workbook from this data model" | `sigma-workbooks` |
 | "Build me a Sigma app / planning / approval / allocation / exception workflow" | `sigma-workbooks` (`reference/workflows/generate-apps.md`) |
 | "Add a KPI / chart / control to an existing workbook" | `sigma-workbooks` |
