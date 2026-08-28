@@ -15,6 +15,11 @@ module Styling
     card: { 'backgroundColor' => '#FFFFFF', 'borderColor' => '#E2E8F0',
             'borderWidth' => 1, 'borderRadius' => 'round' },
     header: { 'backgroundColor' => '#0F172A', 'borderRadius' => 'round' },
+    # Compact operational app shell. Unlike :header this is deliberately
+    # light, square, and utility-shaped — app identity/navigation/context,
+    # not a dashboard hero.
+    app_shell: { 'backgroundColor' => '#FFFFFF', 'borderColor' => '#E2E8F0',
+                 'borderWidth' => 1 },
     accent: '#2563EB',
     # Neutral 3-stop gradient (dark slate -> navy -> accent blue) for
     # Styling.gradient_header. NOT red -- red is a caller override, same
@@ -187,6 +192,50 @@ module Styling
       '</Container>'
     ].join("\n")
     { element: [container_el, text_el], layout: layout }
+  end
+
+  # Compact app-level shell around caller-authored identity, navigation, and
+  # utility elements. The children stay caller-owned because navigation may be
+  # a real `kind:navigation`, text tabs, or a button depending on the workbook.
+  # This helper only supplies tested container/style/layout structure.
+  #
+  # Three children: 6/24 identity, 11/24 navigation, 7/24 utility.
+  # Two children redistribute the missing slot; one child fills the row.
+  def self.app_shell(id:, identity_id:, navigation_id: nil, utility_id: nil,
+                     theme: DEFAULT_THEME, page_cols: 24, r0: 1, r1: 4,
+                     surfaces: SURFACES)
+    raise ArgumentError, 'app_shell: id required' if id.to_s.empty?
+    raise ArgumentError, 'app_shell: identity_id required' if identity_id.to_s.empty?
+    children = [identity_id, navigation_id, utility_id].compact
+    raise ArgumentError, 'app_shell: child ids must be unique' unless children.uniq.size == children.size
+
+    placements = if navigation_id && utility_id
+                   [[identity_id, 1, 7], [navigation_id, 7, 18], [utility_id, 18, page_cols + 1]]
+                 elsif navigation_id
+                   [[identity_id, 1, 7], [navigation_id, 7, page_cols + 1]]
+                 elsif utility_id
+                   [[identity_id, 1, 13], [utility_id, 13, page_cols + 1]]
+                 else
+                   [[identity_id, 1, page_cols + 1]]
+                 end
+    leaves = placements.map { |child_id, c0, c1| Composition.le(child_id, c0, c1, 1, r1 - r0 + 1) }
+    unless surfaces[:container_style]
+      bare = placements.map { |child_id, c0, c1| Composition.le(child_id, c0, c1, r0, r1) }
+      return { element: nil, layout: bare.join("\n") }
+    end
+
+    container = {
+      'id' => id,
+      'kind' => 'container',
+      'style' => theme[:app_shell] || DEFAULT_THEME[:app_shell]
+    }
+    layout = [
+      "<Container elementId=\"#{id}\" type=\"grid\" gridColumn=\"1 / #{page_cols + 1}\" gridRow=\"#{r0} / #{r1}\" " \
+        "gridTemplateColumns=\"repeat(#{page_cols}, 1fr)\" gridTemplateRows=\"auto\">",
+      leaves.join("\n"),
+      '</Container>'
+    ].join("\n")
+    { element: container, layout: layout }
   end
 
   # Wraps one Composition.bands()-style band ({role:,ids:,r0:,r1:}) in a

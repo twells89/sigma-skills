@@ -6,6 +6,13 @@
 
 Recipe library for moving a workbook from "default auto-arrange" to "looks designed." Every pattern below is built from fields that already exist in the workbook spec — no external CSS, no theme JSON, no UI editing required. **Compose from this file; do not stamp it.** The five-pattern stack under *What "designed" looks like* is one exec-dashboard composition — not a house style, and not the generate-app look. An exception command center, a planning grid, and an approval queue should not all open with the same navy hero and three white KPI cards. The **anti-pattern list** is the bar (no focal point, equal-width everything, flat type). Pick the recipes that serve this page's job, the org's theme, and any branding the user stated.
 
+For operational apps, choose hierarchy first in
+`reference/workflows/app-compositions.md`: `workbench`, `queue-rail`, or
+`builder-preview`. Styling supplies paint and local grouping after the primary
+work surface, supporting context, and action path have fixed positions.
+Use `Styling.app_shell` for compact light identity/navigation/utility chrome;
+do not reuse `Styling.header` / `gradient_header` as an app shell.
+
 The recipes were extracted from a 2026-05-29 design experiment that built 6 versions of the same dashboard (default → polished) and compared screenshots via the `/v2/workbooks/{id}/export` PNG endpoint. The findings caught two silent-failure bugs (see `charts.md` donut section) and 4 undocumented container `style` knobs (see `layout.md`).
 
 ---

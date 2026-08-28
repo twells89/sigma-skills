@@ -132,6 +132,73 @@ from a button (see `reference/workflows/actions.md`) — instead of pulling from
 control's current value or a hard-coded constant, the value comes from an argument
 the agent fills in when it decides to call the tool, keyed by `inputName`.
 
+## Agent as application control plane
+
+For generate-app, define four independent capabilities rather than one vague
+“assistant” purpose:
+
+| Capability | Spec surface | Typical profile |
+|---|---|---|
+| **Analyze** | `dataSources[]` | read-only analyst |
+| **Configure** | `set-control-value` action tools | UI orchestrator |
+| **Navigate** | `navigate` / `select-tab` action tools | UI orchestrator |
+| **Act** | direct row-write action tools | operator |
+
+An agent may combine them, but grant only what the interview confirmed. In a
+multi-module workbook, use a module specialist with a few relevant sources and
+tools instead of one agent that sees and operates everything.
+
+Granular Configure tool (the agent supplies a control value):
+
+```yaml
+- toolId: set-regions
+  kind: action
+  name: Set region filters
+  description: Add each requested region to the cohort filter.
+  steps:
+    - kind: effect
+      effect: set-control-value
+      control: region
+      selectionMode: add
+      value: { type: agent-input, inputName: region }
+```
+
+Granular Navigate tool:
+
+```yaml
+- toolId: open-review
+  kind: action
+  name: Open review
+  description: Navigate to Review only after the requested filters are set.
+  steps:
+    - kind: effect
+      effect: navigate
+      target: { type: page, page: pg-review }
+```
+
+For tabbed containers use `select-tab` with a 0-based index instead. Tool names
+and descriptions are part of the control contract: state order constraints
+(`set every provider, then open the provider tab`) rather than hoping the model
+infers choreography from generic names.
+
+`Richness.agent_action_tool` builds these direct-effect tools. It adds
+`kind: effect`, defaults row writes to `requiresApproval: true`, rejects an
+explicitly unapproved write, and rejects sequence steps. This keeps
+spec-created agents inside the replayable surface.
+
+### Post-action truth comes from the data
+
+Include the write target or its audit/read path in `dataSources`. After an
+approved write, the agent must query that source before claiming the row or
+status exists. After a declined/skipped approval, it must query the same source
+before claiming that nothing changed or counting prior events.
+
+The approval card and tool result prove control flow, not warehouse state.
+Never infer “two prior submissions remain” from conversation history. Verify
+the authoritative log and report its actual row count/key. Runtime acceptance
+must test one declined action (zero-row delta) and one approved action
+(exactly-one-row delta).
+
 ### `requiresApproval` — gate a tool behind a confirmation
 
 An `action` tool also accepts `requiresApproval: true`, which makes the agent ask

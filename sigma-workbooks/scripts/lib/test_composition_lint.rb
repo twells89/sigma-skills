@@ -11,6 +11,25 @@ check('composition emits canonical Element leaves, never legacy aliases') do
     !good.include?('<LayoutElement') &&
     !good.include?('<GridContainer')
 end
+operational = {
+  workbench: [
+    { id: 'context', role: :context },
+    { id: 'grid', role: :work_surface }
+  ],
+  queue_rail: [
+    { id: 'queue', role: :queue },
+    { id: 'rail', role: :rail }
+  ],
+  builder_preview: [
+    { id: 'builder', role: :builder },
+    { id: 'preview', role: :preview }
+  ]
+}
+check('all asymmetric operational app layouts lint clean') do
+  operational.all? do |pattern, elements|
+    CompositionLint.check(Composition.compose(elements, pattern: pattern)).empty?
+  end
+end
 overlap = %Q(  <Element elementId="x" gridColumn="1 / 13" gridRow="1 / 7"/>\n  <Element elementId="y" gridColumn="10 / 25" gridRow="1 / 7"/>)
 check('detects column overlap in a band') { CompositionLint.check(overlap).any? { |e| e =~ /overlap/i } }
 gap = %Q(  <Element elementId="x" gridColumn="1 / 7" gridRow="1 / 7"/>)

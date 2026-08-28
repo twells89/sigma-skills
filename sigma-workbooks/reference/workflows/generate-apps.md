@@ -153,16 +153,26 @@ exception: resolution log).
 ruby -r ./scripts/lib/app_intake.rb -e 'puts AppIntake.approval_purpose_for("planning")'
 ```
 
-**Sigma Agent (all types)** — one question. Show the recommended purpose
-for this type; do not invent a fifth operational type or an open-ended
-“what should the AI do?”
+**Sigma Agent (all types)** — first ask whether to add one. If **no**, set
+`agent.include` false and omit `document.agents` and `chat`. If **yes**, do
+not stop at “what should the AI do?” Confirm the four-part capability
+contract below. Prefill it from
+`AppIntake.agent_capabilities_for(<appType>)`; let the user remove or add
+specific targets:
 
 - Add a workbook agent? (yes / no)
 
-If **no**, set `agent.include` false and omit `document.agents` and any
-`chat` element. If **yes**, set `agent.include` true and keep the type's
-recommended purpose unless they override it. Compose the agent in
-Step D.5 — do not draft `agents[]` during the interview.
+1. **Analyze** — which table elements may it query?
+2. **Configure** — which controls may it set, including multi-select `add`?
+3. **Navigate** — which pages or tabbed-container tabs may it open?
+4. **Act** — which direct record/log writes may it perform, always with
+   `requiresApproval: true`?
+
+This distinguishes a read-only analyst (Analyze only), UI orchestrator
+(Analyze + Configure/Navigate), and operator (all four). For a multi-module
+workbook, prefer one module specialist per work surface over one mega-agent.
+Compose agents in Step D.5 — the interview records capabilities, not raw
+`agents[]` JSON.
 
 | Type | Analyze (`dataSources`) | Act (`tools`) |
 |---|---|---|
@@ -171,10 +181,11 @@ Step D.5 — do not draft `agents[]` during the interview.
 | approval | entity directory, review queue, decision log — prioritize by policy breach, value at risk, and age | do not record a decision unless they asked for that tool; any write tool sets `requiresApproval: true` |
 | exception | exception directory and action queue — rank unresolved items, skip already-logged resolutions | log-resolution (or equivalent) with `requiresApproval: true` |
 
-A helper prints the same purpose the manifest pre-fills:
+A helper prints the same purpose and capability plan the manifest pre-fills:
 
 ```bash
 ruby -r ./scripts/lib/app_intake.rb -e 'puts AppIntake.agent_purpose_for("exception")'
+ruby -r ./scripts/lib/app_intake.rb -e 'p AppIntake.agent_capabilities_for("exception")'
 ```
 
 **Look (one optional question, all types)** — skip if they already named a
@@ -187,6 +198,27 @@ theme (GET a live workbook, or the theme registry). Prefer **Light or an
 org theme**. Do **not** default to Dark on a page with text/list entry
 controls, and do **not** fall back to the `styling.md` exec-dashboard
 example.
+
+**Composition (one forced choice, all types)** — load
+[`app-compositions.md`](app-compositions.md). App type is the semantic
+architecture; composition is the visual work mode:
+
+- `workbench` — context beside a wider editable grid;
+- `queue-rail` — a wide queue beside narrow filters/detail/guidance;
+- `builder-preview` — compact input rail beside a wider live result.
+
+Recommend one from the user's job, then confirm or use it as an explicit
+default. This does **not** create a fifth app type. Write the selected work
+surface, primary action, supporting context, density, visual tone, and
+above-fold elements to `/tmp/app-design-manifest.yaml`.
+
+The intake helper exposes page-level recommendations for the fixture shells:
+
+```bash
+ruby -r ./scripts/lib/app_intake.rb \
+  -e 'p AppIntake.composition_pattern_for("planning", "pg-build")'
+# => :builder_preview
+```
 
 Do **not** proceed to spec draft until classification, grain keys, a
 write-enabled connection, which fields users may edit, whether the
@@ -203,6 +235,8 @@ Build plan
 - Users edit: <editableFields>
 - Approvals: yes/no — <purpose>
 - Agent: yes/no — <purpose>
+- Composition: <workbench | queue-rail | builder-preview>
+- Work surface: <element> — primary action: <action>
 - Fixture: <fixture>
 ```
 
@@ -278,9 +312,11 @@ connection IDs, folder IDs, or workbook IDs into this skill.
      the review buttons. The empty log table may stay on a hidden page. If
      `approvals.include` is true, keep the recipe's approval/audit layer and
      the allowed decisions from Step B.
-4. Load `../specification/styling.md` as a **library**, not a stamp. A
-   design pass is required — do not ship the fixture's default grid — but
-   do **not** apply the five-pattern exec-dashboard stack (navy hero +
+4. Load [`app-compositions.md`](app-compositions.md), then
+   `../specification/styling.md` as a **library**, not a stamp. Apply the
+   selected design manifest and one operational composition before paint.
+   A design pass is required — do not ship the fixture's default grid —
+   but do **not** apply the five-pattern exec-dashboard stack (navy hero +
    three white KPI cards + `##` section headers) to every app. That stack
    is one composition in `styling.md`, for dashboards.
 
@@ -295,9 +331,18 @@ connection IDs, folder IDs, or workbook IDs into this skill.
 
    `Styling.header` / `section_card` / `gradient_header` and
    `Composition.compose(pattern: :exec)` emit the **dashboard** composition.
-   Do not call them as the generate-app default. Hand-compose layout for
-   this type, or start from the fixture's architecture layout and restyle
-   it.
+   Do not call them as the generate-app default. Use
+   `Composition.compose(pattern: :workbench | :queue_rail |
+   :builder_preview)` or hand-compose layout when none fits. Keep the
+   architecture fixture's element semantics; the composition only changes
+   hierarchy and placement.
+
+   For multiple visible work pages, `:app_header` means the compact
+   identity/navigation/utility shell from `app-compositions.md`, not one
+   oversized title floating above the page. Wrap caller-authored identity,
+   navigation, and utility elements with `Styling.app_shell`; keep the
+   page-task title/subtitle smaller inside the content. Single-page apps may
+   use the identity + utility variant.
 
    | Type | The page is for | What has to be true (not chrome) |
    |---|---|---|
@@ -313,8 +358,11 @@ connection IDs, folder IDs, or workbook IDs into this skill.
    density, and what opens the page from **this** domain and org (GET a
    live workbook's `settings.theme`, or none — most orgs are unthemed).
 
-   Export the page PNG and read it as a user of this app, then against the
-   anti-pattern list. Fail the pass if any of:
+   Run all three passes from `app-compositions.md`: functional,
+   composition, then polish. Export every visible page PNG and read it as a
+   user of this app, then against the anti-pattern list. **Inspect at least two renders**;
+   the second must re-check defects found in the first.
+   Fail the pass if any of:
 
    - a default auto-arrange grid;
    - a clone of the `styling.md` exec-dashboard example;
@@ -334,6 +382,17 @@ connection IDs, folder IDs, or workbook IDs into this skill.
      input table). Approval: cap the queue; do not link every open entity;
    - **broken compile in the PNG** — `null` KPI, `Unknown column`, or
      `Invalid Query` on a measure the page is for.
+   - **truncated primary headers/values**, fewer than roughly six useful
+     queue rows, a row action detached from the selected key, or a large
+     unexplained blank region;
+   - **empty audit/log table as a focal panel** — an append-only log may
+     correctly have zero rows before first use, but keep it hidden, tabbed,
+     compact, or below fold;
+   - controls far from the surface they affect, a decorative chart with no
+     baseline/variance/risk/preview job, or no visually dominant work
+     surface.
+   - a large standalone report title instead of app identity/navigation/
+     utility chrome on a workbook with multiple visible work pages.
 
    Name the design choices in the handoff summary (`composition.md`).
    Do not add a new composition to `styling.md` from a one-off app.
@@ -345,17 +404,36 @@ connection IDs, folder IDs, or workbook IDs into this skill.
      agents enabled. If it does not, degrade to that file's static
      sample-prompt text — never POST a cosmetic `chat` on a gated org.
    - Build with `Richness.agent` + `Richness.chat`
-     (`scripts/lib/richness.rb`). `instructions` is the confirmed
-     `agent.purpose` plus the audience. `dataSources` are the type's
-     recommended element ids that exist on this spec:
+     (`scripts/lib/richness.rb`). `instructions` must encode the confirmed
+     Analyze / Configure / Navigate / Act boundaries and any required tool
+     order. `dataSources` are only confirmed Analyze targets that still
+     exist on this spec:
 
      ```bash
      ruby -r ./scripts/lib/app_intake.rb -e 'p AppIntake.agent_data_sources_for("exception")'
      ```
 
-   - **Read-only is the default:** omit `tools` entirely (not
-     `tools: []`). Add a write tool only if they overrode Act to include
-     one. Any write tool **must** set `requiresApproval: true`.
+   - **Analyze only:** omit `tools` entirely (not `tools: []`).
+   - **Configure / Navigate:** add granular direct action tools — one named
+     task per control group or destination. Use `set-control-value`
+     (`selectionMode: add` for a multi-select), `navigate`, or `select-tab`.
+     These UI-state tools normally do not need approval.
+   - **Act:** inline direct `insert-rows` / `update-rows` / `delete-rows`
+     effect steps and set `requiresApproval: true`. Build them with
+     `Richness.agent_action_tool`, which refuses an unapproved write.
+     Never emit `{kind: sequence, sequenceId: ...}` for a spec-created
+     workbook: sequences can be referenced after a human creates one in the
+     UI, but cannot be defined by the spec and a dangling id rejects POST.
+   - Prefer several narrow tool descriptions (`Set region filters`, then
+     `Open review tab`) over one generic “operate workbook” tool. State
+     sequencing constraints in both agent instructions and tool descriptions.
+     For unrelated page jobs, use separate module-specialist agents.
+   - Include every Act target (or its authoritative audit/read path) in
+     Analyze. After both approved and declined actions, instruct the agent to
+     query that source before claiming current state or row counts. Acceptance
+     is a zero-row delta after decline and exactly-one-row delta after one
+     approved write — conversation history and a tool-success card are not
+     data evidence.
    - Place `chat` as a **supporting rail**, not the focal work surface.
      On planning, replace `txt-agent-rail` on Review & Approve. The grid
      on Build the Plan keeps the wide columns from Step D.4. Several

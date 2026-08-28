@@ -50,6 +50,14 @@ check('header shape: backgroundColor + borderRadius only') do
   header = Styling::DEFAULT_THEME[:header]
   header == { 'backgroundColor' => '#0F172A', 'borderRadius' => 'round' }
 end
+check('app-shell shape is light utility chrome, not the dark rounded hero') do
+  shell = Styling::DEFAULT_THEME[:app_shell]
+  shell == {
+    'backgroundColor' => '#FFFFFF',
+    'borderColor' => '#E2E8F0',
+    'borderWidth' => 1
+  } && !shell.key?('borderRadius')
+end
 
 # Composition.bands — role -> [r0, r1) band descriptors.
 check('Composition.bands: kpi + hero (exec) matches the brief example') do
@@ -144,6 +152,41 @@ check('header: NO-GO container_style emits a bare text element, no container') d
   h = Styling.header(id: 'hdr', title: 'Dashboard', theme: Styling::DEFAULT_THEME,
                       surfaces: Styling::SURFACES.merge(container_style: false))
   h[:element].length == 1 && h[:element][0]['kind'] == 'text' && !h[:layout].include?('Container')
+end
+
+check('app_shell: identity/nav/utility use 6/11/7 columns in a light container') do
+  shell = Styling.app_shell(
+    id: 'app-shell', identity_id: 'identity', navigation_id: 'nav', utility_id: 'utility'
+  )
+  shell[:element] == {
+    'id' => 'app-shell',
+    'kind' => 'container',
+    'style' => Styling::DEFAULT_THEME[:app_shell]
+  } &&
+    shell[:layout].include?('elementId="identity" gridColumn="1 / 7"') &&
+    shell[:layout].include?('elementId="nav" gridColumn="7 / 18"') &&
+    shell[:layout].include?('elementId="utility" gridColumn="18 / 25"')
+end
+check('app_shell: identity + utility redistribute to 12/12') do
+  shell = Styling.app_shell(id: 'app-shell', identity_id: 'identity', utility_id: 'utility')
+  shell[:layout].include?('elementId="identity" gridColumn="1 / 13"') &&
+    shell[:layout].include?('elementId="utility" gridColumn="13 / 25"')
+end
+check('app_shell: NO-GO container style emits positioned leaves and no wrapper') do
+  shell = Styling.app_shell(
+    id: 'app-shell', identity_id: 'identity', navigation_id: 'nav',
+    surfaces: Styling::SURFACES.merge(container_style: false)
+  )
+  shell[:element].nil? && !shell[:layout].include?('<Container') &&
+    shell[:layout].scan('<Element').size == 2
+end
+check('app_shell rejects duplicate child ids') do
+  begin
+    Styling.app_shell(id: 'app-shell', identity_id: 'same', navigation_id: 'same')
+    false
+  rescue ArgumentError
+    true
+  end
 end
 
 check('section_card: container-style GO wraps band ids in a themed card Container') do

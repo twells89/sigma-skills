@@ -4,7 +4,11 @@
 # form (no Container). Ruby 2.6+, stdlib only. Golden-tested output lives
 # in scripts/lib/testdata/composition_*_golden.txt (see test_composition.rb).
 module Composition
-  ROLES = %i[control kpi insight hero supporting table master detail header kpi2 trend pivot base].freeze
+  ROLES = %i[
+    control kpi insight hero supporting table master detail header kpi2 trend
+    pivot base app_header action_bar context work_surface summary footer queue
+    rail builder preview
+  ].freeze
 
   # Roles each pattern actually places. A role that resolves (explicitly or via
   # inference) to something OUTSIDE its chosen pattern's set used to be silently
@@ -13,6 +17,9 @@ module Composition
   EXEC_ROLES = %i[control kpi insight hero supporting table].freeze
   MASTER_DETAIL_ROLES = %i[control master detail].freeze
   OVERVIEW_ROLES = %i[header control kpi kpi2 trend pivot base].freeze
+  WORKBENCH_ROLES = %i[app_header action_bar context work_surface summary footer].freeze
+  QUEUE_RAIL_ROLES = %i[app_header action_bar queue rail footer].freeze
+  BUILDER_PREVIEW_ROLES = %i[app_header action_bar builder preview summary footer].freeze
 
   # kind -> role inference (used when an element has no explicit :role). Chart
   # kinds default to :supporting; callers wanting a :hero must tag it explicitly.
@@ -35,6 +42,26 @@ module Composition
                           'element(s) in one band' if page_cols % n != 0
     w = page_cols / n
     elements.each_with_index.map { |el, i| le(el[:id], i * w + 1, i * w + 1 + w, r0, r1) }
+  end
+
+  # Operational app compositions need a clear primary surface, not another
+  # evenly split dashboard row. Place one optional supporting element on the
+  # left and one required primary element on the right. If either side is
+  # absent, the remaining element takes the full width.
+  def self.weighted_pair(left, right, r0, r1, page_cols, left_cols)
+    [left, right].each do |group|
+      raise ArgumentError, 'compose: weighted pair accepts at most one element per side' if group.size > 1
+    end
+    return [] if left.empty? && right.empty?
+    return [le((left + right).first[:id], 1, page_cols + 1, r0, r1)] if left.empty? || right.empty?
+    unless left_cols.positive? && left_cols < page_cols
+      raise ArgumentError, "compose: left_cols must be between 1 and #{page_cols - 1}"
+    end
+
+    [
+      le(left.first[:id], 1, left_cols + 1, r0, r1),
+      le(right.first[:id], left_cols + 1, page_cols + 1, r0, r1)
+    ]
   end
 
   def self.roleize(elements)
@@ -91,6 +118,21 @@ module Composition
       [[:header, 3], [:control, 2], [:kpi, 8], [:kpi2, 8], [:trend, 12], [:pivot, 14], [:base, 9]].each do |role, h|
         add.call(role, by[role], h)
       end
+    when :workbench
+      check_pattern_roles!(roleized, 'workbench', WORKBENCH_ROLES)
+      [[:app_header, 3], [:action_bar, 3]].each { |role, h| add.call(role, by[role], h) }
+      add.call(:workbench, by[:context] + by[:work_surface], 18)
+      [[:summary, 8], [:footer, 4]].each { |role, h| add.call(role, by[role], h) }
+    when :queue_rail
+      check_pattern_roles!(roleized, 'queue_rail', QUEUE_RAIL_ROLES)
+      [[:app_header, 3], [:action_bar, 3]].each { |role, h| add.call(role, by[role], h) }
+      add.call(:queue_rail, by[:queue] + by[:rail], 22)
+      add.call(:footer, by[:footer], 4)
+    when :builder_preview
+      check_pattern_roles!(roleized, 'builder_preview', BUILDER_PREVIEW_ROLES)
+      [[:app_header, 3], [:action_bar, 3]].each { |role, h| add.call(role, by[role], h) }
+      add.call(:builder_preview, by[:builder] + by[:preview], 24)
+      [[:summary, 8], [:footer, 4]].each { |role, h| add.call(role, by[role], h) }
     else
       raise ArgumentError, "compose: unknown pattern #{pattern.inspect}"
     end
@@ -125,11 +167,59 @@ module Composition
     render_bands(elements, :overview, page_cols)
   end
 
+  def self.compose_operational(elements, pattern, page_cols)
+    roleized = roleize(elements)
+    by = Hash.new { |h, k| h[k] = [] }
+    roleized.each { |e| by[e[:role]] << e }
+    allowed, pair_roles, left_cols, heights = case pattern
+                                              when :workbench
+                                                [WORKBENCH_ROLES, %i[context work_surface], 8,
+                                                 { app_header: 3, action_bar: 3, pair: 18,
+                                                   summary: 8, footer: 4 }]
+                                              when :queue_rail
+                                                [QUEUE_RAIL_ROLES, %i[queue rail], 17,
+                                                 { app_header: 3, action_bar: 3, pair: 22,
+                                                   footer: 4 }]
+                                              when :builder_preview
+                                                [BUILDER_PREVIEW_ROLES, %i[builder preview], 7,
+                                                 { app_header: 3, action_bar: 3, pair: 24,
+                                                   summary: 8, footer: 4 }]
+                                              end
+    check_pattern_roles!(roleized, pattern.to_s, allowed)
+    required_roles = case pattern
+                     when :workbench then %i[work_surface]
+                     when :queue_rail then %i[queue]
+                     when :builder_preview then %i[builder preview]
+                     end
+    missing = required_roles.select { |role| by[role].empty? }
+    unless missing.empty?
+      raise ArgumentError, "compose: pattern #{pattern} requires role(s) #{missing.join(', ')}"
+    end
+    row = 1
+    out = []
+    %i[app_header action_bar].each do |role|
+      next if by[role].empty?
+      out.concat(band(by[role], row, row + heights[role], page_cols))
+      row += heights[role]
+    end
+    out.concat(weighted_pair(by[pair_roles[0]], by[pair_roles[1]], row,
+                             row + heights[:pair], page_cols, left_cols))
+    row += heights[:pair] unless by[pair_roles[0]].empty? && by[pair_roles[1]].empty?
+    %i[summary footer].each do |role|
+      next if by[role].empty? || heights[role].nil?
+      out.concat(band(by[role], row, row + heights[role], page_cols))
+      row += heights[role]
+    end
+    out.join("\n")
+  end
+
   def self.compose(elements, pattern: :exec, page_cols: 24)
     case pattern.to_sym
     when :exec then compose_exec(elements, page_cols)
     when :master_detail then compose_master_detail(elements, page_cols)
     when :overview then compose_overview(elements, page_cols)
+    when :workbench, :queue_rail, :builder_preview
+      compose_operational(elements, pattern.to_sym, page_cols)
     else raise ArgumentError, "compose: unknown pattern #{pattern.inspect}"
     end
   end
