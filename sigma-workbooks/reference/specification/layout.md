@@ -68,10 +68,13 @@ Use `<Container>` for any tag with nested children — a `<Element>` only render
 A `kind: "container"` entry in `document.elements[]` is a grouping placeholder
 — a labeled section, branded background, or KPI row. It renders only through a
 matching `<Container>`. Containers expose `style` (background color, border,
-corner radius, padding), top-level `backgroundImage`, and child spacing:
+corner radius, padding), top-level `backgroundImage`, child spacing —
 `elementGap` (`shown` / `hidden`) plus `spacing`
-(`small` / `medium` / `large`). Pull the current schema before using additional
-fields.
+(`small` / `medium` / `large`) — and `conditionalFormats` (background colour by
+formula; shape and gotchas under
+[`conditionalFormats`](#conditionalformats--card-background-colour-by-formula) in
+the repeated-container section, which shares it). Pull the current schema before
+using additional fields.
 
 ```bash
 jq --arg k container 'first(.. | objects | select((.allOf? and any(.allOf[]?; .properties?.kind?.enum==[$k])) or .properties?.kind?.enum==[$k]))' /tmp/sigma-api.json
@@ -100,9 +103,9 @@ jq --arg k container 'first(.. | objects | select((.allOf? and any(.allOf[]?; .p
 
 A **repeated container** is a first-class element kind: one card (or list row)
 rendered once per row of a source. The element and its `<Container>` layout are
-spec-authorable; use an unbound/plain child when probing the rest of the
-contract. Dynamic row binding currently has the API regression documented
-below and must stay gated.
+spec-authorable, as are per-card styling and conditional formatting. The one
+thing still broken is the **per-row field reference** — see *Binding children to
+the row* below; everything else in dynamic text works.
 
 ```yaml
 - id: rc
@@ -113,10 +116,65 @@ below and must stay gated.
   cardStyle:
     backgroundColor: "#EEF2F7"
     borderRadius: round      # square | round | pill
+    backgroundImage:                       # URL-only — uploads rejected here
+      source: { kind: url, url: "https://cdn.example.com/card.png" }
+      style: { fit: contain, tiling: none }
+  conditionalFormats:
+    - id: cf1
+      formula: "1 = 1"                     # must be a real comparison, see below
+      config: { backgroundColor: "#00C853" }
   noDataText: No rows yet
 ```
 
-Required: `id`, `kind`, `source`. `source` takes the usual union — `table` (another element, via `elementId`), `warehouse-table`, `data-model`, `sql`, `join`, `union`, `csv-table`, `metric-view`, `semantic-view`, `transpose`. Optional: `arrangement`, `cardSize`, `cardGap` / `cardSpacing`, `elementGap` / `elementSpacing`, `scroll` (`vertical` | `horizontal` | `none`), `filters`, `sort`, `noDataText`, `style`, `cardStyle`.
+Required: `id`, `kind`, `source`. `source` takes the usual union — `table` (another element, via `elementId`), `warehouse-table`, `data-model`, `sql`, `join`, `union`, `csv-table`, `metric-view`, `semantic-view`, `transpose`. Optional: `arrangement`, `cardSize`, `cardGap` / `cardSpacing`, `elementGap` / `elementSpacing`, `scroll` (`vertical` | `horizontal` | `none`), `filters`, `sort`, `noDataText`, `style`, `cardStyle` (including `cardStyle.backgroundImage`), `conditionalFormats`, `actions`.
+
+### `cardStyle.backgroundImage` — per-card background image
+
+Live as of 2026-08-28. The card background is **URL-only**: `source` must
+be `{kind: url, url}`. An `{kind: upload, key}` handle — valid on a plain
+container's `backgroundImage` — is rejected here (`cardStyle.backgroundImage.source.kind:
+Invalid "url": string`), which keeps the write path synchronous. `style` takes the
+usual `fit` / `horizontalAlign` / `verticalAlign` / `tiling`.
+
+The URL accepts `{{formula}}` dynamic text, but **references are not validated on
+this path**: a nonexistent column, a nonexistent element, and even unparseable
+garbage all pass `/verify` *and* `POST`, then round-trip verbatim. The same
+reference in a text `body` hard-errors. Render the page to check a dynamic card
+background — readback cannot tell you whether it resolved.
+
+Two live quirks when it does resolve: a per-row column reference interpolates to
+the literal string `null` (see the row-binding note below), and value formatting
+differs by surface — `{{Today()}}` renders `2026-08-28` in a text `body` but raw
+epoch `1787875200000` in a background URL.
+
+### `conditionalFormats` — card background colour by formula
+
+Also live as of 2026-08-28. Same shape on `kind: container` and
+`kind: repeated-container`, and
+**different from the table/pivot `conditionalFormats`** in `tables.md`:
+
+```yaml
+conditionalFormats:
+  - id: cf1
+    formula: '[MyControl] = "North"'   # boolean formula
+    config:
+      backgroundColor: "#2962FF"       # `config` is REQUIRED, not `style`
+```
+
+Rules are evaluated in order; the first match wins, overriding
+`style.backgroundColor` / `cardStyle.backgroundColor`.
+
+- **`config` is required** and its only field is `backgroundColor`. Writing
+  `style: {backgroundColor: ...}` instead is silently dropped.
+- **The formula must be a real comparison.** `1 = 1` fires; **`True()` is accepted
+  by `/verify` and `POST`, round-trips cleanly, and never fires** — verified
+  side-by-side on a plain container, so it is not repeater-specific.
+- **Control/parameter references work** (`[MyControl] = "North"`), which is the
+  practical way to get per-card colour that responds to user input today.
+  Per-row *column* references silently evaluate false.
+- Repeater support is gated on the `repeater_cond_formatting` org flag; when it is
+  off, a write is rejected and a read omits the field even if the store has rules.
+  Container support is unconditional.
 
 ### Binding children to the row — the derived name
 
@@ -132,20 +190,56 @@ So a source element named `Star Events` yields
 `{{[Star Events repeated container/Repo Name]}}`. Columns are referenced by
 their `name`, not their `id`.
 
-> **Known API regression (live 2026-08-08):** that exact, correctly derived
-> target is present in existing GET readbacks, proving it is a real
-> representation. However, both `/v2/workbooks/spec/verify` and
-> `POST /v2/workbooks/spec` currently reject a replay with
-> `Dependency not found: 'Star Events repeated container/Repo Name'`. Do not
-> mark bound repeated-container authoring green until both paths accept it.
-> `scripts/probe-release-contract.rb` keeps a plain child in its main
-> create/readback and runs this binding as a separate strict expected-regression
-> check.
+> **Known API regression — still open, re-probed live 2026-08-28.** That exact,
+> correctly derived target is present in existing GET readbacks, proving it is a
+> real representation, but both `/v2/workbooks/spec/verify` and
+> `POST /v2/workbooks/spec` reject a replay with
+> `Dependency not found: 'star events repeated container/repo name'`. A fix is in
+> flight upstream but **has not shipped** as of 2026-08-28 — re-probe both paths
+> before marking bound repeated-container authoring green.
+>
+> The trap is that the *wrong* forms are the ones that pass. Per-syntax, for a
+> `text` child of a repeater over a source element named `Regions`:
+>
+> | Reference | Result |
+> | --- | --- |
+> | `{{[Region]}}` (bare) | accepted, renders **`Multiple values`** |
+> | `{{[src-tbl/Region]}}` (source element **id**) | accepted, renders **`Multiple values`** |
+> | `{{[Regions/Region]}}` (source element **name**) | accepted, renders **`Multiple values`** |
+> | `{{[Regions repeated container/Region]}}` (derived, correct) | **rejected** — `Dependency not found` |
+> | `{{[rc/Region]}}` (repeater element id) | **rejected** — `Dependency not found` |
+> | `{{[Regions].[Region]}}` (dotted) | **rejected** — `Expected exactly one parsed formula … got 0` |
+>
+> So the three accepted forms write clean, read back clean, and then render
+> `Multiple values` identically in every card. **Only a rendered PNG catches
+> this** — `scripts/wb-rep.rb render <dir>` (see
+> `reference/workflows/element-rep.md`), or the export API. In a card background
+> URL the same reference interpolates to the literal string `null` instead.
 >
 > The virtual target is synthesized and therefore is not declared in
 > `document.elements[]`; local dangling-reference checks must not reject it.
 > Using the repeated-container element id, such as `[rc/<column>]`, is still
 > incorrect.
+>
+> `scripts/probe-release-contract.rb` keeps a plain child in its main
+> create/readback and runs this binding as a separate strict expected-regression
+> check.
+
+### Dynamic text that *does* work in a card
+
+Row references are the only broken form. Verified by render, 2026-08-28, in a
+single `text` element that is a child of the repeater:
+
+| Reference | Renders |
+| --- | --- |
+| `{{Today()}}` — scope-free function | `2026-08-28` |
+| `{{[MyControl]}}` — control / parameter ref (works cross-page) | the control's value |
+| `{{Sum([Regions/Amount])}}` — aggregate over the repeater's own source | the total |
+| `{{[Regions/Region]}}` — the current row's field | `Multiple values` ✗ |
+
+Build cards from control references and aggregates today; per-row values wait on
+the upstream fix above. This is also why control-driven `conditionalFormats` is
+the working way to vary card colour.
 
 ### Layout XML
 
