@@ -31,6 +31,18 @@ and may retain nested `pages[].elements`.
 The verify endpoint catches representation and dependency errors without
 persistence.
 
+> **`/verify` wants the CREATE shape, even when you are validating an update.**
+> It requires the outer `name` + `folderId` alongside `document`. Handing it a
+> PUT-shaped body (`{document: {...}}` alone) fails with
+> `Expecting string at 0.name but instead got: undefined, Expecting UUID at
+> 0.folderId but instead got: undefined` — which reads like a spec error but is
+> only the envelope. To pre-validate a PUT payload, prepend a throwaway shim:
+>
+> ```bash
+> { echo "name: verify-shim"; echo "folderId: $FOLDER_ID"; cat put-body.yaml; } \
+>   > /tmp/verify-body.yaml
+> ```
+
 ## 3. Offline validation
 
 ```bash
