@@ -178,10 +178,10 @@
     "kind": "pivot-table",
     "rowsBy": [
       {
-        "id": "piv-region"
+        "columnId": "piv-region"
       },
       {
-        "id": "piv-category"
+        "columnId": "piv-category"
       }
     ],
     "source": {
