@@ -238,15 +238,14 @@ end
 def capability_probe_elements
   search_source = {
     'id' => 'search-source', 'kind' => 'table', 'name' => 'Search Source',
-    'source' => warehouse_source,
+    'source' => {
+      'kind' => 'data-model', 'dataModelId' => REPEATER_DATA_MODEL_ID,
+      'elementId' => REPEATER_ELEMENT_ID
+    },
     'columns' => [
       {
-        'id' => 'product-name', 'name' => 'Product Name',
-        'formula' => '[F_POINT_OF_SALE/PRODUCT_NAME]'
-      },
-      {
-        'id' => 'sales-amount', 'name' => 'Sales Amount',
-        'formula' => '[F_POINT_OF_SALE/SALES_AMOUNT]'
+        'id' => 'repo-name', 'name' => 'Repo Name',
+        'formula' => '[GITHUB_STAR_EVENTS/Repo Name]'
       }
     ]
   }
@@ -259,7 +258,7 @@ def capability_probe_elements
     'filters' => [
       {
         'source' => { 'kind' => 'table', 'elementId' => 'search-source' },
-        'columnId' => 'product-name'
+        'columnId' => 'repo-name'
       }
     ]
   }
@@ -268,8 +267,8 @@ def capability_probe_elements
     'source' => warehouse_source,
     'columns' => [
       {
-        'id' => 'hm-product', 'name' => 'Product Name',
-        'formula' => '[F_POINT_OF_SALE/PRODUCT_NAME]'
+        'id' => 'hm-product', 'name' => 'Product Key',
+        'formula' => '[F_POINT_OF_SALE/PRODUCT_KEY]'
       },
       {
         'id' => 'hm-sales', 'name' => 'Sales Amount',
@@ -286,15 +285,15 @@ def capability_probe_elements
   }
   heatmap_pivot = {
     'id' => 'heatmap-pivot', 'kind' => 'pivot-table', 'name' => 'Heatmap Pivot',
-    'source' => { 'kind' => 'table', 'elementId' => 'search-source' },
+    'source' => { 'kind' => 'table', 'elementId' => 'heatmap-table' },
     'columns' => [
       {
-        'id' => 'pv-product', 'name' => 'Product Name',
-        'formula' => '[Search Source/Product Name]'
+        'id' => 'pv-product', 'name' => 'Product Key',
+        'formula' => '[Heatmap Table/Product Key]'
       },
       {
         'id' => 'pv-sales', 'name' => 'Sales Amount',
-        'formula' => 'Sum([Search Source/Sales Amount])'
+        'formula' => 'Sum([Heatmap Table/Sales Amount])'
       }
     ],
     'values' => ['pv-sales'],
@@ -309,19 +308,16 @@ def capability_probe_elements
   }
   selected_key = {
     'id' => 'selected-product', 'kind' => 'control',
-    'controlId' => 'SelectedProduct', 'controlType' => 'text',
-    'name' => 'Selected product',
-    'mode' => 'equals', 'case' => 'insensitive',
-    'includeNulls' => 'when-no-value-is-selected',
-    'showOperators' => false
+    'controlId' => 'SelectedProduct', 'controlType' => 'number',
+    'name' => 'Selected product', 'mode' => '=', 'value' => 0
   }
   select_table = {
     'id' => 'select-table', 'kind' => 'table', 'name' => 'Select Table',
     'source' => warehouse_source,
     'columns' => [
       {
-        'id' => 'sel-product', 'name' => 'Product Name',
-        'formula' => '[F_POINT_OF_SALE/PRODUCT_NAME]'
+        'id' => 'sel-product', 'name' => 'Product Key',
+        'formula' => '[F_POINT_OF_SALE/PRODUCT_KEY]'
       },
       {
         'id' => 'sel-sales', 'name' => 'Sales Amount',
@@ -340,7 +336,7 @@ def capability_probe_elements
             'selectionMode' => 'replace',
             'value' => {
               'type' => 'formula',
-              'formula' => '[Selection/Product Name]'
+              'formula' => '[Selection/Product Key]'
             }
           },
           {
@@ -351,7 +347,7 @@ def capability_probe_elements
             },
             'value' => {
               'type' => 'formula',
-              'formula' => '[Selection/Product Name]'
+              'formula' => '[Selection/Product Key]'
             }
           }
         ]
@@ -371,7 +367,7 @@ def capability_probe_elements
   {
     'text contains search' => [search_source, contains_search],
     'table backgroundScale heatmap' => [heatmap_table],
-    'pivot backgroundScale heatmap' => [search_source, heatmap_pivot],
+    'pivot backgroundScale heatmap' => [heatmap_table, heatmap_pivot],
     'table on-select to control and single-row detail' => [
       selected_key, select_table, record_detail, detail_text
     ]
