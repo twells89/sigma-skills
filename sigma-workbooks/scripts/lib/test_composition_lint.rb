@@ -100,11 +100,10 @@ ledger_els = [
 check('ledger layout lints clean') do
   CompositionLint.check(Composition.compose(ledger_els, pattern: :ledger)).empty?
 end
-check('mosaic is a non-band layout (primary spans both right panes) — linter flags overlap') do
-  errs = CompositionLint.check(
+check('mosaic layout lints clean across staggered row boundaries') do
+  CompositionLint.check(
     Composition.mosaic(primary: 'deep', top_right: 'a', bottom_right: 'b')
-  )
-  errs.any? { |e| e =~ /overlap|gap|vertical/i }
+  ).empty?
 end
 check('exec layout with height-13 supporting band still lints clean') do
   CompositionLint.check(

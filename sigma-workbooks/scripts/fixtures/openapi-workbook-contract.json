@@ -1511,8 +1511,7 @@
           "verticalAlign"
         ],
         "present": true,
-        "bodySupportsFormula": true,
-        "bodyDescription": "Markdown body. Supports a deliberate subset: paragraphs, headings (#, ##, ###), bullet/ordered lists, soft and hard breaks, **bold**, *italic*, ~~strikethrough~~, [links](url) (open in a new window by default; use <a href=\"url\" target=\"_self\"> for same-window), inline HTML <u>/<sub>/<sup>/<span style=\"...\"> carrying any of color, background-color (hex), font-size (integer px), and font-family, plus {{formula}} segments (same {{ast | fmt}} syntax used by element titles). Paragraph alignment and the p-large/p-small block styles use a <p> wrapper, e.g. <p class=\"p-large\" style=\"text-align: center\">…</p> (aligned headings too: <p class=\"h-med\" style=\"text-align: center\">…</p>); unaligned headings stay #/##/### and default paragraphs stay bare. UI-authored features outside this subset (list-item color) come back as their closest supported neighbor on read."
+        "bodySupportsFormula": true
       },
       "repeated-container": {
         "required": [
