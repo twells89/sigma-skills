@@ -226,7 +226,8 @@ Write the spec YAML to disk (e.g., `/tmp/workbook-spec.yaml`). YAML is preferred
 - Emit `<Element>` for layout leaves and `<Container>` for nested grids,
   including repeated-container elements. `<TabbedContainer>` / `<Tab>` remain
   valid. Never emit the legacy `<LayoutElement>` / `<GridContainer>` aliases;
-  live verification rejects `<LayoutElement>` with HTTP 400.
+  live verification rejects `<LayoutElement>` (`valid:false`; some API
+  versions returned HTTP 400 instead).
 - Start with 1–2 pages. Add more later via update.
 
 For **create**, include outer `name`/`folderId` and `document` with required

@@ -449,8 +449,9 @@ legacy_layout = create_spec(
 legacy_layout['document']['layout'] =
   legacy_layout.dig('document', 'layout').sub('<Element ', '<LayoutElement ')
 code, result = json_request(:post, '/v2/workbooks/spec/verify', legacy_layout)
-check_response!('verify rejects legacy <LayoutElement> with HTTP 400', code, result) do
-  code == 400
+check_response!('verify rejects legacy <LayoutElement>', code, result) do
+  rejected = code == 400 || (code.between?(200, 299) && result['valid'] == false)
+  rejected && JSON.generate(result).include?('LayoutElement')
 end
 
 all_elements = elements(repeater_binding: false)

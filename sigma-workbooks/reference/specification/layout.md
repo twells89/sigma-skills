@@ -36,7 +36,8 @@ membership from the order of `document.elements`.
 
 Live GET specs and `/verify` use `<Element>` for leaves and `<Container>` for
 nested grids (confirmed 2026-08-08). Emit those exact names.
-`<LayoutElement>` is not a synonym on the wire—it causes HTTP 400.
+`<LayoutElement>` is not a synonym on the wire—`/verify` rejects it as
+`valid:false` (some API versions returned HTTP 400 instead).
 `<GridContainer>` is likewise a legacy captured-artifact alias, not authoring
 syntax. Local parsers may read those aliases only to migrate old snapshots.
 
