@@ -6,36 +6,154 @@ require_relative 'composition'
 require 'base64'
 
 module Styling
-  # One professional, host-agnostic palette. No branding.
-  DEFAULT_THEME = {
-    categorical: %w[#2563EB #0EA5E9 #14B8A6 #F59E0B #8B5CF6 #EF4444 #10B981 #64748B],
-    ink: '#0F172A', muted: '#64748B',
-    # Verified live: field is borderRadius ("round"), borderColor/borderWidth;
-    # do NOT put padding alongside border fields (POST 400).
-    card: { 'backgroundColor' => '#FFFFFF', 'borderColor' => '#E2E8F0',
-            'borderWidth' => 1, 'borderRadius' => 'round' },
-    header: { 'backgroundColor' => '#0F172A', 'borderRadius' => 'round' },
-    # Compact operational app shell. Unlike :header this is deliberately
-    # light, square, and utility-shaped — app identity/navigation/context,
-    # not a dashboard hero.
-    app_shell: { 'backgroundColor' => '#FFFFFF', 'borderColor' => '#E2E8F0',
-                 'borderWidth' => 1 },
-    accent: '#2563EB',
-    # Neutral 3-stop gradient (dark slate -> navy -> accent blue) for
-    # Styling.gradient_header. NOT red -- red is a caller override, same
-    # discipline as theme(accent:) tinting the flat palette above.
-    header_gradient: %w[#0F172A #1E3A8A #2563EB],
-    # Live-render fix: dark default so Styling.gradient_card's `gradient:`
-    # can be omitted -- a caller with no brand gradient in mind still gets a
-    # legible dark card (paired with the scrim in compose_card_svg below,
-    # white KPI text stays legible either way).
-    card_gradient: %w[#1E293B #0F172A]
+  # Authoring-only semantic color roles. Resolve to hex / theme refs before
+  # any value is written into a Sigma spec field — never
+  # serialize these role names as invented Sigma fields.
+  ROLE_NAMES = %i[
+    canvas ink body muted hairline fill
+    series series-mid series-grey primary tint edge
+  ].freeze
+
+  # Map roles onto the current verified palette (same hexes DEFAULT_THEME
+  # historically carried). Not a new design system — one indirection layer.
+  DEFAULT_ROLES = {
+    canvas: '#FFFFFF',           # page / app-shell surface
+    ink: '#0F172A',              # hero band + primary dark
+    body: '#1E293B',             # dark slate (card_gradient start)
+    muted: '#64748B',            # secondary text + quiet labels
+    hairline: '#E2E8F0',         # card / shell borders
+    fill: '#FFFFFF',             # card fill
+    series: '#2563EB',           # categorical slot 0
+    :'series-mid' => '#0EA5E9',  # categorical slot 1
+    :'series-grey' => '#64748B', # categorical slot 7
+    primary: '#2563EB',          # accent / KPI title
+    tint: '#1E3A8A',             # navy mid-stop (header_gradient)
+    edge: '#FFFFFF'              # on-dark title / high-contrast edge
   }.freeze
 
-  # Returns a theme; an accent override tints categorical slot 0 + accent.
-  def self.theme(accent: nil)
-    return DEFAULT_THEME if accent.nil? || accent.to_s.empty?
-    t = Marshal.load(Marshal.dump(DEFAULT_THEME))         # deep copy (stdlib)
+  # Categorical slots 2..6 stay fixed verified hues (no dedicated roles).
+  CATEGORICAL_MID = %w[#14B8A6 #F59E0B #8B5CF6 #EF4444 #10B981].freeze
+
+  HEX_COLOR = /\A#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?\z/.freeze
+
+  def self.role_key(name)
+    name.is_a?(Symbol) ? name : name.to_s.to_sym
+  end
+  private_class_method :role_key
+
+  # Deep-copy a roles hash without mutating the input. Keys normalized to symbols.
+  def self.copy_roles(roles)
+    out = {}
+    roles.each { |k, v| out[role_key(k)] = (v.is_a?(Hash) ? v.dup : v) }
+    out
+  end
+  private_class_method :copy_roles
+
+  # Merge caller overrides onto a base role map. Never mutates base or overrides.
+  def self.merge_roles(base, overrides)
+    return copy_roles(base) if overrides.nil? || overrides.empty?
+    merged = copy_roles(base)
+    overrides.each { |k, v| merged[role_key(k)] = (v.is_a?(Hash) ? v.dup : v) }
+    merged
+  end
+  private_class_method :merge_roles
+
+  # True when `value` is already a supported Sigma color payload for a concrete
+  # color field: hex or `{kind:"theme",ref:}`.
+  def self.resolved_color?(value)
+    case value
+    when String
+      value.match?(HEX_COLOR)
+    when Hash
+      kind = value['kind'] || value[:kind]
+      ref = value['ref'] || value[:ref]
+      kind.to_s == 'theme' && !ref.nil? && !ref.to_s.empty?
+    else
+      false
+    end
+  end
+  private_class_method :resolved_color?
+
+  # Resolve an authoring role (or an already-resolved color) against a role map.
+  # Returns hex / theme-ref only — never a bare role name.
+  def self.resolve(role, roles: DEFAULT_ROLES)
+    return role.dup if role.is_a?(Hash) && resolved_color?(role)
+    return role if role.is_a?(String) && resolved_color?(role)
+    key = role_key(role)
+    map = roles.equal?(DEFAULT_ROLES) ? DEFAULT_ROLES : merge_roles(DEFAULT_ROLES, roles)
+    unless map.key?(key)
+      raise ArgumentError, "resolve: unknown role #{role.inspect}"
+    end
+    value = map[key]
+    unless resolved_color?(value)
+      raise ArgumentError, "resolve: role #{key.inspect} maps to unsupported color #{value.inspect}"
+    end
+    value.is_a?(Hash) ? value.dup : value
+  end
+
+  def self.validate_role_overrides!(roles)
+    return if roles.nil? || roles.empty?
+    normalized = copy_roles(roles)
+    unknown = normalized.keys - ROLE_NAMES
+    unless unknown.empty?
+      raise ArgumentError, "theme: unknown role override(s) #{unknown.map(&:inspect).join(', ')}"
+    end
+    normalized.each do |role, value|
+      next if value.is_a?(String) && value.match?(HEX_COLOR)
+      raise ArgumentError, "theme: role #{role.inspect} must map to hex (got #{value.inspect})"
+    end
+  end
+  private_class_method :validate_role_overrides!
+
+  # Build the compatibility theme shape from a (possibly overridden) role map.
+  def self.theme_from_roles(roles)
+    r = roles
+    {
+      categorical: [
+        r[:series], r[:'series-mid'],
+        *CATEGORICAL_MID,
+        r[:'series-grey']
+      ],
+      ink: r[:ink], muted: r[:muted],
+      # Verified live: field is borderRadius ("round"), borderColor/borderWidth;
+      # do NOT put padding alongside border fields (POST 400).
+      card: { 'backgroundColor' => r[:fill], 'borderColor' => r[:hairline],
+              'borderWidth' => 1, 'borderRadius' => 'round' },
+      header: { 'backgroundColor' => r[:ink], 'borderRadius' => 'round' },
+      # Compact operational app shell. Unlike :header this is deliberately
+      # light, square, and utility-shaped — app identity/navigation/context,
+      # not a dashboard hero.
+      app_shell: { 'backgroundColor' => r[:canvas], 'borderColor' => r[:hairline],
+                   'borderWidth' => 1 },
+      accent: r[:primary],
+      # Neutral 3-stop gradient (dark slate -> navy -> accent blue) for
+      # Styling.gradient_header. NOT red -- red is a caller override, same
+      # discipline as theme(accent:) tinting the flat palette above.
+      header_gradient: [r[:ink], r[:tint], r[:primary]],
+      # Live-render fix: dark default so Styling.gradient_card's `gradient:`
+      # can be omitted -- a caller with no brand gradient in mind still gets a
+      # legible dark card (paired with the scrim in compose_card_svg below,
+      # white KPI text stays legible either way).
+      card_gradient: [r[:body], r[:ink]]
+    }
+  end
+  private_class_method :theme_from_roles
+
+  # One professional, host-agnostic palette. Derived from DEFAULT_ROLES so the
+  # compatibility shape stays byte-identical to the historical DEFAULT_THEME.
+  DEFAULT_THEME = theme_from_roles(DEFAULT_ROLES).freeze
+
+  # Returns a theme derived from roles. `roles:` is a partial or full role→color
+  # map (caller-owned — never mutated). `accent:` tints categorical slot 0 +
+  # accent (same contract as before).
+  def self.theme(accent: nil, roles: nil)
+    validate_role_overrides!(roles)
+    if (roles.nil? || roles.empty?) && (accent.nil? || accent.to_s.empty?)
+      return DEFAULT_THEME
+    end
+    base_roles = merge_roles(DEFAULT_ROLES, roles)
+    t = theme_from_roles(base_roles)
+    return t if accent.nil? || accent.to_s.empty?
     t[:categorical] = [accent.to_s] + t[:categorical][1..-1]
     t[:accent] = accent.to_s
     t

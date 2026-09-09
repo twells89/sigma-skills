@@ -53,6 +53,12 @@ never an override of a user's stated branding or a migration's source fidelity.*
 - [ ] **No grid breaks** — the same 2–3-column chart row repeats down the whole page ("spreadsheet of
       cards"). Change the layout when the section's purpose changes: hero row → section header → paired
       charts → full-width detail. See Recipe 3 (section headers) and the composition pattern.
+- [ ] **The same thing said or charted twice** — lockup, eyebrow, element title, and card label repeat
+      the same words, or two charts encode the same measure at the same grain. Give each text layer one
+      job and remove the duplicate chart; a different color or chart kind is not new information.
+- [ ] **Wide-table squeeze** — more than roughly ten visible columns force the identifier column to
+      truncate. Keep the name/key plus decision-critical fields and move the rest to a selected-record
+      detail surface; do not widen the whole page to preserve every field.
 - [ ] **Decorative accent overuse** — the accent color is sprayed onto every card, tint, and surface, so
       nothing stands out. Reserve it: tint the hero band and the primary KPI label, default the rest to the
       neutral card surface (`#FBFBFB`/`#FAFBFC`, not pure white). **Carry *one* accent system through the
@@ -169,42 +175,53 @@ entry controls, prefer Light or that org theme — do not default to Dark.
 
 ## Vetted color palette
 
-Use this Tailwind-derived modern palette unless the customer has specified branding:
+Use this Tailwind-derived modern palette unless the customer has specified branding.
+**Author against semantic roles** (`Styling::DEFAULT_ROLES` / `Styling.resolve`); emit only
+resolved hex or `{kind: theme, ref: …}` in a concrete color field. Theme/chart
+helpers may assemble those resolved colors into a supported categorical array.
+Never write role names into Sigma color fields.
 
-```
-Primary blue:   #3B82F6
-Green:          #10B981
-Amber:          #F59E0B
-Red:            #EF4444
-Purple:         #8B5CF6
-Cyan:           #06B6D4
+| Role | Resolves to | Use |
+|---|---|---|
+| `canvas` | `#FFFFFF` | Page / app-shell surface |
+| `ink` | `#0F172A` | Hero band + primary dark |
+| `body` | `#1E293B` | Dark slate body / card-gradient start |
+| `muted` | `#64748B` | Secondary text + quiet labels |
+| `hairline` | `#E2E8F0` | Card / shell borders |
+| `fill` | `#FFFFFF` | Card fill |
+| `series` | `#2563EB` | Categorical slot 0 / single-series marks |
+| `series-mid` | `#0EA5E9` | Categorical slot 1 |
+| `series-grey` | `#64748B` | Categorical slot 7 |
+| `primary` | `#2563EB` | Accent / KPI title |
+| `tint` | `#1E3A8A` | Navy mid-stop (header gradient) |
+| `edge` | `#FFFFFF` | On-dark title / high-contrast edge |
 
-Dark surface:   #0F172A   (slate-900 — hero header bg)
-Muted text:     #94A3B8   (slate-400 — subtitle text on dark bg)
-Card border:    #E2E8F0   (slate-200 — subtle 1px on white cards)
-Card bg:        #FFFFFF
-Page bg:        (Sigma default — don't override)
-```
+Additional verified categorical hues (slots 2–6, no dedicated role): `#14B8A6`, `#F59E0B`, `#8B5CF6`, `#EF4444`, `#10B981`.
+On-dark subtitle mute `#94A3B8` remains a one-off recipe hex (not a role).
 
-Apply consistently: the same blue (`#3B82F6`) for the "primary metric" KPI label and the primary bar chart; green for "growth" metrics; amber/red for "warning" / "negative" only.
+Apply consistently: `primary` / `series` for the "primary metric" KPI label and primary bar;
+growth green / warning amber / negative red from the categorical mid slots only where earned.
 
 ---
 
 ## Recipe 1 — Hero header strip
 
-A dark, full-width strip at the top with a bold white title and a muted subtitle.
+A dark, full-width strip at the top. Background = role `ink`; title = role `edge`;
+subtitle on dark uses the one-off mute `#94A3B8` (prefer role `muted` on a light `canvas`).
+
+Resolved spec (roles already resolved — safe to POST):
 
 ```yaml
 elements:
   - id: hero
     kind: container
     style:
-      backgroundColor: "#0F172A"
+      backgroundColor: "#0F172A"   # ink
       borderRadius: round
   - id: title
     kind: text
     body: |
-      # <span style="color: #FFFFFF">Orders Overview</span>
+      # <span style="color: #FFFFFF">Orders Overview</span>   <!-- edge -->
       <span style="color: #94A3B8">Net revenue, order mix, and channel performance — last full period</span>
 ```
 
@@ -217,28 +234,31 @@ elements:
 ```
 
 Notes:
-- Title color via Markdown `<span style="color: #...">`. For size control beyond `#`/`##`, use Sigma's typography classes (`<p class="h-med">` etc.) and `font-family` spans — see **Field-observed idioms** below.
+- Title color via Markdown `<span style="color: #...">` after resolving `edge` (or any role) to hex. For size control beyond `#`/`##`, use Sigma's typography classes (`<p class="h-med">` etc.) and `font-family` spans — see **Field-observed idioms** below.
 - For an edge-to-edge image background instead of a solid color, swap `backgroundColor` for `backgroundImage` and add `padding: none` (`backgroundColor` + `padding: none` is also valid — it just blocks `border*`).
 
 ---
 
 ## Recipe 2 — KPI card row
 
-Three (or four) KPIs in styled white cards, each with a colored category label above the value.
+Three (or four) KPIs in styled white cards. Card surface = roles `fill` + `hairline`;
+category label = role `primary` (or another categorical hue for growth / trailing metrics).
+
+Resolved spec:
 
 ```yaml
 elements:
   - id: kpi-net-box
     kind: container
     style:
-      backgroundColor: "#FFFFFF"
+      backgroundColor: "#FFFFFF"   # fill
       borderRadius: round
-      borderColor: "#E2E8F0"
+      borderColor: "#E2E8F0"       # hairline
       borderWidth: 1
   - id: kpi-net-label
     kind: text
     body: |
-      <span style="color: #3B82F6">**NET REVENUE**</span>
+      <span style="color: #2563EB">**NET REVENUE**</span>   <!-- primary -->
   - id: kpi-net
     kind: kpi-chart
     name: ' '   # single space — suppresses the KPI's own title (see note below)
@@ -264,7 +284,10 @@ elements:
 </Container>
 ```
 
-Repeat the container + label + KPI triple for each metric, switching the label color (green for growth, purple for averages, amber for trailing-indicator metrics). Three across at columns `1/9`, `9/17`, `17/25` is the usual **dashboard** KPI-row split — not a requirement for operational apps.
+Repeat the container + label + KPI triple for each metric, switching the label color via roles /
+categorical mid hues (green for growth, purple for averages, amber for trailing-indicator metrics).
+Three across at columns `1/9`, `9/17`, `17/25` is the usual **dashboard** KPI-row split — not a
+requirement for operational apps.
 
 > **Set the value column's `name: ' '` (a single space)** when a colored Markdown label sits above the KPI — otherwise you get a **duplicate title**: the card label (`NET REVENUE`) *and* the KPI's own title (`Net Revenue`) stacked in the same card. The title comes from the element `name` **and, when that's absent, the bound value column's `name`** — so with no element name (the usual case here) the *column* name is what leaks through. There's no `showTitle: false` field, and **omitting the name does NOT work** — an empty/absent name is stripped and the title re-derives. Only a single space persists. (Verified live + rendered; this is the #1 KPI-card mistake.)
 
@@ -273,6 +296,8 @@ Repeat the container + label + KPI triple for each metric, switching the label c
 ## Recipe 3 — Section header
 
 A heading row between groups of elements. Tighter than a hero, looser than a chart.
+Default text color follows the workbook theme; for an explicit quiet label use role `muted`
+(`#64748B`) after resolve — never serialize the role name.
 
 ```yaml
 - id: section-charts
@@ -291,7 +316,7 @@ Use these between (a) KPI row and chart row, (b) chart row and detail table, (c)
 
 ## Recipe 4 — Divider before the detail table
 
-Between the high-level charts and the "drill down to raw rows" table, a horizontal rule sets the visual separation cleanly.
+Between the high-level charts and the "drill down to raw rows" table, a horizontal rule sets the visual separation cleanly. The rule inherits theme chrome; if you color a companion rule/label, resolve `hairline` (`#E2E8F0`) or `muted` first.
 
 ```yaml
 - id: divider-1
@@ -308,7 +333,9 @@ A 1-row span. The `divider` element is a first-class kind, not a hack — see `c
 
 ## Recipe 5 — Categorical chart colors
 
-For bar / line / area / combo charts, pin slice colors to the vetted palette:
+For bar / line / area / combo charts, pin slice colors via roles (then resolve to hex).
+Default single-series mark = role `series` / `primary` (`#2563EB`). Positional schemes start
+with `series`, then warning/negative categorical mids:
 
 ```yaml
 - id: chart-by-status
@@ -334,18 +361,21 @@ For bar / line / area / combo charts, pin slice colors to the vetted palette:
   color:
     by: category
     column: bs-status
-    scheme: ["#3B82F6", "#F59E0B", "#EF4444"]
+    scheme: ["#2563EB", "#F59E0B", "#EF4444"]   # series + amber + red (resolved)
 ```
 
-`scheme` is positional — pin colors to category sort order, not to category names. Sort by the value descending to get "biggest bar = primary blue, smaller = warning amber/red."
+`scheme` is positional — pin colors to category sort order, not to category names. Sort by the value descending to get "biggest bar = `series` blue, smaller = warning amber/red."
+For a single-series chart emit `color: { by: single, value: "#2563EB" }` (`Styling.chart_color` / role `series`).
 
-> **Donut and pie do NOT accept `scheme`.** The field is silently stripped on those chart kinds. To customize donut/pie slice colors from spec, set `settings.theme.overrides.categoricalScheme` at the workbook level (see *Workbook theme* above) — that path is now spec-authorable and verified. See `charts.md` donut section for the verified gotchas.
+> **Donut and pie do NOT accept `scheme`.** The field is silently stripped on those chart kinds. To customize donut/pie slice colors from spec, set `settings.theme.overrides.categoricalScheme` at the workbook level (see *Workbook theme* above) — that path is now spec-authorable and verified (`Styling.chart_color(theme, categorical: true)`). See `charts.md` donut section for the verified gotchas.
 
 ---
 
 ## Recipe 6 — Number formatting
 
-Every value gets a `format` block. The four most useful:
+Every value gets a `format` block (no color roles here). When a KPI **title** is accented,
+merge `Styling.kpi_accent(theme)` / role `primary` (`#2563EB`) into `name.color` — resolved
+hex only. The four most useful formats:
 
 | Format string | Output |
 |---|---|
@@ -366,7 +396,6 @@ columns:
 See `formatting.md` for the full d3-format / strftime reference.
 
 ---
-
 ## Putting it together — example exec-dashboard composition
 
 One 24-column layout that stacks the five dashboard patterns. **Example only** —
@@ -595,13 +624,23 @@ place instead of emitting an unverified (or now-rejected) shape at every call si
 
 ### Theme
 
-`Styling.theme(accent: nil)` returns `DEFAULT_THEME` — **one** professional, host-agnostic
-palette: an 8-color categorical scale, `ink`/`muted` text colors, and the card/header container
-shapes below — or a shallow variant with `accent` swapped into categorical slot 0 (and
-`theme[:accent]`) when the caller supplies one. There's no branding/logo support and no second
-built-in palette: one palette, optionally re-tinted, matches this doc's stance in the note at the
-top — reach for a theme when the user wants design polish with no stated brand direction; a
-migration's source fidelity or a user's own branding always overrides this.
+Semantic roles (`canvas`, `ink`, `body`, `muted`, `hairline`, `fill`, `series`, `series-mid`,
+`series-grey`, `primary`, `tint`, `edge`) sit behind the palette. `Styling.resolve(role)` and
+`Styling.theme(roles: …)` map them onto the verified hexes above; `DEFAULT_THEME` is **derived**
+from `DEFAULT_ROLES` so no-arg `theme`, `chart_color`, and `kpi_accent` stay byte-compatible with
+prior output. Pass a partial `roles:` map to retarget surfaces without mutating `DEFAULT_ROLES` /
+the caller hash. `accent:` still tints categorical slot 0 + `theme[:accent]`.
+
+Role names are authoring-only—`Styling.resolve` returns hex or
+`{kind: theme, ref: …}`; theme/chart helpers assemble custom categorical
+arrays from resolved roles. Never serialize a role name as a Sigma color field.
+
+`Styling.theme(accent: nil)` returns that derived `DEFAULT_THEME` — **one** professional,
+host-agnostic palette — or a variant with `accent` / `roles` applied. There's no branding/logo
+support and no second built-in palette: one palette, optionally re-tinted, matches this doc's
+stance in the note at the top — reach for a theme when the user wants design polish with no
+stated brand direction; a migration's source fidelity or a user's own branding always overrides
+this.
 
 ### `chart_color(theme, categorical: false)`
 
