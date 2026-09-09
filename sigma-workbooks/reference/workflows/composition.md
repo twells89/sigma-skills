@@ -106,7 +106,7 @@ Role → band, top to bottom (each optional; skipped if empty):
 | `:control` | 2 | Filters for the page. Thin, full-width if one control; split evenly if several. |
 | `:kpi` | 6 | The KPI strip — an even split across every `:kpi` element. This is the headline-numbers row. |
 | `:insight` | 3 | Optional narrative/callout band (a text element, a small annotation) between the KPIs and the hero. |
-| `:hero` | 12 | The dominant visual. Tag exactly **one** element `:hero` — `band()` will split the width evenly across *however many* `:hero` elements you pass, so more than one turns this into side-by-side heroes rather than one dominant chart. |
+| `:hero` | 12 | The dominant visual. Tag exactly **one** element `:hero`; multiple hero-role elements become a pair/row (even by default or according to `band_splits`) and no longer establish one focal point. |
 | `:supporting` + `:table` | 13 | Merged into one final content band and split across whatever is left — enough height for a useful chart or roughly seven table rows. |
 
 Call:
