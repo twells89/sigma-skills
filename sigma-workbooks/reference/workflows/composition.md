@@ -8,7 +8,10 @@ Build the simplest workbook that fully answers the request. Let the ask set the 
 
 A rough sizing ladder (starting points, not rules):
 
-- **A single thing** — "show total revenue", "a table of orders", "one KPI" → one element. Skip explicit layout XML; auto-arrange is fine for a single element or a uniform stack of tables.
+- **A single thing** — "show total revenue", "a table of orders", "one KPI" →
+  one element in a simple full-width layout. Current code representation
+  requires `document.layout` even for one element; simplicity means one
+  placement, not relying on auto-arrange.
 - **A focused view** — "revenue over time with a region filter" → a few elements plus a control; light layout.
 - **A dashboard** — "a sales dashboard", "an exec overview" → the fuller pattern is appropriate: a KPI row up top, one or two charts, a supporting table, controls, explicit layout XML, and the base/source table on a hidden page (see `visibility: hidden` in `reference/specification/schema.md`, and the master-detail pattern below for a worked example). This is the tier where polish is the point.
 

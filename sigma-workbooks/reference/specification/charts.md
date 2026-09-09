@@ -1,6 +1,11 @@
 # Charts
 
-Chart elements: `line-chart`, `bar-chart`, `donut-chart`. This file is a **recipe book** for chart specs and the style choices that go with each kind. The OpenAPI is the source of truth for every field — chart schemas are inlined behind their `kind` discriminator, so fetch one by its kind:
+Common chart elements include `line-chart`, `bar-chart`, and `donut-chart`;
+the selector below also routes to pivot heatmaps, waterfalls, scatter charts,
+and maps. This file is a **recipe book** for chart specs and the style choices
+that go with each kind. The OpenAPI is the source of truth for every field —
+chart schemas are inlined behind their `kind` discriminator, so fetch one by
+its kind:
 
 ```bash
 # Swap `bar-chart` for any kind: line-chart, area-chart, combo-chart, scatter-chart, donut-chart, pie-chart
