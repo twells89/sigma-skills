@@ -126,7 +126,8 @@ Top to bottom:
 The asymmetry is deliberate: context explains; the grid is where work happens.
 If context is absent, the work surface takes full width. For a Submit/Review
 workflow, use a second page with queue-rail rather than stacking review below a
-long planning grid.
+long planning grid. The engine resolves this through the named
+`:pair_8_16` split.
 
 ### `queue_rail`
 
@@ -154,7 +155,8 @@ dashboard. If there is no rail, the queue takes full width.
 
 Prefer a normal table/input-table queue while bound repeated-container children
 remain rejected by POST (`layout.md`). A UI-authored case-card feed is visual
-inspiration, not evidence that its GET document can be replayed.
+inspiration, not evidence that its GET document can be replayed. The engine
+resolves queue/rail through the named `:pair_17_7` split.
 
 ### `builder_preview`
 
@@ -181,7 +183,8 @@ Composition.compose([
 The builder rail contains only controls or editable assumptions needed for the
 current result. Put explanations in short labels, not another long text rail.
 The preview must change when inputs change; otherwise this is a form beside an
-unrelated dashboard.
+unrelated dashboard. The engine resolves builder/preview through the named
+`:pair_7_17` split.
 
 ## Visual language without copying
 
@@ -223,7 +226,11 @@ Fail and revise when any visible page has:
 - controls separated from the surface they affect;
 - a primary action outside the normal top-to-bottom reading path;
 - a default full-width raw table with no hierarchy or decision context;
+- more than roughly ten visible queue columns when secondary fields could move
+  into the selected-record detail rail;
 - decorative charts that do not explain baseline, variance, risk, or preview;
+- repeated lockup/title/card-label copy or two charts of the same measure at
+  the same grain;
 - identical pastel section bands or the same accent on every surface;
 - no single visually dominant work surface;
 - a large standalone page title with no app identity/navigation/context shell

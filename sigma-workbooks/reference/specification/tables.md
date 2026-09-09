@@ -60,6 +60,16 @@ groupings:
 >
 > **Exclude a NULL/unwanted bucket** with an element list filter on the dimension — this is how a Tableau view filter maps: `filters: [{ id: f, columnId: col-flag, kind: list, mode: include, values: ["Cur FYTD", "Prior FYTD"] }]`. (A grouped bar that includes the NULL bucket is the classic "giant first bar" artifact.)
 
+### Visible-column budget
+
+For an on-page lookup or operational list, keep roughly ten or fewer columns
+visible. Put the stable key/name first, retain only decision-critical fields,
+and move secondary attributes to a row-selection-driven detail table or
+`single-row-container`. Above that width the first column and scan path tend to
+truncate; cut columns rather than widening the page. This is an editorial
+default, not an API limit—wide exact-detail exports and source-parity
+migrations can be legitimate exceptions.
+
 ### `filters` — element-level column filters
 
 `filters` is an **element-owned** array on `table`, `pivot-table`, `input-table`, charts, KPIs, and maps. Each entry scopes that element's rows. This is **not** the same as a `kind: control` element's `filters[]` (which is only `{ source, columnId }` wiring — see `controls.md`).

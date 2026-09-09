@@ -11,6 +11,30 @@ The field lists below are curated, not exhaustive — use the recipe above to di
 
 All three share the same skeleton: a `source`, a `columns` array, and axis/value pointers that reference column IDs. Formulas on a chart that sources another element must use the source's prefix (`[<SourceName>/col]`) — see `formulas.md`.
 
+## Choose the chart from the data shape
+
+Pick the visualization mechanically before copying a recipe. These cardinality
+ranges are defaults for readable desktop dashboards, not API limits; render and
+revise when labels or marks become crowded.
+
+| Data shape / question | Default | Guardrail |
+|---|---|---|
+| One measure over a date, roughly 12–40 marks at the requested grain | `line-chart` | Keep the date on x and use the requested date grain. |
+| One measure by an entity/category, roughly 4–25 values | ranked horizontal `bar-chart` | Set `orientation: horizontal`, sort by the measure descending, and use top-N if needed. **Do not use a sorted table as the primary ranked comparison.** |
+| Two measures by one category, no more than about 8 categories | grouped `bar-chart` | Put both measures on `yAxis`; use `stacking: none`. |
+| One measure over a date split by no more than about 6 categories, where the question is composition over time | stacked bar/area | Use stacking only for part-to-whole composition. If the question is independent trend comparison, use multiple lines instead. |
+| One static part-to-whole split, no date, no more than about 6 slices | `donut-chart` | Prefer a ranked bar when precise comparison matters more than share. |
+| One measure by two categoricals, no more than about 6 across × 12 down | `pivot-table` with `backgroundScale` conditional formatting | This is the code-rep heatmap. The OpenAPI has no `heatmap-chart`; use `sigma-plugin-authoring` only when a bespoke heatmap is explicitly required. |
+| Opening figure, signed steps, closing figure | `waterfall-chart` | Confirm start/end and signed-step semantics in exported data. |
+| Latitude/longitude pair | `point-map` | Load `maps.md`; bind both coordinate columns. |
+| Named region or geographic shape | `region-map` or `geography-map` | Load `maps.md` and choose the kind from the available geographic key. |
+| Two measures whose relationship is the question, one mark per entity | `scatter-chart` | Build a grouped source first; validate more than one distinct x value. |
+
+A table is still the right result for record lookup, exact-value inspection,
+editable rows, wide operational detail, or supporting drill-down. The rule
+above is narrower: do not answer “rank entities by a measure” with a generic
+sorted table when a bar chart is the intended comparison.
+
 ---
 
 ## Line chart (revenue over time)

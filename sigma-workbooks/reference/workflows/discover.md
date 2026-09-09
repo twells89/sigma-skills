@@ -27,6 +27,55 @@ saved spec: Sigma may canonicalize the reference to a friendly form such as
 `[F_SALES/Transaction Type]`, or may preserve the raw spelling. Either readback
 is valid; use the returned form for later edits and still compile-check it.
 
+## Verify the composed source grain before drafting
+
+Declare what one row is supposed to represent, and name the key that proves it.
+Run the check against the source **as the workbook will read it**—after any
+warehouse view, SQL, data-model relationship, join, union, or other composition
+that will feed the elements. A clean spec cannot detect a plausible-looking
+fanout.
+
+For a single-column grain:
+
+```sql
+SELECT
+  COUNT(*) AS row_count,
+  COUNT(DISTINCT <grain_key>) AS distinct_grain_count
+FROM <composed_source>;
+```
+
+Require equality only when the declared contract is one row per key. For a
+composite grain, avoid warehouse-specific tuple syntax and look for duplicate
+groups:
+
+```sql
+SELECT <key_a>, <key_b>, COUNT(*) AS rows_at_grain
+FROM <composed_source>
+GROUP BY <key_a>, <key_b>
+HAVING COUNT(*) > 1;
+```
+
+That query must return zero rows. Add every grain column to both clauses.
+
+For a 1:1 or many:1 join intended to preserve the left-side grain, capture both
+`COUNT(*)` and the distinct left-grain count before and after the join. Require
+both counts to remain unchanged. If rows increase, the right key is not unique
+at the join key or the predicate is incomplete.
+
+Do not apply “row count unchanged” mechanically:
+
+- an inner join may intentionally remove unmatched left rows—write the expected
+  shrinkage and account for every missing key;
+- an intentional 1:many join changes the grain—declare the new composite grain
+  and prove uniqueness there;
+- a union normally expects the sum of its input row counts, followed by a
+  uniqueness check at the union's declared grain.
+
+Use a warehouse-native query tool, the Sigma MCP query surface, or a SQL client.
+If none is available, ask for the counts instead of drafting from an unverified
+source. Record the expected counts for the post-build recheck in
+[`runtime-verification.md`](runtime-verification.md#4-cardinality-and-uniqueness).
+
 ### If you're using the Sigma MCP server
 
 The Sigma MCP server adds workspace-level discovery on top of plain value probing: `search` across workbooks / data models / tables by topic, `describe` of existing Sigma elements, awareness of pre-built metrics on data models. See [Use the Sigma MCP server](https://help.sigmacomputing.com/docs/use-sigma-mcp-server) for setup.
