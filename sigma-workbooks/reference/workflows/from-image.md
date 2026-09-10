@@ -121,6 +121,11 @@ SELECT DISTINCT <candidate_column> FROM <table> LIMIT 10;
 
 If the candidate fails either check, document the gap in your final summary and either (a) substitute a different column that fits better, (b) derive a coarser bucketing via a formula like `If([order_count] >= 10, "Frequent", [order_count] >= 3, "Regular", "Occasional")`, or (c) drop that element from your reproduction if no good substitute exists.
 
+This picks a visual dimension; it does **not** prove the composed source's row
+grain. Run the pre-draft source check in
+[`discover.md`](discover.md#verify-the-composed-source-grain-before-drafting)
+before authoring any element.
+
 ### Step 0d.2 — Verify each metric is the *right calculation*
 
 The other common failure: agent sees "Return Rate by Ship Speed" in the target and builds a bar chart showing 0-100% values for every category because they used `Sum([is_return])` instead of a rate calculation.

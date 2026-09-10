@@ -1,8 +1,8 @@
 {
   "source": {
     "openapiVersion": "3.1.0",
-    "apiVersion": "2.0.0",
-    "capturedAt": "2026-08-26"
+    "apiVersion": "2.0.0+20260908.f43d6f8",
+    "capturedAt": "2026-09-09"
   },
   "schemas": {
     "CreateWorkbookSpec": {
@@ -172,12 +172,24 @@
         "kind": "container"
       },
       {
+        "title": "Control",
+        "kind": "control"
+      },
+      {
         "title": "Divider",
         "kind": "divider"
       },
       {
+        "title": "donut-chart",
+        "kind": "donut-chart"
+      },
+      {
         "title": "Embed",
         "kind": "embed"
+      },
+      {
+        "title": "Form",
+        "kind": "form"
       },
       {
         "title": "Funnel Chart",
@@ -252,8 +264,16 @@
         "kind": "scatter-chart"
       },
       {
+        "title": "Single-row container",
+        "kind": "single-row-container"
+      },
+      {
         "title": "Tabbed container",
         "kind": "tabbed-container"
+      },
+      {
+        "title": "Table",
+        "kind": "table"
       },
       {
         "title": "Text",
@@ -348,6 +368,16 @@
     ]
   },
   "actions": {
+    "triggers": [
+      "on-change",
+      "on-click",
+      "on-close",
+      "on-primary-cta-click",
+      "on-reset",
+      "on-secondary-cta-click",
+      "on-select",
+      "on-submit"
+    ],
     "effects": {
       "call-api": {
         "required": [
@@ -382,8 +412,12 @@
         ]
       },
       "close-overlay": {
-        "required": [],
-        "properties": []
+        "required": [
+
+        ],
+        "properties": [
+
+        ]
       },
       "custom-sort": {
         "required": [
@@ -435,6 +469,16 @@
           "values"
         ]
       },
+      "modify-element": {
+        "required": [
+          "elementId",
+          "modification"
+        ],
+        "properties": [
+          "elementId",
+          "modification"
+        ]
+      },
       "navigate": {
         "required": [
           "target"
@@ -480,8 +524,12 @@
         ]
       },
       "reset-form": {
-        "required": [],
-        "properties": []
+        "required": [
+
+        ],
+        "properties": [
+
+        ]
       },
       "run-python-element": {
         "required": [
@@ -499,6 +547,16 @@
         "properties": [
           "selectedTab",
           "tabbedContainerElementId"
+        ]
+      },
+      "send-embed-event": {
+        "required": [
+          "eventName",
+          "payload"
+        ],
+        "properties": [
+          "eventName",
+          "payload"
         ]
       },
       "set-control-value": {
@@ -519,6 +577,16 @@
         "properties": [
           "formElementId",
           "values"
+        ]
+      },
+      "set-single-row-container": {
+        "required": [
+          "target",
+          "value"
+        ],
+        "properties": [
+          "target",
+          "value"
         ]
       },
       "trigger-plugin": {
@@ -572,6 +640,15 @@
           "value"
         ]
       },
+      "channel(channel)": {
+        "type": "channel",
+        "properties": [
+          "channel"
+        ],
+        "required": [
+          "channel"
+        ]
+      },
       "column(aggregation,by,columnId,direction,nulls)": {
         "type": "column",
         "properties": [
@@ -621,7 +698,28 @@
           "maxColumnId",
           "minColumnId"
         ],
-        "required": []
+        "required": [
+
+        ]
+      },
+      "columns(columnIds)": {
+        "type": "columns",
+        "properties": [
+          "columnIds"
+        ],
+        "required": [
+          "columnIds"
+        ]
+      },
+      "columns(columnIds,otherColumns)": {
+        "type": "columns",
+        "properties": [
+          "columnIds",
+          "otherColumns"
+        ],
+        "required": [
+          "columnIds"
+        ]
       },
       "constant(cond,value)": {
         "type": "constant",
@@ -661,6 +759,16 @@
           "control"
         ]
       },
+      "control(control,matchOrder)": {
+        "type": "control",
+        "properties": [
+          "control",
+          "matchOrder"
+        ],
+        "required": [
+          "control"
+        ]
+      },
       "control(controlId)": {
         "type": "control",
         "properties": [
@@ -675,7 +783,9 @@
         "properties": [
           "repeatHeaderLabels"
         ],
-        "required": []
+        "required": [
+
+        ]
       },
       "date(value)": {
         "type": "date",
@@ -737,14 +847,18 @@
           "includeMetadata",
           "repeatHeaderLabels"
         ],
-        "required": []
+        "required": [
+
+        ]
       },
       "excel(repeatHeaderLabels)": {
         "type": "excel",
         "properties": [
           "repeatHeaderLabels"
         ],
-        "required": []
+        "required": [
+
+        ]
       },
       "external-report(documentId)": {
         "type": "external-report",
@@ -779,7 +893,27 @@
           "max",
           "min"
         ],
-        "required": []
+        "required": [
+
+        ]
+      },
+      "grouping(groupingId)": {
+        "type": "grouping",
+        "properties": [
+          "groupingId"
+        ],
+        "required": [
+          "groupingId"
+        ]
+      },
+      "hide-columns(source)": {
+        "type": "hide-columns",
+        "properties": [
+          "source"
+        ],
+        "required": [
+          "source"
+        ]
       },
       "level(columns)": {
         "type": "level",
@@ -788,6 +922,26 @@
         ],
         "required": [
           "columns"
+        ]
+      },
+      "modal(modalId)": {
+        "type": "modal",
+        "properties": [
+          "modalId"
+        ],
+        "required": [
+          "modalId"
+        ]
+      },
+      "move-column(destination,source)": {
+        "type": "move-column",
+        "properties": [
+          "destination",
+          "source"
+        ],
+        "required": [
+          "destination",
+          "source"
         ]
       },
       "number(value)": {
@@ -831,7 +985,9 @@
         "properties": [
           "pageId"
         ],
-        "required": []
+        "required": [
+
+        ]
       },
       "pdf(layout,pageSize)": {
         "type": "pdf",
@@ -842,6 +998,34 @@
         "required": [
           "layout",
           "pageSize"
+        ]
+      },
+      "set-axis-scale(axis,scale)": {
+        "type": "set-axis-scale",
+        "properties": [
+          "axis",
+          "scale"
+        ],
+        "required": [
+          "scale"
+        ]
+      },
+      "set-axis-scale(scale)": {
+        "type": "set-axis-scale",
+        "properties": [
+          "scale"
+        ],
+        "required": [
+          "scale"
+        ]
+      },
+      "show-columns(source)": {
+        "type": "show-columns",
+        "properties": [
+          "source"
+        ],
+        "required": [
+          "source"
         ]
       },
       "single-row(primaryKeys)": {
@@ -860,6 +1044,17 @@
         ],
         "required": [
           "values"
+        ]
+      },
+      "swap-column(destination,source)": {
+        "type": "swap-column",
+        "properties": [
+          "destination",
+          "source"
+        ],
+        "required": [
+          "destination",
+          "source"
         ]
       },
       "tab(index)": {
@@ -901,7 +1096,548 @@
           "prompt"
         ]
       }
+    }
+  },
+  "capabilities": {
+    "kinds": {
+      "bar-chart": {
+        "required": [
+          "columns",
+          "id",
+          "kind",
+          "source",
+          "yAxis"
+        ],
+        "properties": [
+          "actions",
+          "backgroundImage",
+          "barStyle",
+          "color",
+          "columns",
+          "conditionalFormats",
+          "customContextMenu",
+          "dataLabel",
+          "description",
+          "filters",
+          "gap",
+          "id",
+          "kind",
+          "legend",
+          "name",
+          "noDataText",
+          "orientation",
+          "refMarks",
+          "source",
+          "stacking",
+          "style",
+          "tooltip",
+          "trellis",
+          "trendlines",
+          "xAxis",
+          "yAxis"
+        ],
+        "present": true,
+        "orientation": [
+          "horizontal"
+        ],
+        "stacking": [
+          "none",
+          "normalized",
+          "stacked"
+        ]
+      },
+      "line-chart": {
+        "required": [
+          "columns",
+          "id",
+          "kind",
+          "source",
+          "yAxis"
+        ],
+        "properties": [
+          "actions",
+          "backgroundImage",
+          "color",
+          "columns",
+          "customContextMenu",
+          "dataLabel",
+          "description",
+          "filters",
+          "id",
+          "kind",
+          "legend",
+          "lineAreaStyle",
+          "name",
+          "noDataText",
+          "refMarks",
+          "source",
+          "style",
+          "tooltip",
+          "trellis",
+          "trendlines",
+          "xAxis",
+          "yAxis"
+        ],
+        "present": true,
+        "axisFields": [
+          "xAxis",
+          "yAxis"
+        ]
+      },
+      "donut-chart": {
+        "required": [
+          "color",
+          "columns",
+          "id",
+          "kind",
+          "source",
+          "value"
+        ],
+        "properties": [
+          "actions",
+          "color",
+          "columns",
+          "customContextMenu",
+          "dataLabel",
+          "description",
+          "filters",
+          "hole",
+          "holeValue",
+          "id",
+          "innerRadius",
+          "kind",
+          "legend",
+          "name",
+          "noDataText",
+          "source",
+          "style",
+          "tooltip",
+          "trellis",
+          "value"
+        ],
+        "present": true,
+        "valueFields": [
+          "value",
+          "color",
+          "hole",
+          "holeValue"
+        ]
+      },
+      "pivot-table": {
+        "required": [
+          "columns",
+          "id",
+          "kind",
+          "source",
+          "values"
+        ],
+        "properties": [
+          "actions",
+          "adhocCalcs",
+          "axisTotals",
+          "columns",
+          "columnsBy",
+          "conditionalFormats",
+          "customContextMenu",
+          "description",
+          "display",
+          "filters",
+          "folders",
+          "frozenColumn",
+          "id",
+          "kind",
+          "name",
+          "noDataText",
+          "rowsBy",
+          "source",
+          "sparkline",
+          "style",
+          "tableComponents",
+          "tableStyle",
+          "totals",
+          "values"
+        ],
+        "present": true,
+        "conditionalFormatTypes": [
+          "backgroundScale",
+          "dataBars",
+          "fontScale",
+          "single"
+        ]
+      },
+      "waterfall-chart": {
+        "required": [
+          "columns",
+          "id",
+          "kind",
+          "source",
+          "yAxis"
+        ],
+        "properties": [
+          "actions",
+          "backgroundImage",
+          "color",
+          "columns",
+          "conditionalFormats",
+          "customContextMenu",
+          "dataLabel",
+          "description",
+          "filters",
+          "grouping",
+          "id",
+          "kind",
+          "legend",
+          "name",
+          "noDataText",
+          "refMarks",
+          "source",
+          "splitBy",
+          "startPoint",
+          "style",
+          "tooltip",
+          "waterfallColors",
+          "waterfallShape",
+          "xAxis",
+          "yAxis"
+        ],
+        "present": true,
+        "waterfallFields": [
+          "startPoint",
+          "splitBy",
+          "grouping",
+          "waterfallColors",
+          "waterfallShape",
+          "xAxis",
+          "yAxis"
+        ]
+      },
+      "geography-map": {
+        "required": [
+          "columns",
+          "geography",
+          "id",
+          "kind",
+          "source"
+        ],
+        "properties": [
+          "actions",
+          "color",
+          "columns",
+          "customContextMenu",
+          "description",
+          "featureStyle",
+          "filters",
+          "geography",
+          "id",
+          "kind",
+          "legend",
+          "mapStyle",
+          "name",
+          "source",
+          "style",
+          "tooltip"
+        ],
+        "present": true,
+        "geography": {
+          "required": [
+            "columnId"
+          ],
+          "properties": [
+            "columnId"
+          ]
+        }
+      },
+      "point-map": {
+        "required": [
+          "columns",
+          "id",
+          "kind",
+          "latitude",
+          "longitude",
+          "source"
+        ],
+        "properties": [
+          "actions",
+          "color",
+          "columns",
+          "customContextMenu",
+          "description",
+          "filters",
+          "id",
+          "kind",
+          "label",
+          "latitude",
+          "legend",
+          "longitude",
+          "mapStyle",
+          "name",
+          "pointStyle",
+          "size",
+          "source",
+          "style",
+          "tooltip"
+        ],
+        "present": true,
+        "latitude": {
+          "required": [
+            "columnId"
+          ],
+          "properties": [
+            "columnId"
+          ]
+        },
+        "longitude": {
+          "required": [
+            "columnId"
+          ],
+          "properties": [
+            "columnId"
+          ]
+        }
+      },
+      "region-map": {
+        "required": [
+          "columns",
+          "id",
+          "kind",
+          "region",
+          "source"
+        ],
+        "properties": [
+          "actions",
+          "color",
+          "columns",
+          "customContextMenu",
+          "description",
+          "filters",
+          "id",
+          "kind",
+          "label",
+          "legend",
+          "mapStyle",
+          "name",
+          "region",
+          "regionStyle",
+          "source",
+          "style",
+          "tooltip"
+        ],
+        "present": true,
+        "region": {
+          "required": [
+            "columnId",
+            "regionType"
+          ],
+          "properties": [
+            "columnId",
+            "regionType"
+          ],
+          "regionTypes": [
+            "ca-province",
+            "country",
+            "us-cbsa",
+            "us-county",
+            "us-postal-place",
+            "us-state",
+            "us-zipcode"
+          ]
+        }
+      },
+      "table": {
+        "required": [
+          "columns",
+          "id",
+          "kind",
+          "source"
+        ],
+        "properties": [
+          "actions",
+          "columnSecurities",
+          "columns",
+          "conditionalFormats",
+          "customContextMenu",
+          "description",
+          "filters",
+          "folders",
+          "frozenColumn",
+          "groupings",
+          "id",
+          "kind",
+          "metrics",
+          "name",
+          "noDataText",
+          "order",
+          "relationships",
+          "sort",
+          "source",
+          "sparkline",
+          "style",
+          "summary",
+          "tableComponents",
+          "tableStyle",
+          "visibleAsSource"
+        ],
+        "present": true,
+        "columnProperties": [
+          "description",
+          "format",
+          "formula",
+          "hidden",
+          "id",
+          "image",
+          "link",
+          "name",
+          "sparkline",
+          "style"
+        ],
+        "conditionalFormatTypes": [
+          "backgroundScale",
+          "dataBars",
+          "fontScale",
+          "single"
+        ]
+      },
+      "text": {
+        "required": [
+          "body",
+          "id",
+          "kind"
+        ],
+        "properties": [
+          "body",
+          "id",
+          "kind",
+          "overflow",
+          "verticalAlign"
+        ],
+        "present": true,
+        "bodySupportsFormula": true
+      },
+      "repeated-container": {
+        "required": [
+          "id",
+          "kind",
+          "source"
+        ],
+        "properties": [
+          "actions",
+          "arrangement",
+          "cardGap",
+          "cardSize",
+          "cardSpacing",
+          "cardStyle",
+          "conditionalFormats",
+          "elementGap",
+          "elementSpacing",
+          "filters",
+          "id",
+          "kind",
+          "noDataText",
+          "scroll",
+          "sort",
+          "source",
+          "style"
+        ],
+        "present": true,
+        "arrangement": [
+          "grid",
+          "list"
+        ]
+      },
+      "single-row-container": {
+        "required": [
+          "id",
+          "keyColumnId",
+          "kind",
+          "source"
+        ],
+        "properties": [
+          "backgroundImage",
+          "elementGap",
+          "id",
+          "keyColumnId",
+          "keyColumnValue",
+          "kind",
+          "source",
+          "spacing",
+          "style"
+        ],
+        "present": true,
+        "keyFields": [
+          "keyColumnId",
+          "keyColumnValue",
+          "source"
+        ]
+      }
     },
-    "_note": "Actions coverage added 2026-08-26 (the field rename shipped with zero coverage here). releasedVariants + schemas refreshed the same day from the CANONICAL asset after live-verifying the diff against a real org: elements 28->33 and controls 16->18 are REAL and a strict superset. The controls collapse to 0 was TWO extractor bugs, not an API change -- see extract-openapi-contract.rb: controls were read from CommonElement instead of the dedicated Control schema, and discriminator_value now descends oneOf/anyOf so a union member that is itself a union ('List values', 'Navigation') is no longer silently dropped. That second bug is why the historical pin said 16 controls, not 18."
+    "absentKinds": [
+      "heatmap-chart"
+    ],
+    "document": {
+      "layoutRequired": true,
+      "layout": {
+        "type": "string",
+        "description": "Grid layout as XML."
+      },
+      "themeOverrideProperties": [
+        "borderRadius",
+        "categoricalScheme",
+        "colorOverrides",
+        "colors",
+        "divergingScheme",
+        "elementBorder",
+        "fonts",
+        "hasCards",
+        "invertTooltipColors",
+        "layoutColors",
+        "maxPageWidth",
+        "pageWidth",
+        "sequentialScheme",
+        "space",
+        "tableStyles",
+        "titleFont"
+      ]
+    },
+    "controls": {
+      "text": {
+        "required": [
+          "controlId",
+          "controlType",
+          "id",
+          "kind",
+          "mode"
+        ],
+        "properties": [
+          "actions",
+          "case",
+          "controlId",
+          "controlType",
+          "filters",
+          "id",
+          "includeNulls",
+          "kind",
+          "mode",
+          "name",
+          "parameters",
+          "showOperators",
+          "style",
+          "value"
+        ],
+        "mode": [
+          "contains",
+          "does-not-contain",
+          "does-not-end-with",
+          "does-not-equal",
+          "does-not-match-regexp",
+          "does-not-start-with",
+          "ends-with",
+          "equals",
+          "like",
+          "matches-regexp",
+          "not-like",
+          "starts-with"
+        ]
+      }
+    }
   }
 }

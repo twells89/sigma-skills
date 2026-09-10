@@ -36,7 +36,8 @@ membership from the order of `document.elements`.
 
 Live GET specs and `/verify` use `<Element>` for leaves and `<Container>` for
 nested grids (confirmed 2026-08-08). Emit those exact names.
-`<LayoutElement>` is not a synonym on the wire—it causes HTTP 400.
+`<LayoutElement>` is not a synonym on the wire—`/verify` rejects it as
+`valid:false` (some API versions returned HTTP 400 instead).
 `<GridContainer>` is likewise a legacy captured-artifact alias, not authoring
 syntax. Local parsers may read those aliases only to migrate old snapshots.
 
@@ -247,14 +248,34 @@ Use stacked rows when you want a section header above a row of charts inside the
 
 ## Element height heuristics — give tables room to breathe
 
-A table element's `gridRow` span controls how many data rows are visible before it scrolls. The recurring mistake is **under-sizing tables** — a detail/raw-row table given a 5–8 row span shows only ~2 data rows, which defeats the point of a "see the underlying data" table. Size by role:
+A table element's `gridRow` span controls how many data rows are visible before
+it scrolls. A data row is roughly 32px against a roughly 24px grid-row pitch, so
+use this deterministic starting point:
 
-- **Detail / raw-row tables** (the bottom-of-page "drill into the data" table): give a **tall** span — **~14–20 grid rows** (e.g. `gridRow="32 / 50"`). The user should see 6–10+ rows without scrolling. When a detail table is the last element on the page, err on the side of *too tall* — trailing whitespace below it is cheaper than a cramped 2-row table.
-- **Summary / aggregated tables** (a handful of grouped rows): size to roughly the row count + header, ~6–10 grid rows.
+```text
+table grid-row span = ceil(3 + visible_data_rows × 4/3)
+```
+
+`Composition.table_height(rows)` implements the same formula. Seven visible
+rows recommend a 13-row span; an 11-row span clips them. Rendered fonts, wrapping,
+and headers can still require more height.
+
+- **Detail / raw-row tables** (the bottom-of-page "drill into the data" table):
+  target 7–12 visible rows, normally **13–19 grid rows**. When a detail table is
+  last, trailing whitespace is cheaper than a cramped result.
+- **Summary / aggregated tables**: apply the formula to the actual grouped row
+  count; a handful of rows normally lands around 7–10 grid rows.
 - **KPIs**: short — ~5–6 rows; they're a single number.
 - **Charts**: ~8–12 rows so axes and labels aren't crushed.
 
 Heights are relative grid units (tracks are `auto`), so these are rules of thumb, not pixels — but the asymmetry holds: **tables are the element most often made too short.** If you're unsure, render the page (PNG export) and count visible rows.
+
+Width has a separate limit: above roughly **10 visible columns**, the first
+column and the row's scan path tend to truncate or become unreadable. Cut
+columns; do not widen the page to preserve every field. Keep the identifying
+column plus decision-critical measures in the list, and move the rest to a
+selection-driven detail table or `single-row-container`. This is an editorial
+warning, not a schema limit—an exact-detail export may legitimately be wider.
 
 ## Page backgrounds and width
 

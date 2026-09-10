@@ -305,4 +305,214 @@ check('tabbed_container: a tab with a missing (nil) name raises ArgumentError') 
   end
 end
 
+# --- Named splits, mosaic, ledger, table_height -------------------------
+
+check('SPLIT_PRESETS cover full/pairs/halves/trio and each sums to 24') do
+  expected = {
+    full: [24], pair_16_8: [16, 8], pair_14_10: [14, 10], pair_17_7: [17, 7],
+    pair_8_16: [8, 16], pair_7_17: [7, 17], halves: [12, 12], trio: [8, 8, 8]
+  }
+  Composition::SPLIT_PRESETS == expected &&
+    expected.all? { |_k, widths| widths.sum == 24 }
+end
+
+check('resolve_split: nil even-splits; named presets; explicit arrays') do
+  Composition.resolve_split(nil, 24, 4) == [6, 6, 6, 6] &&
+    Composition.resolve_split(:pair_16_8, 24, 2) == [16, 8] &&
+    Composition.resolve_split([10, 14], 24, 2) == [10, 14]
+end
+
+check('resolve_split: unknown name / bad sum / count mismatch / non-24 named raise') do
+  errors = []
+  begin; Composition.resolve_split(:pair_9_9, 24, 2); rescue ArgumentError => e; errors << e.message; end
+  begin; Composition.resolve_split([10, 10], 24, 2); rescue ArgumentError => e; errors << e.message; end
+  begin; Composition.resolve_split(:pair_16_8, 24, 3); rescue ArgumentError => e; errors << e.message; end
+  begin; Composition.resolve_split(:halves, 12, 2); rescue ArgumentError => e; errors << e.message; end
+  errors.size == 4 &&
+    errors[0].include?('unknown split') &&
+    errors[1].include?('sum') &&
+    errors[2].include?('width') &&
+    errors[3].include?('page_cols=24')
+end
+
+check('band: default even split unchanged; named split applies widths') do
+  even = Composition.band([{ id: 'a' }, { id: 'b' }], 1, 5, 24)
+  named = Composition.band([{ id: 'a' }, { id: 'b' }], 1, 5, 24, split: :pair_16_8)
+  even == [
+    '  <Element elementId="a" gridColumn="1 / 13" gridRow="1 / 5"/>',
+    '  <Element elementId="b" gridColumn="13 / 25" gridRow="1 / 5"/>'
+  ] && named == [
+    '  <Element elementId="a" gridColumn="1 / 17" gridRow="1 / 5"/>',
+    '  <Element elementId="b" gridColumn="17 / 25" gridRow="1 / 5"/>'
+  ]
+end
+
+check('band: explicit widths on custom page_cols; named preset rejected off-24') do
+  custom = Composition.band([{ id: 'a' }, { id: 'b' }, { id: 'c' }], 2, 8, 12, split: [5, 3, 4])
+  ok_custom = custom == [
+    '  <Element elementId="a" gridColumn="1 / 6" gridRow="2 / 8"/>',
+    '  <Element elementId="b" gridColumn="6 / 9" gridRow="2 / 8"/>',
+    '  <Element elementId="c" gridColumn="9 / 13" gridRow="2 / 8"/>'
+  ]
+  raised = begin
+    Composition.band([{ id: 'a' }, { id: 'b' }], 1, 5, 12, split: :halves)
+    false
+  rescue ArgumentError => e
+    e.message.include?('page_cols=24')
+  end
+  ok_custom && raised
+end
+
+check('compose band_splits: overrides one band, leaves others even') do
+  out = Composition.compose(
+    [{ id: 'k1', role: :kpi }, { id: 'k2', role: :kpi }, { id: 'hero', role: :hero }],
+    pattern: :exec,
+    band_splits: { kpi: :pair_16_8 }
+  )
+  out.include?('elementId="k1" gridColumn="1 / 17"') &&
+    out.include?('elementId="k2" gridColumn="17 / 25"') &&
+    out.include?('elementId="hero" gridColumn="1 / 25"')
+end
+
+check('compose band_splits: master_detail can use pair_14_10') do
+  out = Composition.compose(
+    [{ id: 'm', role: :master }, { id: 'd', role: :detail }],
+    pattern: :master_detail,
+    band_splits: { master_detail: :pair_14_10 }
+  )
+  out.include?('elementId="m" gridColumn="1 / 15" gridRow="1 / 15"') &&
+    out.include?('elementId="d" gridColumn="15 / 25" gridRow="1 / 15"')
+end
+
+mosaic_golden = File.read(File.join(__dir__, 'testdata', 'composition_mosaic_golden.txt')).strip
+check('mosaic: primary 14x16 beside two stacked 10x8 panes matches golden') do
+  out = Composition.mosaic(primary: 'deep', top_right: 'a', bottom_right: 'b')
+  out.strip == mosaic_golden &&
+    out.include?('elementId="deep" gridColumn="1 / 15" gridRow="1 / 17"') &&
+    out.include?('elementId="a" gridColumn="15 / 25" gridRow="1 / 9"') &&
+    out.include?('elementId="b" gridColumn="15 / 25" gridRow="9 / 17"')
+end
+check('mosaic: accepts hashes, custom r0; rejects non-24 page_cols / invalid r0 / missing ids') do
+  out = Composition.mosaic(
+    primary: { id: 'p' }, top_right: { id: 't' }, bottom_right: { id: 'b' }, r0: 5
+  )
+  placed = out.include?('gridRow="5 / 21"') && out.include?('gridRow="5 / 13"') &&
+           out.include?('gridRow="13 / 21"')
+  bad_cols = begin
+    Composition.mosaic(primary: 'p', top_right: 't', bottom_right: 'b', page_cols: 12)
+    false
+  rescue ArgumentError => e
+    e.message.include?('page_cols=24')
+  end
+  bad_id = begin
+    Composition.mosaic(primary: '', top_right: 't', bottom_right: 'b')
+    false
+  rescue ArgumentError
+    true
+  end
+  bad_row = begin
+    Composition.mosaic(primary: 'p', top_right: 't', bottom_right: 'b', r0: 0)
+    false
+  rescue ArgumentError
+    true
+  end
+  placed && bad_cols && bad_id && bad_row
+end
+
+ledger_golden = File.read(File.join(__dir__, 'testdata', 'composition_ledger_golden.txt')).strip
+ledger_els = [
+  { id: 'title', role: :ledger_header },
+  { id: 'count', role: :ledger_count },
+  { id: 'search', role: :ledger_toolbar },
+  { id: 'results', role: :ledger_results },
+  { id: 'detail', role: :ledger_detail },
+  { id: 'k1', role: :ledger_kpi }, { id: 'k2', role: :ledger_kpi }
+]
+check('ledger: full record-lookup layout matches golden (16/8 title, 14/10 body)') do
+  out = Composition.compose(ledger_els, pattern: :ledger)
+  out.strip == ledger_golden &&
+    out.include?('elementId="title" gridColumn="1 / 17" gridRow="1 / 4"') &&
+    out.include?('elementId="count" gridColumn="17 / 25" gridRow="1 / 4"') &&
+    out.include?('elementId="search" gridColumn="1 / 25" gridRow="4 / 7"') &&
+    out.include?('elementId="results" gridColumn="1 / 15" gridRow="7 / 23"') &&
+    out.include?('elementId="detail" gridColumn="15 / 25" gridRow="7 / 23"') &&
+    out.include?('elementId="k1" gridColumn="1 / 13" gridRow="23 / 29"')
+end
+check('ledger: optional detail/kpi/count collapse; results required') do
+  minimal = Composition.compose(
+    [{ id: 'hdr', role: :ledger_header }, { id: 'res', role: :ledger_results }],
+    pattern: :ledger
+  )
+  collapsed = minimal.include?('elementId="hdr" gridColumn="1 / 25" gridRow="1 / 4"') &&
+              minimal.include?('elementId="res" gridColumn="1 / 25" gridRow="4 / 20"') &&
+              !minimal.include?('ledger_detail') && !minimal.include?('gridRow="20 /')
+  missing = begin
+    Composition.compose([{ id: 'hdr', role: :ledger_header }], pattern: :ledger)
+    false
+  rescue ArgumentError => e
+    e.message.include?('ledger_results')
+  end
+  bad_role = begin
+    Composition.compose(
+      [{ id: 'res', role: :ledger_results }, { id: 'k', role: :kpi }],
+      pattern: :ledger
+    )
+    false
+  rescue ArgumentError => e
+    e.message.include?('not used by pattern ledger')
+  end
+  collapsed && missing && bad_role
+end
+check('ledger: band_splits can override body to pair_17_7') do
+  out = Composition.compose(
+    [{ id: 'res', role: :ledger_results }, { id: 'det', role: :ledger_detail }],
+    pattern: :ledger,
+    band_splits: { ledger_body: :pair_17_7 }
+  )
+  out.include?('elementId="res" gridColumn="1 / 18"') &&
+    out.include?('elementId="det" gridColumn="18 / 25"')
+end
+
+check('table_height: ceil(3 + rows*4/3); 7→13; rejects negatives') do
+  Composition.table_height(0) == 3 &&
+    Composition.table_height(1) == 5 &&
+    Composition.table_height(7) == 13 &&
+    Composition.table_height(10) == 17 &&
+    (begin; Composition.table_height(-1); false; rescue ArgumentError; true; end) &&
+    (begin; Composition.table_height(1.5); false; rescue ArgumentError; true; end)
+end
+
+check('exec supporting/detail band is now height 13 (table ends at row 32)') do
+  out = Composition.compose(els, pattern: :exec)
+  out.include?('elementId="tbl" gridColumn="1 / 25" gridRow="19 / 32"') &&
+    Composition.bands([{ id: 't', role: :table }], :exec) == [
+      { role: :supporting, ids: ['t'], r0: 1, r1: 14 }
+    ]
+end
+
+check('operational patterns still byte-identical after split-resolver refactor') do
+  Composition.compose(workbench_els, pattern: :workbench).strip == workbench_golden &&
+    Composition.compose(queue_rail_els, pattern: :queue_rail).strip == queue_rail_golden &&
+    Composition.compose(builder_preview_els, pattern: :builder_preview).strip == builder_preview_golden
+end
+check('operational custom page_cols preserve historical absolute left spans') do
+  out = Composition.compose(
+    [{ id: 'ctx', role: :context }, { id: 'grid', role: :work_surface }],
+    pattern: :workbench,
+    page_cols: 30
+  )
+  out.include?('elementId="ctx" gridColumn="1 / 9"') &&
+    out.include?('elementId="grid" gridColumn="9 / 31"')
+end
+check('operational custom page_cols accept an explicit pair override') do
+  out = Composition.compose(
+    [{ id: 'ctx', role: :context }, { id: 'grid', role: :work_surface }],
+    pattern: :workbench,
+    page_cols: 30,
+    band_splits: { workbench: [10, 20] }
+  )
+  out.include?('elementId="ctx" gridColumn="1 / 11"') &&
+    out.include?('elementId="grid" gridColumn="11 / 31"')
+end
+
 exit($failures.zero? ? 0 : 1)

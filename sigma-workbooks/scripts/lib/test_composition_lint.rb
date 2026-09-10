@@ -89,4 +89,38 @@ check('a top-level Container overlapping a sibling band flags') do
   CompositionLint.check(container_sibling_overlap).any? { |e| e =~ /overlap/i }
 end
 
+ledger_els = [
+  { id: 'title', role: :ledger_header },
+  { id: 'count', role: :ledger_count },
+  { id: 'search', role: :ledger_toolbar },
+  { id: 'results', role: :ledger_results },
+  { id: 'detail', role: :ledger_detail },
+  { id: 'k1', role: :ledger_kpi }, { id: 'k2', role: :ledger_kpi }
+]
+check('ledger layout lints clean') do
+  CompositionLint.check(Composition.compose(ledger_els, pattern: :ledger)).empty?
+end
+check('mosaic layout lints clean across staggered row boundaries') do
+  CompositionLint.check(
+    Composition.mosaic(primary: 'deep', top_right: 'a', bottom_right: 'b')
+  ).empty?
+end
+check('exec layout with height-13 supporting band still lints clean') do
+  CompositionLint.check(
+    Composition.compose(
+      [{ id: 'k1', role: :kpi }, { id: 'hero', role: :hero }, { id: 'tbl', role: :table }],
+      pattern: :exec
+    )
+  ).empty?
+end
+check('band_splits asymmetric exec kpi row lints clean') do
+  CompositionLint.check(
+    Composition.compose(
+      [{ id: 'k1', role: :kpi }, { id: 'k2', role: :kpi }, { id: 'hero', role: :hero }],
+      pattern: :exec,
+      band_splits: { kpi: :pair_16_8 }
+    )
+  ).empty?
+end
+
 exit($f.zero? ? 0 : 1)

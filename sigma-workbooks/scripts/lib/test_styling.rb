@@ -59,6 +59,75 @@ check('app-shell shape is light utility chrome, not the dark rounded hero') do
   } && !shell.key?('borderRadius')
 end
 
+# --- Semantic authoring roles ---
+
+EXPECTED_ROLES = %i[
+  canvas ink body muted hairline fill
+  series series-mid series-grey primary tint edge
+].freeze
+
+check('ROLE_NAMES lists exactly the twelve authoring roles') do
+  Styling::ROLE_NAMES == EXPECTED_ROLES
+end
+check('DEFAULT_ROLES covers exactly those twelve roles (no extras)') do
+  Styling::DEFAULT_ROLES.keys.sort == EXPECTED_ROLES.sort
+end
+check('resolve maps every default role to its verified hex') do
+  expected = {
+    canvas: '#FFFFFF', ink: '#0F172A', body: '#1E293B', muted: '#64748B',
+    hairline: '#E2E8F0', fill: '#FFFFFF', series: '#2563EB',
+    :'series-mid' => '#0EA5E9', :'series-grey' => '#64748B',
+    primary: '#2563EB', tint: '#1E3A8A', edge: '#FFFFFF'
+  }
+  expected.all? { |role, hex| Styling.resolve(role) == hex && Styling.resolve(role.to_s) == hex }
+end
+check('resolve passes through hex and theme-ref payloads (never invents Sigma fields)') do
+  ref = { 'kind' => 'theme', 'ref' => 'colors-primary' }
+  Styling.resolve('#ABCDEF') == '#ABCDEF' &&
+    Styling.resolve(ref) == ref
+end
+check('resolve raises on unknown symbol/string roles') do
+  symbol_raises = begin; Styling.resolve(:not_a_role); false; rescue ArgumentError; true; end
+  string_raises = begin; Styling.resolve('not-a-role'); false; rescue ArgumentError; true; end
+  symbol_raises && string_raises
+end
+check('theme(roles:) applies caller overrides without mutating DEFAULT_ROLES or the caller map') do
+  overrides = { primary: '#FF6600', :'series-mid' => '#00AA00' }
+  snapshot_roles = Marshal.load(Marshal.dump(Styling::DEFAULT_ROLES))
+  snapshot_overrides = Marshal.load(Marshal.dump(overrides))
+  t = Styling.theme(roles: overrides)
+  t[:accent] == '#FF6600' && t[:categorical][0] == '#2563EB' &&
+    t[:categorical][1] == '#00AA00' &&
+    Styling::DEFAULT_ROLES == snapshot_roles && overrides == snapshot_overrides
+end
+check('theme(roles:) + accent: tints slot 0/accent; role map still not mutated') do
+  overrides = { primary: '#111111' }
+  snap = Marshal.load(Marshal.dump(overrides))
+  t = Styling.theme(accent: '#FF6600', roles: overrides)
+  t[:accent] == '#FF6600' && t[:categorical][0] == '#FF6600' && overrides == snap
+end
+check('role overrides do not mutate DEFAULT_THEME') do
+  before = Marshal.load(Marshal.dump(Styling::DEFAULT_THEME))
+  Styling.theme(roles: { canvas: '#000000', primary: '#FF0000' })
+  Styling::DEFAULT_THEME == before
+end
+check('theme rejects unknown roles and unresolved role values') do
+  unknown = begin; Styling.theme(roles: { bogus: '#FFFFFF' }); false; rescue ArgumentError; true; end
+  unresolved = begin; Styling.theme(roles: { primary: 'primary' }); false; rescue ArgumentError; true; end
+  unknown && unresolved
+end
+check('compatibility: no-arg theme, chart_color, kpi_accent match DEFAULT_THEME-derived output') do
+  theme = Styling.theme
+  theme == Styling::DEFAULT_THEME &&
+    Styling.chart_color(theme) == { 'color' => { 'by' => 'single', 'value' => '#2563EB' } } &&
+    Styling.kpi_accent(theme) == { 'color' => '#2563EB' } &&
+    theme[:header_gradient] == %w[#0F172A #1E3A8A #2563EB] &&
+    theme[:card_gradient] == %w[#1E293B #0F172A]
+end
+check('DEFAULT_THEME is derived from DEFAULT_ROLES (empty roles rebuilds default)') do
+  Styling.theme(roles: {}) == Styling::DEFAULT_THEME
+end
+
 # Composition.bands — role -> [r0, r1) band descriptors.
 check('Composition.bands: kpi + hero (exec) matches the brief example') do
   out = Composition.bands([{ id: 'k', role: :kpi }, { id: 'h', role: :hero }], :exec)

@@ -85,6 +85,11 @@ required.
 
 ## 4. Cardinality and uniqueness
 
+Re-run the grain assertion established **before drafting** in
+[`discover.md`](discover.md#verify-the-composed-source-grain-before-drafting).
+The post-build export must agree with that recorded source evidence; do not
+invent an expected count after seeing the result.
+
 Write expected row counts before testing:
 
 ```text

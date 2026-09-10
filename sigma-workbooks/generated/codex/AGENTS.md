@@ -169,9 +169,25 @@ Load `reference/workflows/discover.md`. Quick summary:
 
 **Verify literal values before writing predicates.** If your task involves filtering on a categorical column (e.g., `CountIf([Status] = "active")`, `If([Type] = "sale", ...)`), you need to know what values that column *actually* contains — the `/v2/connections/tables/{inodeId}/columns` endpoint gives you names and types but not values. Run a `SELECT DISTINCT <col>` via any tool that reaches the warehouse — an MCP server (warehouse or [Sigma](https://help.sigmacomputing.com/docs/use-sigma-mcp-server)), a SQL CLI, or just ask the user. Don't guess literals. See `reference/workflows/discover.md`.
 
+**Verify the composed source grain before drafting.** Name the expected grain
+key (or composite key), then prove that the source as the workbook will read it
+has one row per key. For a single key, assert
+`COUNT(*) = COUNT(DISTINCT <grain-key>)`; for a composite key, group by all key
+columns and require zero duplicate groups. For a 1:1 or many:1 join intended to
+preserve the left grain, compare row count and distinct left-grain count before
+and after the join and require both to stay unchanged. Inner joins and
+intentional 1:many joins need a written expected shrink/expansion instead.
+Do not draft plausible-looking counts over an unproven fanout. See
+`reference/workflows/discover.md`.
+
 ### Step 4 — Identify features and load only what you need
 
 Map the user's request to the **Reference Index** below. State the features you identified, then read the listed reference files before drafting. **If the user asks for a feature this skill doesn't cover**, fetch the OpenAPI and inspect the relevant schema.
+
+When choosing a visualization, use the data-shape selector at the top of
+`reference/specification/charts.md` before copying a chart recipe. A ranked
+categorical comparison defaults to a horizontal bar, not a sorted table used
+as the primary visualization.
 
 If the user asked to generate an app, run `generate-apps.md` first (Step 0)
 before choosing an input-table architecture here. That interview already
@@ -201,7 +217,8 @@ Write the spec YAML to disk (e.g., `/tmp/workbook-spec.yaml`). YAML is preferred
 - Emit `<Element>` for layout leaves and `<Container>` for nested grids,
   including repeated-container elements. `<TabbedContainer>` / `<Tab>` remain
   valid. Never emit the legacy `<LayoutElement>` / `<GridContainer>` aliases;
-  live verification rejects `<LayoutElement>` with HTTP 400.
+  live verification rejects `<LayoutElement>` (`valid:false`; some API
+  versions returned HTTP 400 instead).
 - Start with 1–2 pages. Add more later via update.
 
 For **create**, include outer `name`/`folderId` and `document` with required
@@ -295,7 +312,7 @@ The reference is feature-sliced — don't read every file up-front. The index ha
 | File | When to load |
 |------|--------------|
 | `reference/specification/tables.md` | Table element, tabular data, data grid, spreadsheet-style list. Also **element-level filters** (`list`, `top-n`, `number-range`, `date-range`, `text-match`, `hierarchy`), groupings (pivot, group by), the `pivot-table` and editable `input-table` element kinds, and `conditionalFormats` (threshold-based cell coloring, on pivot/input tables). |
-| `reference/specification/charts.md` | Chart, graph, visualization, line / bar / column / stacked / grouped / combo / donut / pie / scatter / waterfall / share-of / breakdown. Cartesian axes, color, trellis, legend, trendlines, reference marks. Box chart is unsupported/pending because it is absent from the live OpenAPI. |
+| `reference/specification/charts.md` | **Load before choosing a visualization.** Data-shape → chart selection, then chart/graph recipes for line / bar / column / stacked / grouped / combo / donut / pie / scatter / waterfall / share-of / breakdown. Cartesian axes, color, trellis, legend, trendlines, reference marks. |
 | `reference/specification/maps.md` | Map visualizations — `geography-map` (GeoJSON shapes), `point-map` (lat/long bubbles), `region-map` (states / counties / countries). |
 | `reference/specification/kpis.md` | KPI, stat, big number, single value, metric card — including layout / value styling, the comparison Δ badge (`comparisonColumn` + `comparison:{display:"delta"}` — spec-authorable and readback-stable; the house default), and the trend/sparkline block (still UI-bound). |
 | `reference/specification/controls.md` | Filter, dropdown, picker, multi-select, date range, date picker, text filter, number range, slider, segmented, hierarchy, legend, and drill controls. Also entry controls and formula handles. |
@@ -327,7 +344,7 @@ The reference is feature-sliced — don't read every file up-front. The index ha
 | File | When to load |
 |------|--------------|
 | `reference/workflows/discover.md` | Finding connections, tables, and column names. Load before composing a new spec. |
-| `reference/workflows/composition.md` | Open-ended design decisions — calibrating workbook complexity to the request, when to ask the user, what to ask, surfacing structural choices in the final summary, and a few safe defaults (hidden source pages, ranked-table sort direction). Load before drafting anything when the prompt leaves significant design choices unmade. |
+| `reference/workflows/composition.md` | Open-ended design decisions, named asymmetric splits/mosaic, and the content-prescriptive `ledger` record-lookup archetype. Covers when to ask, chart-vs-table defaults, editorial sizing, and hidden source pages. Load before drafting when the prompt leaves design choices unmade or asks users to find/browse records. |
 | `reference/workflows/app-compositions.md` | **Operational app visual composition.** Load with `generate-apps.md`: keeps semantic architecture separate from appearance, selects `workbench` / `queue-rail` / `builder-preview`, requires a local design manifest, emits asymmetric work-surface-first layout via `Composition.compose`, and adds a two-render PNG polish gate. |
 | `reference/workflows/actions.md` | Buttons, write-back, and **all twelve** action effects — insert/update/delete-rows, clear-control, set-control-value, open/close-overlay (modal **and** drawer), open-url, open-document (incl. passing `targetControls` into another workbook), navigate, select-tab, refresh-element — plus the append-only-log pattern and the masked-error catalog. Load when the user wants a button, a "log/save/submit" action, tab/page navigation, a deep link, or a write-back workflow. |
 | `reference/workflows/generate-apps.md` | **Generate a Sigma app.** Load first when the user asks to build a planning, approval, allocation, or exception app (and did not supply a target image). Classifies the type, **interviews** for editable fields / approvals / an Analyze–Configure–Navigate–Act workbook-agent contract, clones an architecture fixture (planning is a multi-page studio shell), then **composes** an app shell + `workbench` / `queue-rail` / `builder-preview` look. Fail the PNG pass on skill chrome, invisible entry controls, Dark-by-default on data-entry, a 3-KPI status strip, an empty work surface, or `Unknown column` / `Invalid Query` on a page measure. |
