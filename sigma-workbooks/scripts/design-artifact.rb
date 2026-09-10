@@ -197,7 +197,7 @@ module DesignArtifact
       out << "#{at}.reviewed must be true" unless render['reviewed'] == true
     end
     if strict
-      stages = renders.filter_map { |render| render['stage'] if render.is_a?(Hash) }
+      stages = renders.map { |render| render['stage'] if render.is_a?(Hash) }.compact
       out << "#{wb}.visual.renders needs reviewed first and final renders" unless
         stages.include?('first') && stages.include?('final')
     end
