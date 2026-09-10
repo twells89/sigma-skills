@@ -11,7 +11,7 @@ These are flat `document.elements[]` entries and are assigned by layout.
 
 ## text
 
-A Markdown block — titles, descriptions, section headers, callouts. Required `id`, `kind`, `body`; optional `verticalAlign` (`start` / `middle` / `end`) and `overflow` (`clip` / `scroll`). No `name`, no `source`.
+A Markdown block — titles, descriptions, section headers, callouts. Required `id`, `kind`, `body`; optional `verticalAlign` (`top` / `center` / `bottom`, default `top`) and `overflow` (`clip` / `scroll`). No `name`, no `source`.
 
 ```yaml
 id: text-header
@@ -62,6 +62,8 @@ url: https://cdn.example.com/logo.png
 ## divider
 
 A rule for separating sections. Required `id`, `kind`; optional `direction` (`horizontal` / `vertical`), `align`, and `style` (`color` / `width` / `strokeStyle`).
+
+`align` is direction-specific: horizontal dividers, including dividers with no `direction`, accept `top` / `center` / `bottom`; vertical dividers accept `left` / `center` / `right`.
 
 ```yaml
 id: section-rule

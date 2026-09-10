@@ -333,14 +333,14 @@ module Styling
     # value: undefined"). style stays a sibling of source.
     container_el = { 'id' => container_id, 'kind' => 'container', 'style' => { 'borderRadius' => 'round' },
                      'backgroundImage' => { 'source' => { 'kind' => 'url', 'url' => bg_url }, 'style' => { 'fit' => 'cover' } } }
-    title_el = { 'id' => title_id, 'kind' => 'text', 'verticalAlign' => 'middle',
+    title_el = { 'id' => title_id, 'kind' => 'text', 'verticalAlign' => 'center',
                  'body' => "# <span style=\"color: #FFFFFF\">#{title}</span>" }
 
     elements = [container_el]
     elements << { 'id' => logo_id, 'kind' => 'image', 'url' => logo_url, 'style' => { 'fit' => 'contain' } } if logo_url
     elements << title_el
     if subtitle
-      elements << { 'id' => subtitle_id, 'kind' => 'text', 'verticalAlign' => 'middle',
+      elements << { 'id' => subtitle_id, 'kind' => 'text', 'verticalAlign' => 'center',
                     'body' => "<span style=\"color: #CBD5E1\">#{subtitle}</span>" }
     end
 

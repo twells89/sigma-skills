@@ -185,7 +185,7 @@ A `kind: "tabbed-container"` element packs several views into one region — swi
     - name: Overview
     - name: Detail
   tabBar:
-    alignment: start
+    alignment: left
 ```
 
 The actual content for each tab is ordinary flat elements; layout places them.
@@ -208,7 +208,7 @@ in `document.elements[]`; `<Tab>` order ties them to the labels above.
 
 - **Gotcha (verified):** inside a `<Tab>`, use **bare `<Element>` children only** — never nest a `<Container>` inside a `<Tab>`. A `<Tab>` is already a mini-grid (its own `gridTemplateColumns` / `gridTemplateRows`), so elements position directly in it; a nested `<Container>` scrambles tab render order.
 - **When to use it:** several views that are alternates of each other (a summary + a detail table, one view per region/segment) rather than sequential reading — pack them into one region instead of a long scroll or extra pages.
-- **Building it:** hand-authoring the position-mapped `<Tab>` block is error-prone. Use `Composition.tabbed_container(id:, tabs:, grid_column:, grid_row:, tab_bar_alignment: 'start')` in `scripts/lib/composition.rb` — `tabs:` is `[{name:, inner:}]`, where `inner` is the tab's bare-`<Element>` XML (built with `Composition.band`/`Composition.le` or by hand). It returns `{element:, layout:}`, ready to add to `document.elements[]` and `document.layout`.
+- **Building it:** hand-authoring the position-mapped `<Tab>` block is error-prone. Use `Composition.tabbed_container(id:, tabs:, grid_column:, grid_row:, tab_bar_alignment: 'left')` in `scripts/lib/composition.rb` — `tabs:` is `[{name:, inner:}]`, where `inner` is the tab's bare-`<Element>` XML (built with `Composition.band`/`Composition.le` or by hand). It returns `{element:, layout:}`, ready to add to `document.elements[]` and `document.layout`.
 
 ## `gridTemplateRows`: always `"auto"`
 

@@ -445,7 +445,7 @@ body: '<span style="color: var(--colors-textNeutral)">…</span>'               
 - Classes: `h-med`, `h-small` (only with `text-align: center|right`), `p-large`, `p-small` (standalone OK). For **left-aligned headings use markdown `#`/`##` + a `<span>`** for color.
 - Markdown (`**bold**`, `*italic*`) works inside spans; `font-family` spans work (observed `font-family: Inter`).
 - Colors in spans must be **hex** via the API (`var(--colors-*)` appears in UI-authored demo specs but the API rejects it).
-- Text elements take a top-level `verticalAlign: middle` ✓ (sibling of `body`, not in `style`).
+- Text elements take a top-level `verticalAlign: center` ✓ (sibling of `body`, not in `style`).
 
 ### Dynamic text — `{{…}}` formula templating ✓
 
@@ -474,7 +474,7 @@ body: '<p class="p-small"><span style="color: #E2E8F0">**{{Sum([Clones/Clones])}
 ```yaml
 style: { backgroundColor: "#f0f7ff", padding: none }      # match the chip tint so the KPI blends in
 value: { columnId: k1-v, fontSize: 28 }
-layout: { anchor: middle }            # also: verticalAnchor: start|middle, titleOrient: bottom, comparisonValueOrient: right
+layout: { anchor: center }            # also: verticalAnchor: top|center|bottom, titleOrient: bottom, comparisonValueOrient: right
 ```
 
 **KPI strip inside a dark hero** ✓ — the strongest "designed" move observed (KPIs live in the
@@ -670,7 +670,7 @@ return contract as `header`, so it drops into the same composition call sites.
     style: { fit: cover }
 - id: hdr-title
   kind: text
-  verticalAlign: middle
+  verticalAlign: center
   body: '# <span style="color: #FFFFFF">Overview</span>'
 ```
 

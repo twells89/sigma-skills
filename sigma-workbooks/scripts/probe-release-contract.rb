@@ -196,7 +196,7 @@ def elements(repeater_binding: false)
     {
       'id' => 'details-tabs', 'kind' => 'tabbed-container',
       'tabs' => [{ 'name' => 'Summary' }, { 'name' => 'Detail' }],
-      'tabBar' => { 'alignment' => 'start' }
+      'tabBar' => { 'alignment' => 'left' }
     },
     { 'id' => 'tab-summary', 'kind' => 'text', 'body' => 'Summary tab' },
     { 'id' => 'tab-detail', 'kind' => 'text', 'body' => 'Detail tab' },
