@@ -65,7 +65,7 @@ def home_folder_id
   member_code, member = json_request(:get, "/v2/members/#{member_id}")
   candidates = [whoami]
   candidates << member if member_code.between?(200, 299)
-  candidates.filter_map { |entry| entry['homeFolderId'] || entry['homeFolder'] }.first
+  candidates.map { |entry| entry['homeFolderId'] || entry['homeFolder'] }.compact.first
 end
 
 def layout(element_ids = elements.map { |element| element.fetch('id') })

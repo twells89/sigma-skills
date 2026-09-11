@@ -300,15 +300,15 @@ def lint_layout_coverage(spec)
   referenced_all = layout.scan(/\belementId="([^"]+)"/).flatten
   referenced = referenced_all.uniq
   regions = COLLECTIONS.keys.flat_map { |collection| Array(doc[collection]) }
-  declared_region_ids = regions.filter_map { |region| region['id'] }.uniq
+  declared_region_ids = regions.map { |region| region['id'] }.compact.uniq
   referenced_region_ids = layout.scan(/<(?:Page|Overlay|Panel)\b[^>]*\bid="([^"]+)"/).flatten.uniq
   issues = []
 
   elements.group_by { |element| element['id'] }.each do |id, grouped|
     issues << "duplicate document.elements id #{id.inspect}" if id && grouped.length > 1
   end
-  referenced_all.tally.each do |id, count|
-    issues << "element #{id.inspect} is placed #{count} times" if count > 1
+  referenced_all.group_by { |id| id }.each do |id, occurrences|
+    issues << "element #{id.inspect} is placed #{occurrences.length} times" if occurrences.length > 1
   end
   declared.each do |id, element|
     next if referenced.include?(id)
@@ -343,7 +343,7 @@ def lint_reference_integrity(spec)
   elements = Array(doc['elements'])
   declared = index_by_id(elements)
   columns = elements.each_with_object({}) do |element, acc|
-    acc[element['id']] = Array(element['columns']).filter_map { |column| column['id'] }
+    acc[element['id']] = Array(element['columns']).map { |column| column['id'] }.compact
   end
   issues = []
 
@@ -551,7 +551,7 @@ def cmd_summarize(args)
   COLLECTIONS.each_key do |collection|
     (doc[collection] || []).each do |entry|
       ids = layout_chunks.fetch(entry['id'], '').scan(/\belementId="([^"]+)"/).flatten
-      placed = ids.filter_map { |id| by_id[id] }
+      placed = ids.map { |id| by_id[id] }.compact
       kinds = placed.group_by { |element| element['kind'] }.map { |kind, grouped| "#{kind}×#{grouped.size}" }.join(', ')
       vis = entry['visibility'] == 'hidden' ? ' [hidden]' : ''
       puts "  #{collection.sub(/s\z/, '')} \"#{entry['name']}\"#{vis}: #{placed.size} elements (#{kinds})"
