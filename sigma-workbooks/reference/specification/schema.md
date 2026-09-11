@@ -132,7 +132,6 @@ overlays:
     name: Filters
     drawer:
       width: medium
-      position: end
       showShadow: shown
       header: { title: Filters }
 ```
