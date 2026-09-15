@@ -34,10 +34,29 @@ header/footer panel assignment and rendering, complete panel readback, and a
 new document version after PUT. This is a baseline, not blanket proof of every
 optional field on these kinds.
 
+## Current shared-shape contract
+
+A 2026-09-15 readback of 16 existing reports and non-persistent `/verify`
+probes established the released common-element forms:
+
+- text `verticalAlign` is `top`, `center`, or `bottom`;
+- KPI `layout.anchor` is `left`, `center`, or `right`, and
+  `layout.verticalAnchor` is `top`, `center`, or `bottom`;
+- pivot `rowsBy`/`columnsBy` entries are `{columnId: ...}`;
+- map and scalar chart channel pointers use `{columnId: ...}`, not `{id: ...}`;
+- `seriesLineAreaStyle` is a list of `{columnId, style}` objects, not a map;
+- theme `colorOverrides`, when preserving report settings, is a list of
+  `{name, color}` objects, not a map.
+
+The current forms returned `valid:true` for a report readback, combo-series
+style, and pivot-shelf probe. The corresponding legacy `middle`, `{id: ...}`,
+and map-shaped `seriesLineAreaStyle` forms returned HTTP 400. This proves the
+shape contract, not blanket report/PDF support for every optional field.
+
 ## Documented common kinds
 
 - `area-chart`
-- `control`, except `controlType: synced`
+- `control`, except `controlType: synced` and the schema-only `file-upload`
 - `divider`
 - `geography-map`
 - `image`
@@ -54,19 +73,29 @@ layout and workbook-only behavior in those guides.
 
 ## Schema-only kinds
 
+- `box-chart`
 - `button`
 - `embed`
+- `funnel-chart`
+- `gauge-chart`
 - `input-table`
 - `plugin`
+- `sankey-chart`
+- `treemap-chart`
 
 These may verify in some configurations, but interactive or write-back
 behavior and PDF output require explicit evidence. The local validator emits a
 warning rather than accepting them silently.
 
+`controlType: file-upload` is also schema-only. Its upload lifecycle and PDF
+behavior are not established for reports.
+
 The inherited top-level `document.settings` field is also schema-published but
 not report-proven by this skill. Preserve it unchanged when it appears in a
 readback, warn before PUT, and do not author new theme/navigation settings
-without targeted verify, readback, and PDF evidence.
+without targeted verify, readback, and PDF evidence. If present,
+`settings.theme.overrides.colorOverrides` uses the released list form
+`[{name, color}]`.
 
 ## Unsupported kinds and subtypes
 
@@ -80,12 +109,15 @@ documentation. The local validator rejects them.
 ## Workbook-only kinds
 
 - `chat`
+- `code`
 - `container`
 - `form`
 - `navigation`
 - `page-break`
 - `repeated-container`
+- `single-row-container`
 - `tabbed-container`
+- `value-list`
 
 Do not emulate these by copying workbook layout XML. Convert the design to
 fixed report pages or keep it as a workbook.

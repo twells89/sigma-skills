@@ -42,10 +42,12 @@ workbook or hardcode the value shown in examples.
 
 ## Update envelope
 
-`PUT /v2/reports/{reportId}/spec` accepts only a complete document wrapper:
+`PUT /v2/reports/{reportId}/spec` requires a complete document and accepts the
+current `documentVersion` for optimistic concurrency:
 
 ```json
 {
+  "documentVersion": 7,
   "document": {
     "schemaVersion": 1,
     "kind": "report",
@@ -58,9 +60,12 @@ workbook or hardcode the value shown in examples.
 }
 ```
 
-Do not include `name`, `folderId`, `reportId`, versions, timestamps, or other
-GET metadata. PUT creates a new report version and replaces the complete
-document. Anything omitted from the document can be lost.
+`documentVersion` is optional in OpenAPI but should be copied from the latest
+GET. Sigma then rejects the PUT if another edit advanced the report first.
+Do not include `name`, `folderId`, `reportId`, `latestDocumentVersion`,
+timestamps, or other GET metadata. PUT creates a new report version and
+replaces the complete document. Anything omitted from the document can be
+lost.
 
 ## Pages
 
@@ -129,6 +134,19 @@ once in layout.
 
 Reports use the OpenAPI `CommonElement` union. This does not mean every union
 member works safely in reports. Apply `support-matrix.md` before authoring.
+
+The shared released shapes use:
+
+- `{columnId: ...}` for map/scalar channel pointers and pivot
+  `rowsBy`/`columnsBy` shelf entries;
+- arrays for `seriesLineAreaStyle: [{columnId, style}]` and
+  `settings.theme.overrides.colorOverrides: [{name, color}]`;
+- `verticalAlign: top|center|bottom`;
+- KPI `layout.anchor: left|center|right` and
+  `layout.verticalAnchor: top|center|bottom`.
+
+The legacy `{id: ...}`, keyed-map, and `start|middle|end` forms are rejected by
+the current report API.
 
 ## GET metadata
 

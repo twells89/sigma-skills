@@ -48,6 +48,16 @@ and exported as a one-page landscape PDF with populated data. The support
 matrix records which findings this proves and which schema-published features
 remain gated.
 
+Shared-shape refresh, verified 2026-09-15 against the compiled OpenAPI and
+non-persistent report `/verify`: common element pointers now use
+`{columnId: ...}`, pivot shelves use `{columnId: ...}`, and
+`seriesLineAreaStyle` is a list of `{columnId, style}` objects. Text/KPI
+alignment uses directional values (`left`/`center`/`right` and
+`top`/`center`/`bottom`), not `start`/`middle`/`end`. The old pointer, map, and
+alignment forms returned HTTP 400 while the replacement forms verified
+`valid:true`. Report PUT also publishes optional `documentVersion` for
+optimistic concurrency.
+
 When documentation, this skill, and a live verify/readback disagree, prefer
 the live result and preserve the evidence. Run the bundled OpenAPI contract
 test against a fresh download when the API reports a shape error:
@@ -70,7 +80,7 @@ ruby scripts/test-openapi-contract.rb /tmp/sigma-openapi.json
    DELETE endpoint. Do not create a probe report without explicit user
    approval and a named destination folder.
 4. Treat PUT as full-document replacement. Always GET, back up, compare, edit,
-   validate, verify, PUT, and read back.
+   validate, verify, PUT with the retrieved `documentVersion`, and read back.
 5. A report GET can omit unsupported UI-authored features. Never assume a GET
    representation is lossless merely because the request succeeded.
 
@@ -106,6 +116,16 @@ the same OpenAPI union used by workbooks. If `sigma-workbooks` is installed,
 its table, chart, map, KPI, control, source, formula, and formatting references
 are useful shape recipes. Apply only kinds allowed by the report support
 matrix, and never copy workbook grid layout or workbook-only elements.
+
+For shared shapes changed by the released code contract:
+
+- use `columnId`, never `id`, in map channels and pivot
+  `rowsBy`/`columnsBy` shelf entries;
+- emit `seriesLineAreaStyle` and theme `colorOverrides` as lists, not
+  ID/name-keyed maps;
+- use `verticalAlign: top|center|bottom`;
+- use KPI `layout.anchor: left|center|right` and
+  `layout.verticalAnchor: top|center|bottom`.
 
 ### Step 3: Draft a wrapped JSON representation
 
@@ -198,7 +218,9 @@ Follow `reference/workflows/crud.md`. The short version is:
 4. Edit the complete `document`.
 5. Validate in `--mode update` and call `/v2/reports/spec/verify` with a create
    envelope assembled from the current name/folder and edited document.
-6. PUT exactly `{"document": {...}}`.
+6. PUT `{"document": {...}, "documentVersion": <version-from-GET>}`. The
+   version is optional in OpenAPI but strongly recommended so a concurrent edit
+   fails instead of being overwritten.
 7. GET again, compare, export, and inspect.
 
 ## Reference index
@@ -218,6 +240,7 @@ Follow `reference/workflows/crud.md`. The short version is:
 | Symptom | Action |
 |---|---|
 | `unknown field`, `unexpected property`, or missing field | Compare the endpoint against the compiled OpenAPI and rerun the contract test. |
+| `Invalid kind` after adding a channel or shelf | Replace legacy `{id: ...}` with `{columnId: ...}` and check list-vs-map fields. |
 | A field or element disappears on GET | Treat the representation as lossy; do not PUT until the omitted feature is removed intentionally or preserved another way. |
 | Content overlaps or clips | Check pixel bounds, page dimensions, margins, and repeated panel height; inspect a PDF export. |
 | A workbook grid attribute appears in report XML | Replace it with absolute `x`, `y`, `width`, and `height`. |

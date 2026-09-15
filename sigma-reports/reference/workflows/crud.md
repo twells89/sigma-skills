@@ -55,11 +55,12 @@ and the report `document`.
 
 ## Update
 
-PUT is full replacement and creates a new report version. Send exactly one
-outer property, `document`:
+PUT is full replacement and creates a new report version. Send `document` and
+the `documentVersion` from the latest GET:
 
 ```bash
-jq '{document: .document}' /tmp/report-edited.json \
+jq '{document: .document, documentVersion: .documentVersion}' \
+  /tmp/report-edited.json \
   > /tmp/report-put.json
 
 ruby scripts/validate-spec.rb --mode update /tmp/report-put.json
@@ -75,7 +76,7 @@ curl -sf -X PUT \
 
 Before PUT:
 
-1. GET the latest representation and preserve its version metadata.
+1. GET the latest representation and preserve `documentVersion`.
 2. List the report's pages, elements, and controls through their inventory
    endpoints.
 3. Compare inventory IDs with the representation.
@@ -84,6 +85,12 @@ Before PUT:
    entry not intentionally changed.
 6. Validate the update body locally.
 7. Assemble a create envelope around the edited document and call verify.
+
+The current OpenAPI makes `documentVersion` optional, but omitting it removes
+the optimistic-concurrency guard. Include it unless intentionally forcing the
+latest complete document over concurrent edits. A stale version must be
+resolved by GET, reapplying the intended edit, and repeating validation; do not
+blindly retry without reconciling.
 
 After PUT, GET again and compare normalized documents. Export the affected
 pages as PDF and inspect them.

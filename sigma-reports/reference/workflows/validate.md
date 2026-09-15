@@ -17,6 +17,8 @@ The validator checks:
 - 1,000-page and 10,000-pixel limits;
 - panel types, page assignments, and one-header/one-footer per page;
 - documented unsupported, workbook-only, schema-only, and unknown kinds;
+- released `columnId` pointers, list-shaped series/theme overrides, and
+  directional alignment values;
 - real XML parsing of Page, Panel, and Element layout nodes;
 - absolute numeric coordinates and dimensions;
 - page and panel outer bounds;
@@ -32,7 +34,7 @@ a targeted OpenAPI review and live verify before writing.
 POST the create envelope to `/v2/reports/spec/verify`. This is non-persistent
 and should precede every create or update. For an update, wrap the edited
 document with the current report name and folder solely for verification, then
-send only `{document: ...}` to PUT.
+send `{document: ..., documentVersion: ...}` to PUT.
 
 Verify can catch schema and dependency errors that an offline validator cannot.
 
@@ -74,6 +76,9 @@ API success cannot prove visual or data parity.
 | element missing from layout | Add one `<Element elementId="...">` under a Page or Panel root. |
 | undeclared element in layout | Fix the ID or add the literal element to `document.elements`. |
 | workbook grid attribute | Replace grid syntax with pixel `x`, `y`, `width`, and `height`. |
+| channel or pivot shelf uses `id` | Replace it with `columnId`; the old pointer shape is rejected. |
+| `seriesLineAreaStyle` or `colorOverrides` is an object map | Emit a list of `{columnId, style}` or `{name, color}` objects. |
+| alignment uses `start`, `middle`, or `end` | Use released directional values (`left`/`center`/`right`, `top`/`center`/`bottom`). |
 | panel type mismatch | Make layout and metadata both `header` or both `footer`. |
 | field disappears on GET | Treat readback as lossy; do not blindly PUT the result. |
 | verify succeeds but PDF is wrong | Fix physical layout; verify is not a render test. |
