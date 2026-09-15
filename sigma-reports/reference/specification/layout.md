@@ -65,7 +65,9 @@ Do not use:
 - `gridColumn`, `gridRow`, `gridTemplateColumns`, `gridTemplateRows`
 - `<Container>`, `<TabbedContainer>`, `<Tab>`, `<Overlay>`
 - workbook header/sidebar panel types
-- `kind: container`, `tabbed-container`, `repeated-container`, or `page-break`
+- workbook-only `kind` values: `chat`, `code`, `container`, `form`,
+  `navigation`, `page-break`, `repeated-container`, `single-row-container`,
+  `tabbed-container`, and `value-list`
 
 Those constructs belong to workbook layout. A report page already has fixed
 physical dimensions; pagination comes from report pages, not workbook

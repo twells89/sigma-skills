@@ -69,6 +69,114 @@ def collect_discriminators(schema, discriminator, openapi, out = [], seen = {})
   out.uniq { |entry| entry[discriminator] }.sort_by { |entry| entry[discriminator] }
 end
 
+def collect_discriminator_values(schema, discriminator, openapi, out = [], seen = {})
+  return out unless schema.is_a?(Hash)
+
+  if schema['$ref']
+    return out if seen[schema['$ref']]
+
+    seen[schema['$ref']] = true
+    schema = resolve(schema, openapi)
+  end
+  values = enum_values(property(schema, discriminator, openapi), openapi)
+  if values.one?
+    out << {
+      'title' => schema['title'] || values.first.split('-').map(&:capitalize).join(' '),
+      discriminator => values.first
+    }
+  end
+  %w[oneOf anyOf allOf].each do |key|
+    Array(schema[key]).each do |part|
+      collect_discriminator_values(part, discriminator, openapi, out, seen.dup)
+    end
+  end
+  out.uniq { |entry| entry[discriminator] }.sort_by { |entry| entry[discriminator] }
+end
+
+def discriminator_schema(schema, discriminator, value, openapi, matches = [], seen = {})
+  return unless schema.is_a?(Hash)
+
+  if schema['$ref']
+    return if seen[schema['$ref']]
+
+    seen[schema['$ref']] = true
+    schema = resolve(schema, openapi)
+  end
+  values = enum_values(property(schema, discriminator, openapi), openapi)
+  matches << schema if values == [value]
+  %w[oneOf anyOf allOf].each do |key|
+    Array(schema[key]).each do |part|
+      discriminator_schema(part, discriminator, value, openapi, matches, seen.dup)
+    end
+  end
+  matches.max_by { |entry| merged_properties(entry, openapi).length }
+end
+
+def property_enums(schema, name, openapi, out = [], seen = {})
+  return out unless schema.is_a?(Hash)
+
+  if schema['$ref']
+    return out if seen[schema['$ref']]
+
+    seen[schema['$ref']] = true
+    schema = resolve(schema, openapi)
+  end
+  out.concat(enum_values(schema.dig('properties', name), openapi)) if schema.dig('properties', name)
+  %w[oneOf anyOf allOf].each do |key|
+    Array(schema[key]).each { |part| property_enums(part, name, openapi, out, seen.dup) }
+  end
+  out.uniq.sort
+end
+
+def array_contract(schema, openapi)
+  schema = resolve(schema, openapi)
+  return unless schema.is_a?(Hash)
+
+  {
+    'type' => schema['type'],
+    'items' => shape(schema['items'], openapi)
+  }
+end
+
+def shared_breaking_shapes(schemas, create_document, page, openapi)
+  common = schemas.fetch('CommonElement')
+  text = discriminator_schema(common, 'kind', 'text', openapi)
+  kpi = discriminator_schema(common, 'kind', 'kpi-chart', openapi)
+  divider = discriminator_schema(common, 'kind', 'divider', openapi)
+  pivot = discriminator_schema(common, 'kind', 'pivot-table', openapi)
+  geography = discriminator_schema(common, 'kind', 'geography-map', openapi)
+  point = discriminator_schema(common, 'kind', 'point-map', openapi)
+  region = discriminator_schema(common, 'kind', 'region-map', openapi)
+  combo = discriminator_schema(common, 'kind', 'combo-chart', openapi)
+  kpi_layout = property(kpi, 'layout', openapi)
+  settings = property(create_document, 'settings', openapi)
+  theme = property(settings, 'theme', openapi)
+  overrides = property(theme, 'overrides', openapi)
+  page_background_image = property(page, 'backgroundImage', openapi)
+
+  {
+    'pageBackgroundImage' => shape(page_background_image, openapi),
+    'alignment' => {
+      'textVerticalAlign' => enum_values(property(text, 'verticalAlign', openapi), openapi),
+      'kpiAnchor' => enum_values(property(kpi_layout, 'anchor', openapi), openapi),
+      'kpiVerticalAnchor' => enum_values(property(kpi_layout, 'verticalAnchor', openapi), openapi),
+      'dividerAlign' => property_enums(divider, 'align', openapi)
+    },
+    'columnIdPointers' => {
+      'geography' => shape(property(geography, 'geography', openapi), openapi),
+      'latitude' => shape(property(point, 'latitude', openapi), openapi),
+      'longitude' => shape(property(point, 'longitude', openapi), openapi),
+      'region' => shape(property(region, 'region', openapi), openapi),
+      'pivotRowsByItem' => shape(property(pivot, 'rowsBy', openapi).fetch('items'), openapi),
+      'pivotColumnsByItem' => shape(property(pivot, 'columnsBy', openapi).fetch('items'), openapi)
+    },
+    'listShapes' => {
+      'seriesLineAreaStyle' => array_contract(property(combo, 'seriesLineAreaStyle', openapi), openapi),
+      'colorOverrides' => array_contract(property(overrides, 'colorOverrides', openapi), openapi)
+    }
+  }
+end
+
 def request_schema(openapi, path, method)
   openapi.dig('paths', path, method, 'requestBody', 'content', 'application/json', 'schema')
 end
@@ -103,6 +211,10 @@ common_elements = collect_discriminators(schemas.fetch('CommonElement'), 'kind',
 common_kinds = common_elements.map { |entry| entry.fetch('kind') }
 workbook_only_elements = collect_discriminators(schemas.fetch('WorkbookElement'), 'kind', openapi)
                          .reject { |entry| common_kinds.include?(entry.fetch('kind')) }
+controls = (
+  collect_discriminator_values(schemas.fetch('Control'), 'controlType', openapi) +
+  collect_discriminator_values(schemas.fetch('CommonElement'), 'controlType', openapi)
+).uniq { |entry| entry.fetch('controlType') }.sort_by { |entry| entry.fetch('controlType') }
 
 contract = {
   'source' => {
@@ -138,8 +250,9 @@ contract = {
   'publishedVariants' => {
     'commonElements' => common_elements,
     'workbookOnlyElements' => workbook_only_elements,
-    'controls' => collect_discriminators(schemas.fetch('CommonElement'), 'controlType', openapi)
+    'controls' => controls
   },
+  'sharedBreakingShapes' => shared_breaking_shapes(schemas, create_document, page, openapi),
   'operations' => {
     'reportResourceMethods' => openapi.fetch('paths').fetch(resource_path).keys.grep(/\A(?:get|post|put|patch|delete)\z/).sort,
     'createStatuses' => openapi.dig('paths', create_path, 'post', 'responses').keys.sort,

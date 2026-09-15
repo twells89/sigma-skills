@@ -13,15 +13,27 @@ module ReportSpec
       kpi-chart line-chart pivot-table point-map region-map scatter-chart
       table text
     ].freeze
-    SCHEMA_ONLY_KINDS = %w[button embed input-table plugin].freeze
+    SCHEMA_ONLY_KINDS = %w[
+      box-chart button embed funnel-chart gauge-chart input-table plugin
+      sankey-chart treemap-chart
+    ].freeze
     UNSUPPORTED_KINDS = %w[progress waterfall-chart].freeze
     WORKBOOK_ONLY_KINDS = %w[
-      chat container form navigation page-break repeated-container
-      tabbed-container
+      chat code container form navigation page-break repeated-container
+      single-row-container tabbed-container value-list
     ].freeze
     FORBIDDEN_LAYOUT_ATTRIBUTES = %w[
       gridColumn gridRow gridTemplateColumns gridTemplateRows
     ].freeze
+    COLUMN_ID_POINTER_FIELDS = {
+      'funnel-chart' => %w[stage series],
+      'gauge-chart' => %w[value],
+      'geography-map' => %w[geography],
+      'point-map' => %w[latitude longitude size],
+      'region-map' => %w[region],
+      'scatter-chart' => %w[size],
+      'treemap-chart' => %w[category]
+    }.freeze
 
     attr_reader :errors, :warnings
 
@@ -62,7 +74,13 @@ module ReportSpec
           errors << "missing required create field: #{key}" unless @payload.key?(key)
         end
       when :update
-        errors << 'update body must contain exactly one property: document' unless @payload.keys == ['document']
+        errors << 'missing required update field: document' unless @payload.key?('document')
+        unexpected = @payload.keys - %w[document documentVersion]
+        errors << "update body contains unsupported properties: #{unexpected.join(', ')}" unless unexpected.empty?
+        if @payload.key?('documentVersion') &&
+           (!@payload['documentVersion'].is_a?(Numeric) || !@payload['documentVersion'].finite?)
+          errors << 'update documentVersion must be a finite number'
+        end
       else
         errors << "unknown validation mode: #{@mode}"
       end
@@ -80,7 +98,11 @@ module ReportSpec
       errors << 'document.elements must be an array' unless @document['elements'].is_a?(Array)
       errors << 'document.pages must be an array' unless @document['pages'].is_a?(Array)
       errors << 'document.panels must be an array when present' if @document.key?('panels') && !@document['panels'].is_a?(Array)
+      %w[themeName themeOverrides].each do |key|
+        errors << "document.#{key} was removed; use document.settings.theme" if @document.key?(key)
+      end
       warnings << 'document.settings is schema-published but not report-proven; preserve readback unchanged and verify carefully' if @document.key?('settings')
+      validate_color_overrides
 
       config = @document['config']
       if config && !config.is_a?(Hash)
@@ -109,6 +131,27 @@ module ReportSpec
         end
         errors << "page #{label(page, index)} must have a non-empty name" unless nonempty_string?(page['name'])
         errors << "page #{label(page, index)} must not contain nested elements" if page.key?('elements')
+        validate_page_background_image(page, index)
+      end
+    end
+
+    def validate_page_background_image(page, index)
+      return unless page.key?('backgroundImage')
+
+      background = page['backgroundImage']
+      page_label = label(page, index)
+      unless background.is_a?(Hash)
+        errors << "page #{page_label} backgroundImage must be an object"
+        return
+      end
+      errors << "page #{page_label} backgroundImage uses removed flat url; nest it under source" if background.key?('url')
+      source = background['source']
+      unless source.is_a?(Hash)
+        errors << "page #{page_label} backgroundImage must contain a source object"
+        return
+      end
+      if source['kind'] == 'url' && !nonempty_string?(source['url'])
+        errors << "page #{page_label} backgroundImage URL source must contain a non-empty url"
       end
     end
 
@@ -183,6 +226,108 @@ module ReportSpec
 
         if kind == 'control' && element['controlType'] == 'synced'
           errors << "element #{element_label} uses unsupported synced controlType"
+        elsif kind == 'control' && element['controlType'] == 'file-upload'
+          warnings << "element #{element_label} uses schema-only file-upload controlType; require live verify/readback/PDF evidence"
+        end
+
+        validate_released_element_shapes(element, element_label)
+      end
+    end
+
+    def validate_released_element_shapes(element, element_label)
+      validate_alignment(element, element_label)
+      validate_column_id_pointers(element, element_label)
+      validate_pivot_shelves(element, element_label) if element['kind'] == 'pivot-table'
+      validate_series_line_area_style(element, element_label)
+    end
+
+    def validate_alignment(element, element_label)
+      vertical_align = element['verticalAlign']
+      if vertical_align && !%w[top center bottom].include?(vertical_align)
+        errors << "element #{element_label} verticalAlign must be top, center, or bottom"
+      end
+
+      if element['kind'] == 'divider' && element['align']
+        allowed = element['direction'] == 'vertical' ? %w[left center right] : %w[top center bottom]
+        unless allowed.include?(element['align'])
+          errors << "element #{element_label} align must be #{allowed.join(', ')} for #{element['direction'] || 'horizontal'} divider"
+        end
+      end
+
+      return unless element['kind'] == 'kpi-chart' && element['layout'].is_a?(Hash)
+
+      anchor = element['layout']['anchor']
+      if anchor && !%w[left center right].include?(anchor)
+        errors << "element #{element_label} layout.anchor must be left, center, or right"
+      end
+      vertical_anchor = element['layout']['verticalAnchor']
+      if vertical_anchor && !%w[top center bottom].include?(vertical_anchor)
+        errors << "element #{element_label} layout.verticalAnchor must be top, center, or bottom"
+      end
+    end
+
+    def validate_column_id_pointers(element, element_label)
+      Array(COLUMN_ID_POINTER_FIELDS[element['kind']]).each do |field|
+        pointer = element[field]
+        next unless pointer.is_a?(Hash)
+
+        errors << "element #{element_label} #{field} uses removed id; use columnId" if pointer.key?('id')
+      end
+
+      return unless element['kind'] == 'sankey-chart'
+
+      Array(element['stages']).each_with_index do |pointer, index|
+        next unless pointer.is_a?(Hash) && pointer.key?('id')
+
+        errors << "element #{element_label} stages[#{index}] uses removed id; use columnId"
+      end
+    end
+
+    def validate_pivot_shelves(element, element_label)
+      %w[rowsBy columnsBy].each do |field|
+        Array(element[field]).each_with_index do |pointer, index|
+          next unless pointer.is_a?(Hash) && pointer.key?('id')
+
+          errors << "element #{element_label} #{field}[#{index}] uses removed id; use columnId"
+        end
+      end
+    end
+
+    def validate_series_line_area_style(element, element_label)
+      return unless element.key?('seriesLineAreaStyle')
+
+      styles = element['seriesLineAreaStyle']
+      unless styles.is_a?(Array)
+        errors << "element #{element_label} seriesLineAreaStyle must be a list of {columnId, style} objects"
+        return
+      end
+      styles.each_with_index do |entry, index|
+        next unless entry.is_a?(Hash)
+
+        errors << "element #{element_label} seriesLineAreaStyle[#{index}] uses removed id; use columnId" if entry.key?('id')
+      end
+    end
+
+    def validate_color_overrides
+      settings = @document['settings']
+      return unless settings.is_a?(Hash)
+
+      theme = settings['theme']
+      return unless theme.is_a?(Hash)
+
+      theme_overrides = theme['overrides']
+      return unless theme_overrides.is_a?(Hash)
+
+      overrides = theme_overrides['colorOverrides']
+      return if overrides.nil?
+
+      unless overrides.is_a?(Array)
+        errors << 'document.settings.theme.overrides.colorOverrides must be a list of {name, color} objects'
+        return
+      end
+      overrides.each_with_index do |entry, index|
+        unless entry.is_a?(Hash) && nonempty_string?(entry['name']) && nonempty_string?(entry['color'])
+          errors << "document.settings.theme.overrides.colorOverrides[#{index}] must contain non-empty name and color"
         end
       end
     end

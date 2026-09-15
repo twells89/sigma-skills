@@ -42,10 +42,12 @@ workbook or hardcode the value shown in examples.
 
 ## Update envelope
 
-`PUT /v2/reports/{reportId}/spec` accepts only a complete document wrapper:
+`PUT /v2/reports/{reportId}/spec` requires a complete document and accepts the
+current `documentVersion` for optimistic concurrency:
 
 ```json
 {
+  "documentVersion": 7,
   "document": {
     "schemaVersion": 1,
     "kind": "report",
@@ -58,9 +60,12 @@ workbook or hardcode the value shown in examples.
 }
 ```
 
-Do not include `name`, `folderId`, `reportId`, versions, timestamps, or other
-GET metadata. PUT creates a new report version and replaces the complete
-document. Anything omitted from the document can be lost.
+`documentVersion` is optional in OpenAPI but should be copied from the latest
+GET. Sigma then rejects the PUT if another edit advanced the report first.
+Do not include `name`, `folderId`, `reportId`, `latestDocumentVersion`,
+timestamps, or other GET metadata. PUT creates a new report version and
+replaces the complete document. Anything omitted from the document can be
+lost.
 
 ## Pages
 
@@ -73,7 +78,19 @@ Pages are metadata, not element containers:
   "type": "page",
   "visibility": "hidden",
   "pageWidth": "standard",
-  "backgroundColor": "#FFFFFF"
+  "backgroundColor": "#FFFFFF",
+  "backgroundImage": {
+    "source": {
+      "kind": "url",
+      "url": "https://cdn.example.com/background.png"
+    },
+    "style": {
+      "fit": "cover",
+      "horizontalAlign": "center",
+      "verticalAlign": "center",
+      "tiling": "none"
+    }
+  }
 }
 ```
 
@@ -81,6 +98,11 @@ The current shared page schema exposes `id`, `name`, `type`, `visibility`,
 `pageWidth`, `backgroundColor`, and `backgroundImage`. Report physical size is
 controlled by `document.config.pageWidth` and `pageHeight`; do not confuse that
 pixel configuration with the shared page metadata field.
+
+`backgroundImage` requires a `source` wrapper. For a URL, use
+`{source: {kind: "url", url: "..."}, style: {...}}`; the removed flat
+`{url: "..."}` form returns HTTP 400. Preserve uploaded-image source objects
+exactly as returned by GET.
 
 Keep report pages at or below the documented 1,000-page limit. The local
 validator rejects larger documents.
@@ -129,6 +151,28 @@ once in layout.
 
 Reports use the OpenAPI `CommonElement` union. This does not mean every union
 member works safely in reports. Apply `support-matrix.md` before authoring.
+
+The shared released shapes use:
+
+- `{columnId: ...}` for map/scalar channel pointers and pivot
+  `rowsBy`/`columnsBy` shelf entries;
+- arrays for `seriesLineAreaStyle: [{columnId, style}]` and
+  `settings.theme.overrides.colorOverrides: [{name, color}]`;
+- `verticalAlign: top|center|bottom`;
+- KPI `layout.anchor: left|center|right` and
+  `layout.verticalAnchor: top|center|bottom`.
+
+The legacy `{id: ...}`, keyed-map, and `start|middle|end` forms are rejected by
+the current report API.
+
+## Settings
+
+The current shared theme path is `document.settings.theme`, with optional
+`name` and `overrides`. The removed document-level `themeName` and
+`themeOverrides` keys can be silently dropped; move them under
+`settings.theme` before verify or PUT. Settings remain schema-published but
+not report/PDF-proven, so preserve readback exactly and follow the support
+matrix.
 
 ## GET metadata
 

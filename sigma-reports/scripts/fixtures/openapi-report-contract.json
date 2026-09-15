@@ -1,131 +1,592 @@
 {
   "source": {
     "openapiVersion": "3.1.0",
-    "apiVersion": "2.0.0",
-    "capturedAt": "2026-08-11"
+    "apiVersion": "2.0.0+20260914.60dd759",
+    "capturedAt": "2026-09-15"
   },
   "mediaTypes": {
-    "create": ["application/json"],
-    "verify": ["application/json"],
-    "read": ["application/json"],
-    "update": ["application/json"]
+    "create": [
+      "application/json"
+    ],
+    "verify": [
+      "application/json"
+    ],
+    "read": [
+      "application/json"
+    ],
+    "update": [
+      "application/json"
+    ]
   },
   "schemas": {
     "CreateReportSpec": {
-      "required": ["document", "folderId", "name"],
-      "properties": ["description", "document", "folderId", "name"]
+      "required": [
+        "document",
+        "folderId",
+        "name"
+      ],
+      "properties": [
+        "description",
+        "document",
+        "folderId",
+        "name"
+      ]
     },
     "CreateReportSpec.document": {
-      "required": ["elements", "kind", "pages", "schemaVersion"],
-      "properties": ["config", "elements", "kind", "layout", "pages", "panels", "schemaVersion", "settings"]
+      "required": [
+        "elements",
+        "kind",
+        "pages",
+        "schemaVersion"
+      ],
+      "properties": [
+        "config",
+        "elements",
+        "kind",
+        "layout",
+        "pages",
+        "panels",
+        "schemaVersion",
+        "settings"
+      ]
     },
     "VerifyReportSpec": {
-      "required": ["document", "folderId", "name"],
-      "properties": ["description", "document", "folderId", "name"]
+      "required": [
+        "document",
+        "folderId",
+        "name"
+      ],
+      "properties": [
+        "description",
+        "document",
+        "folderId",
+        "name"
+      ]
     },
     "UpdateReportSpec": {
-      "required": ["document"],
-      "properties": ["document"]
+      "required": [
+        "document"
+      ],
+      "properties": [
+        "document",
+        "documentVersion"
+      ]
     },
     "UpdateReportSpec.document": {
-      "required": ["elements", "kind", "pages", "schemaVersion"],
-      "properties": ["config", "elements", "kind", "layout", "pages", "panels", "schemaVersion", "settings"]
+      "required": [
+        "elements",
+        "kind",
+        "pages",
+        "schemaVersion"
+      ],
+      "properties": [
+        "config",
+        "elements",
+        "kind",
+        "layout",
+        "pages",
+        "panels",
+        "schemaVersion",
+        "settings"
+      ]
     },
     "ReportSpec": {
-      "required": ["createdAt", "createdBy", "document", "documentVersion", "folderId", "latestDocumentVersion", "name", "ownerId", "reportId", "updatedAt", "updatedBy", "url"],
-      "properties": ["createdAt", "createdBy", "description", "document", "documentVersion", "folderId", "latestDocumentVersion", "name", "ownerId", "reportId", "updatedAt", "updatedBy", "url"]
+      "required": [
+        "createdAt",
+        "createdBy",
+        "document",
+        "documentVersion",
+        "folderId",
+        "latestDocumentVersion",
+        "name",
+        "ownerId",
+        "reportId",
+        "updatedAt",
+        "updatedBy",
+        "url"
+      ],
+      "properties": [
+        "createdAt",
+        "createdBy",
+        "description",
+        "document",
+        "documentVersion",
+        "folderId",
+        "latestDocumentVersion",
+        "name",
+        "ownerId",
+        "reportId",
+        "updatedAt",
+        "updatedBy",
+        "url"
+      ]
     },
     "ReportSpec.document": {
-      "required": ["elements", "kind", "layout", "pages", "schemaVersion"],
-      "properties": ["config", "elements", "kind", "layout", "pages", "panels", "schemaVersion", "settings"]
+      "required": [
+        "elements",
+        "kind",
+        "layout",
+        "pages",
+        "schemaVersion"
+      ],
+      "properties": [
+        "config",
+        "elements",
+        "kind",
+        "layout",
+        "pages",
+        "panels",
+        "schemaVersion",
+        "settings"
+      ]
     },
     "ReportPage": {
-      "required": ["id", "name"],
-      "properties": ["backgroundColor", "backgroundImage", "id", "name", "pageWidth", "type", "visibility"]
+      "required": [
+        "id",
+        "name"
+      ],
+      "properties": [
+        "backgroundColor",
+        "backgroundImage",
+        "id",
+        "name",
+        "pageWidth",
+        "type",
+        "visibility"
+      ]
     },
     "ReportPanel": {
-      "required": ["id", "type"],
-      "properties": ["config", "id", "pages", "title", "type"]
+      "required": [
+        "id",
+        "type"
+      ],
+      "properties": [
+        "config",
+        "id",
+        "pages",
+        "title",
+        "type"
+      ]
     },
     "ReportPanel.config": {
-      "required": [],
-      "properties": ["backgroundColor", "height"]
+      "required": [
+
+      ],
+      "properties": [
+        "backgroundColor",
+        "height"
+      ]
     },
     "ReportConfig": {
-      "required": [],
-      "properties": ["margin", "pageHeight", "pageWidth"]
+      "required": [
+
+      ],
+      "properties": [
+        "margin",
+        "pageHeight",
+        "pageWidth"
+      ]
     },
     "ConvertWorkbookToReport": {
-      "required": ["name"],
-      "properties": ["description", "destinationFolderId", "format", "name", "pageIds"]
+      "required": [
+        "name"
+      ],
+      "properties": [
+        "description",
+        "destinationFolderId",
+        "format",
+        "name",
+        "pageIds"
+      ]
     },
     "ConvertWorkbookToReportResponse": {
-      "required": ["convertedReport", "sourceWorkbook", "warnings"],
-      "properties": ["convertedReport", "sourceWorkbook", "warnings"]
+      "required": [
+        "convertedReport",
+        "sourceWorkbook",
+        "warnings"
+      ],
+      "properties": [
+        "convertedReport",
+        "sourceWorkbook",
+        "warnings"
+      ]
     }
   },
   "enums": {
-    "documentKind": ["report"],
-    "panelType": ["footer", "header"]
+    "documentKind": [
+      "report"
+    ],
+    "panelType": [
+      "footer",
+      "header"
+    ]
   },
   "publishedVariants": {
     "commonElements": [
-      {"title": "Area Chart", "kind": "area-chart"},
-      {"title": "Bar Chart", "kind": "bar-chart"},
-      {"title": "Button", "kind": "button"},
-      {"title": "Combo Chart", "kind": "combo-chart"},
-      {"title": "Checkbox", "kind": "control"},
-      {"title": "Divider", "kind": "divider"},
-      {"title": "Embed", "kind": "embed"},
-      {"title": "Geography Map", "kind": "geography-map"},
-      {"title": "Image", "kind": "image"},
-      {"title": "Input Table", "kind": "input-table"},
-      {"title": "KPI", "kind": "kpi-chart"},
-      {"title": "Line Chart", "kind": "line-chart"},
-      {"title": "Pivot Table", "kind": "pivot-table"},
-      {"title": "Plugin", "kind": "plugin"},
-      {"title": "Point Map", "kind": "point-map"},
-      {"title": "Progress", "kind": "progress"},
-      {"title": "Region Map", "kind": "region-map"},
-      {"title": "Scatter Chart", "kind": "scatter-chart"},
-      {"title": "Table", "kind": "table"},
-      {"title": "Text", "kind": "text"},
-      {"title": "Waterfall Chart", "kind": "waterfall-chart"}
+      {
+        "title": "Area Chart",
+        "kind": "area-chart"
+      },
+      {
+        "title": "Bar Chart",
+        "kind": "bar-chart"
+      },
+      {
+        "title": "Box Chart",
+        "kind": "box-chart"
+      },
+      {
+        "title": "Button",
+        "kind": "button"
+      },
+      {
+        "title": "Combo Chart",
+        "kind": "combo-chart"
+      },
+      {
+        "title": "Checkbox",
+        "kind": "control"
+      },
+      {
+        "title": "Divider",
+        "kind": "divider"
+      },
+      {
+        "title": "Embed",
+        "kind": "embed"
+      },
+      {
+        "title": "Funnel Chart",
+        "kind": "funnel-chart"
+      },
+      {
+        "title": "Gauge Chart",
+        "kind": "gauge-chart"
+      },
+      {
+        "title": "Geography Map",
+        "kind": "geography-map"
+      },
+      {
+        "title": "Image",
+        "kind": "image"
+      },
+      {
+        "title": "Input Table",
+        "kind": "input-table"
+      },
+      {
+        "title": "KPI",
+        "kind": "kpi-chart"
+      },
+      {
+        "title": "Line Chart",
+        "kind": "line-chart"
+      },
+      {
+        "title": "Pivot Table",
+        "kind": "pivot-table"
+      },
+      {
+        "title": "Plugin",
+        "kind": "plugin"
+      },
+      {
+        "title": "Point Map",
+        "kind": "point-map"
+      },
+      {
+        "title": "Progress",
+        "kind": "progress"
+      },
+      {
+        "title": "Region Map",
+        "kind": "region-map"
+      },
+      {
+        "title": "Sankey Chart",
+        "kind": "sankey-chart"
+      },
+      {
+        "title": "Scatter Chart",
+        "kind": "scatter-chart"
+      },
+      {
+        "title": "Table",
+        "kind": "table"
+      },
+      {
+        "title": "Text",
+        "kind": "text"
+      },
+      {
+        "title": "Treemap Chart",
+        "kind": "treemap-chart"
+      },
+      {
+        "title": "Waterfall Chart",
+        "kind": "waterfall-chart"
+      }
     ],
     "workbookOnlyElements": [
-      {"title": "Chat", "kind": "chat"},
-      {"title": "Container", "kind": "container"},
-      {"title": "Form", "kind": "form"},
-      {"title": "Manual navigation", "kind": "navigation"},
-      {"title": "Page break", "kind": "page-break"},
-      {"title": "Repeated container", "kind": "repeated-container"},
-      {"title": "Tabbed container", "kind": "tabbed-container"}
+      {
+        "title": "Chat",
+        "kind": "chat"
+      },
+      {
+        "title": "Code",
+        "kind": "code"
+      },
+      {
+        "title": "Container",
+        "kind": "container"
+      },
+      {
+        "title": "Form",
+        "kind": "form"
+      },
+      {
+        "title": "Manual navigation",
+        "kind": "navigation"
+      },
+      {
+        "title": "Page break",
+        "kind": "page-break"
+      },
+      {
+        "title": "Repeated container",
+        "kind": "repeated-container"
+      },
+      {
+        "title": "Single-row container",
+        "kind": "single-row-container"
+      },
+      {
+        "title": "Tabbed container",
+        "kind": "tabbed-container"
+      },
+      {
+        "title": "Value list",
+        "kind": "value-list"
+      }
     ],
     "controls": [
-      {"title": "Checkbox", "controlType": "checkbox"},
-      {"title": "Date", "controlType": "date"},
-      {"title": "Date Range", "controlType": "date-range"},
-      {"title": "Drill down", "controlType": "drill"},
-      {"title": "Hierarchy", "controlType": "hierarchy"},
-      {"title": "Legend", "controlType": "legend"},
-      {"title": "Number", "controlType": "number"},
-      {"title": "Number Range", "controlType": "number-range"},
-      {"title": "Range Slider", "controlType": "range-slider"},
-      {"title": "Segmented Control", "controlType": "segmented"},
-      {"title": "Slider", "controlType": "slider"},
-      {"title": "Switch", "controlType": "switch"},
-      {"title": "Synced", "controlType": "synced"},
-      {"title": "Text", "controlType": "text"},
-      {"title": "Text Area", "controlType": "text-area"},
-      {"title": "Top N", "controlType": "top-n"}
+      {
+        "title": "Checkbox",
+        "controlType": "checkbox"
+      },
+      {
+        "title": "Date",
+        "controlType": "date"
+      },
+      {
+        "title": "Date Range",
+        "controlType": "date-range"
+      },
+      {
+        "title": "Drill down",
+        "controlType": "drill"
+      },
+      {
+        "title": "File Upload",
+        "controlType": "file-upload"
+      },
+      {
+        "title": "Hierarchy",
+        "controlType": "hierarchy"
+      },
+      {
+        "title": "Legend",
+        "controlType": "legend"
+      },
+      {
+        "title": "List",
+        "controlType": "list"
+      },
+      {
+        "title": "Number",
+        "controlType": "number"
+      },
+      {
+        "title": "Number Range",
+        "controlType": "number-range"
+      },
+      {
+        "title": "Range Slider",
+        "controlType": "range-slider"
+      },
+      {
+        "title": "Segmented Control",
+        "controlType": "segmented"
+      },
+      {
+        "title": "Slider",
+        "controlType": "slider"
+      },
+      {
+        "title": "Switch",
+        "controlType": "switch"
+      },
+      {
+        "title": "Synced",
+        "controlType": "synced"
+      },
+      {
+        "title": "Text",
+        "controlType": "text"
+      },
+      {
+        "title": "Text Area",
+        "controlType": "text-area"
+      },
+      {
+        "title": "Top N",
+        "controlType": "top-n"
+      }
     ]
   },
+  "sharedBreakingShapes": {
+    "pageBackgroundImage": {
+      "required": [
+        "source"
+      ],
+      "properties": [
+        "source",
+        "style"
+      ]
+    },
+    "alignment": {
+      "textVerticalAlign": [
+        "bottom",
+        "center",
+        "top"
+      ],
+      "kpiAnchor": [
+        "center",
+        "left",
+        "right"
+      ],
+      "kpiVerticalAnchor": [
+        "bottom",
+        "center",
+        "top"
+      ],
+      "dividerAlign": [
+        "bottom",
+        "center",
+        "left",
+        "right",
+        "top"
+      ]
+    },
+    "columnIdPointers": {
+      "geography": {
+        "required": [
+          "columnId"
+        ],
+        "properties": [
+          "columnId"
+        ]
+      },
+      "latitude": {
+        "required": [
+          "columnId"
+        ],
+        "properties": [
+          "columnId"
+        ]
+      },
+      "longitude": {
+        "required": [
+          "columnId"
+        ],
+        "properties": [
+          "columnId"
+        ]
+      },
+      "region": {
+        "required": [
+          "columnId",
+          "regionType"
+        ],
+        "properties": [
+          "columnId",
+          "regionType"
+        ]
+      },
+      "pivotRowsByItem": {
+        "required": [
+          "columnId"
+        ],
+        "properties": [
+          "columnId",
+          "showValuesAggregatedAt",
+          "sort"
+        ]
+      },
+      "pivotColumnsByItem": {
+        "required": [
+          "columnId"
+        ],
+        "properties": [
+          "columnId",
+          "showValuesAggregatedAt",
+          "sort"
+        ]
+      }
+    },
+    "listShapes": {
+      "seriesLineAreaStyle": {
+        "type": "array",
+        "items": {
+          "required": [
+            "columnId",
+            "style"
+          ],
+          "properties": [
+            "columnId",
+            "style"
+          ]
+        }
+      },
+      "colorOverrides": {
+        "type": "array",
+        "items": {
+          "required": [
+            "color",
+            "name"
+          ],
+          "properties": [
+            "color",
+            "name"
+          ]
+        }
+      }
+    }
+  },
   "operations": {
-    "reportResourceMethods": ["get"],
-    "createStatuses": ["200", "default"],
-    "verifyStatuses": ["200", "default"],
-    "readStatuses": ["200", "default"],
-    "updateStatuses": ["200", "default"],
-    "convertStatuses": ["201", "default"]
+    "reportResourceMethods": [
+      "get"
+    ],
+    "createStatuses": [
+      "200",
+      "default"
+    ],
+    "verifyStatuses": [
+      "200",
+      "default"
+    ],
+    "readStatuses": [
+      "200",
+      "default"
+    ],
+    "updateStatuses": [
+      "200",
+      "default"
+    ],
+    "convertStatuses": [
+      "201",
+      "default"
+    ]
   }
 }

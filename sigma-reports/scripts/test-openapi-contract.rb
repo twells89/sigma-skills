@@ -32,6 +32,7 @@ convert_response = schemas.fetch('ConvertWorkbookToReportResponse')
 common_kinds = contract.dig('publishedVariants', 'commonElements').map { |entry| entry.fetch('kind') }
 workbook_only_kinds = contract.dig('publishedVariants', 'workbookOnlyElements').map { |entry| entry.fetch('kind') }
 control_types = contract.dig('publishedVariants', 'controls').map { |entry| entry.fetch('controlType') }
+shared_shapes = contract.fetch('sharedBreakingShapes')
 
 assert_contract(failures, 'report spec endpoints declare JSON only') do
   contract.fetch('mediaTypes').values.all? { |types| types == ['application/json'] }
@@ -42,8 +43,9 @@ end
 assert_contract(failures, 'verify uses the create envelope') do
   verify == create
 end
-assert_contract(failures, 'update accepts only a required document') do
-  update.fetch('required') == ['document'] && update.fetch('properties') == ['document']
+assert_contract(failures, 'update requires document and accepts optimistic documentVersion') do
+  update.fetch('required') == ['document'] &&
+    update.fetch('properties').sort == %w[document documentVersion]
 end
 assert_contract(failures, 'report document requires core collections and report kind') do
   %w[elements kind pages schemaVersion].all? { |key| create_document.fetch('required').include?(key) } &&
@@ -71,15 +73,52 @@ assert_contract(failures, 'report panels are headers or footers with pixel confi
     panel_config.fetch('properties') == %w[backgroundColor height]
 end
 assert_contract(failures, 'common report union publishes expected kinds') do
-  %w[table text control waterfall-chart progress input-table].all? { |kind| common_kinds.include?(kind) }
+  %w[
+    box-chart control funnel-chart gauge-chart input-table
+    sankey-chart table text treemap-chart waterfall-chart progress
+  ].all? { |kind| common_kinds.include?(kind) }
 end
 assert_contract(failures, 'workbook-only union remains separate') do
-  %w[chat container form navigation page-break repeated-container tabbed-container].all? do |kind|
+  %w[
+    chat code container form navigation page-break repeated-container
+    single-row-container tabbed-container value-list
+  ].all? do |kind|
     workbook_only_kinds.include?(kind) && !common_kinds.include?(kind)
   end
 end
+assert_contract(failures, 'all released control variants are pinned') do
+  control_types.length == 18 && %w[file-upload list].all? { |control_type| control_types.include?(control_type) }
+end
 assert_contract(failures, 'synced control remains schema-published and policy-gated') do
   control_types.include?('synced')
+end
+assert_contract(failures, 'page background images require the source wrapper') do
+  background = shared_shapes.fetch('pageBackgroundImage')
+  background.fetch('required').include?('source') &&
+    %w[source style].all? { |field| background.fetch('properties').include?(field) }
+end
+assert_contract(failures, 'shared alignment enums use released directional values') do
+  alignment = shared_shapes.fetch('alignment')
+  alignment.fetch('textVerticalAlign') == %w[bottom center top] &&
+    alignment.fetch('kpiAnchor') == %w[center left right] &&
+    alignment.fetch('kpiVerticalAnchor') == %w[bottom center top] &&
+    alignment.fetch('dividerAlign') == %w[bottom center left right top]
+end
+assert_contract(failures, 'map and pivot pointers require columnId') do
+  pointers = shared_shapes.fetch('columnIdPointers')
+  %w[geography latitude longitude].all? do |field|
+    pointers.fetch(field).fetch('required') == ['columnId']
+  end &&
+    %w[columnId regionType].all? { |field| pointers.fetch('region').fetch('required').include?(field) } &&
+    pointers.fetch('pivotRowsByItem').fetch('required').include?('columnId') &&
+    pointers.fetch('pivotColumnsByItem').fetch('required').include?('columnId')
+end
+assert_contract(failures, 'series styles and color overrides are list-shaped') do
+  lists = shared_shapes.fetch('listShapes')
+  lists.fetch('seriesLineAreaStyle').fetch('type') == 'array' &&
+    lists.fetch('seriesLineAreaStyle').dig('items', 'required').sort == %w[columnId style] &&
+    lists.fetch('colorOverrides').fetch('type') == 'array' &&
+    lists.fetch('colorOverrides').dig('items', 'required').sort == %w[color name]
 end
 assert_contract(failures, 'report resource has no delete method') do
   contract.dig('operations', 'reportResourceMethods') == ['get']
