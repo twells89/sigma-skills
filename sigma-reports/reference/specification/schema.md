@@ -78,7 +78,19 @@ Pages are metadata, not element containers:
   "type": "page",
   "visibility": "hidden",
   "pageWidth": "standard",
-  "backgroundColor": "#FFFFFF"
+  "backgroundColor": "#FFFFFF",
+  "backgroundImage": {
+    "source": {
+      "kind": "url",
+      "url": "https://cdn.example.com/background.png"
+    },
+    "style": {
+      "fit": "cover",
+      "horizontalAlign": "center",
+      "verticalAlign": "center",
+      "tiling": "none"
+    }
+  }
 }
 ```
 
@@ -86,6 +98,11 @@ The current shared page schema exposes `id`, `name`, `type`, `visibility`,
 `pageWidth`, `backgroundColor`, and `backgroundImage`. Report physical size is
 controlled by `document.config.pageWidth` and `pageHeight`; do not confuse that
 pixel configuration with the shared page metadata field.
+
+`backgroundImage` requires a `source` wrapper. For a URL, use
+`{source: {kind: "url", url: "..."}, style: {...}}`; the removed flat
+`{url: "..."}` form returns HTTP 400. Preserve uploaded-image source objects
+exactly as returned by GET.
 
 Keep report pages at or below the documented 1,000-page limit. The local
 validator rejects larger documents.
@@ -147,6 +164,15 @@ The shared released shapes use:
 
 The legacy `{id: ...}`, keyed-map, and `start|middle|end` forms are rejected by
 the current report API.
+
+## Settings
+
+The current shared theme path is `document.settings.theme`, with optional
+`name` and `overrides`. The removed document-level `themeName` and
+`themeOverrides` keys can be silently dropped; move them under
+`settings.theme` before verify or PUT. Settings remain schema-published but
+not report/PDF-proven, so preserve readback exactly and follow the support
+matrix.
 
 ## GET metadata
 

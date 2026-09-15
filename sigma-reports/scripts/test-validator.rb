@@ -154,6 +154,32 @@ class ReportSpecValidatorTest < Minitest::Test
     assert_empty validate(payload).errors
   end
 
+  def test_requires_page_background_image_source_wrapper
+    payload = valid_payload
+    payload['document']['pages'][0]['backgroundImage'] = {
+      'source' => {'kind' => 'url', 'url' => 'https://example.com/background.png'},
+      'style' => {'fit' => 'cover'}
+    }
+    assert_empty validate(payload).errors
+
+    payload['document']['pages'][0]['backgroundImage'] = {
+      'url' => 'https://example.com/background.png'
+    }
+    result = validate(payload)
+    assert result.errors.any? { |error| error.include?('uses removed flat url') }
+    assert result.errors.any? { |error| error.include?('must contain a source object') }
+  end
+
+  def test_rejects_removed_document_theme_keys
+    payload = valid_payload
+    payload['document']['themeName'] = 'Light'
+    payload['document']['themeOverrides'] = {'categoricalScheme' => %w[#111111 #222222]}
+    result = validate(payload)
+
+    assert result.errors.any? { |error| error.include?('document.themeName was removed') }
+    assert result.errors.any? { |error| error.include?('document.themeOverrides was removed') }
+  end
+
   def test_rejects_grid_layout_duplicate_placement_and_bounds
     payload = valid_payload
     payload['document']['layout'] = <<~XML

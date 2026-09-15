@@ -138,7 +138,7 @@ def array_contract(schema, openapi)
   }
 end
 
-def shared_breaking_shapes(schemas, create_document, openapi)
+def shared_breaking_shapes(schemas, create_document, page, openapi)
   common = schemas.fetch('CommonElement')
   text = discriminator_schema(common, 'kind', 'text', openapi)
   kpi = discriminator_schema(common, 'kind', 'kpi-chart', openapi)
@@ -152,8 +152,10 @@ def shared_breaking_shapes(schemas, create_document, openapi)
   settings = property(create_document, 'settings', openapi)
   theme = property(settings, 'theme', openapi)
   overrides = property(theme, 'overrides', openapi)
+  page_background_image = property(page, 'backgroundImage', openapi)
 
   {
+    'pageBackgroundImage' => shape(page_background_image, openapi),
     'alignment' => {
       'textVerticalAlign' => enum_values(property(text, 'verticalAlign', openapi), openapi),
       'kpiAnchor' => enum_values(property(kpi_layout, 'anchor', openapi), openapi),
@@ -250,7 +252,7 @@ contract = {
     'workbookOnlyElements' => workbook_only_elements,
     'controls' => controls
   },
-  'sharedBreakingShapes' => shared_breaking_shapes(schemas, create_document, openapi),
+  'sharedBreakingShapes' => shared_breaking_shapes(schemas, create_document, page, openapi),
   'operations' => {
     'reportResourceMethods' => openapi.fetch('paths').fetch(resource_path).keys.grep(/\A(?:get|post|put|patch|delete)\z/).sort,
     'createStatuses' => openapi.dig('paths', create_path, 'post', 'responses').keys.sort,

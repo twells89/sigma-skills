@@ -446,6 +446,15 @@
     ]
   },
   "sharedBreakingShapes": {
+    "pageBackgroundImage": {
+      "required": [
+        "source"
+      ],
+      "properties": [
+        "source",
+        "style"
+      ]
+    },
     "alignment": {
       "textVerticalAlign": [
         "bottom",

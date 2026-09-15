@@ -19,6 +19,7 @@ The validator checks:
 - documented unsupported, workbook-only, schema-only, and unknown kinds;
 - released `columnId` pointers, list-shaped series/theme overrides, and
   directional alignment values;
+- page `backgroundImage.source` wrappers and removal of legacy theme keys;
 - real XML parsing of Page, Panel, and Element layout nodes;
 - absolute numeric coordinates and dimensions;
 - page and panel outer bounds;
@@ -79,6 +80,8 @@ API success cannot prove visual or data parity.
 | channel or pivot shelf uses `id` | Replace it with `columnId`; the old pointer shape is rejected. |
 | `seriesLineAreaStyle` or `colorOverrides` is an object map | Emit a list of `{columnId, style}` or `{name, color}` objects. |
 | alignment uses `start`, `middle`, or `end` | Use released directional values (`left`/`center`/`right`, `top`/`center`/`bottom`). |
+| page background has a flat `url` | Nest it under `backgroundImage.source` with `kind: url`. |
+| document uses `themeName` or `themeOverrides` | Move them under `settings.theme.name` / `settings.theme.overrides`. |
 | panel type mismatch | Make layout and metadata both `header` or both `footer`. |
 | field disappears on GET | Treat readback as lossy; do not blindly PUT the result. |
 | verify succeeds but PDF is wrong | Fix physical layout; verify is not a render test. |

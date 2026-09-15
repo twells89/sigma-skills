@@ -92,6 +92,11 @@ end
 assert_contract(failures, 'synced control remains schema-published and policy-gated') do
   control_types.include?('synced')
 end
+assert_contract(failures, 'page background images require the source wrapper') do
+  background = shared_shapes.fetch('pageBackgroundImage')
+  background.fetch('required').include?('source') &&
+    %w[source style].all? { |field| background.fetch('properties').include?(field) }
+end
 assert_contract(failures, 'shared alignment enums use released directional values') do
   alignment = shared_shapes.fetch('alignment')
   alignment.fetch('textVerticalAlign') == %w[bottom center top] &&

@@ -98,6 +98,9 @@ module ReportSpec
       errors << 'document.elements must be an array' unless @document['elements'].is_a?(Array)
       errors << 'document.pages must be an array' unless @document['pages'].is_a?(Array)
       errors << 'document.panels must be an array when present' if @document.key?('panels') && !@document['panels'].is_a?(Array)
+      %w[themeName themeOverrides].each do |key|
+        errors << "document.#{key} was removed; use document.settings.theme" if @document.key?(key)
+      end
       warnings << 'document.settings is schema-published but not report-proven; preserve readback unchanged and verify carefully' if @document.key?('settings')
       validate_color_overrides
 
@@ -128,6 +131,27 @@ module ReportSpec
         end
         errors << "page #{label(page, index)} must have a non-empty name" unless nonempty_string?(page['name'])
         errors << "page #{label(page, index)} must not contain nested elements" if page.key?('elements')
+        validate_page_background_image(page, index)
+      end
+    end
+
+    def validate_page_background_image(page, index)
+      return unless page.key?('backgroundImage')
+
+      background = page['backgroundImage']
+      page_label = label(page, index)
+      unless background.is_a?(Hash)
+        errors << "page #{page_label} backgroundImage must be an object"
+        return
+      end
+      errors << "page #{page_label} backgroundImage uses removed flat url; nest it under source" if background.key?('url')
+      source = background['source']
+      unless source.is_a?(Hash)
+        errors << "page #{page_label} backgroundImage must contain a source object"
+        return
+      end
+      if source['kind'] == 'url' && !nonempty_string?(source['url'])
+        errors << "page #{page_label} backgroundImage URL source must contain a non-empty url"
       end
     end
 

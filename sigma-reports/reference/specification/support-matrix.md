@@ -96,6 +96,9 @@ readback, warn before PUT, and do not author new theme/navigation settings
 without targeted verify, readback, and PDF evidence. If present,
 `settings.theme.overrides.colorOverrides` uses the released list form
 `[{name, color}]`.
+The removed document-level `themeName` and `themeOverrides` keys must be moved
+to `settings.theme.name` and `settings.theme.overrides`; do not PUT the legacy
+keys because the API can silently drop them.
 
 ## Unsupported kinds and subtypes
 

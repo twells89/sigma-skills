@@ -130,7 +130,11 @@ For shared shapes changed by the released code contract:
   ID/name-keyed maps;
 - use `verticalAlign: top|center|bottom`;
 - use KPI `layout.anchor: left|center|right` and
-  `layout.verticalAnchor: top|center|bottom`.
+  `layout.verticalAnchor: top|center|bottom`;
+- wrap page background URLs as
+  `backgroundImage: {source: {kind: url, url: ...}, style: ...}`;
+- use `settings.theme.{name,overrides}`, not the removed document-level
+  `themeName`/`themeOverrides`.
 
 ### Step 3: Draft a wrapped JSON representation
 
