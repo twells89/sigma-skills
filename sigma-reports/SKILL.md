@@ -250,7 +250,7 @@ Follow `reference/workflows/crud.md`. The short version is:
 |---|---|
 | `unknown field`, `unexpected property`, or missing field | Compare the endpoint against the compiled OpenAPI and rerun the contract test. |
 | `Invalid kind` after adding a channel or shelf | Replace legacy `{id: ...}` with `{columnId: ...}` and check list-vs-map fields. |
-| A field or element disappears on GET | Treat the representation as lossy; do not PUT until the omitted feature is removed intentionally or preserved another way. |
+| A field or element disappears on GET | Re-send it with a non-default value before concluding anything — a field set to the server default is normalized out of the readback (KPI `layout.verticalAnchor: center` does this; `top`/`bottom` persist). If it disappears for every value, treat the representation as lossy and do not PUT until the omitted feature is removed intentionally or preserved another way. |
 | Content overlaps or clips | Check pixel bounds, page dimensions, margins, and repeated panel height; inspect a PDF export. |
 | A workbook grid attribute appears in report XML | Replace it with absolute `x`, `y`, `width`, and `height`. |
 | `waterfall-chart`, `progress`, or synced control is requested | Stop or redesign; the published schema is not a safe report-authoring guarantee. |

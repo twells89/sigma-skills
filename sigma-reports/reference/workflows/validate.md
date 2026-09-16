@@ -50,6 +50,14 @@ After every persistent write, GET the report representation and compare:
 - panel assignments and heights;
 - fields that the service normalized or dropped.
 
+Distinguish the two. A **normalized** field is one whose submitted value equals
+the server default and is therefore omitted from the readback — KPI
+`layout.verticalAnchor: center` behaves exactly this way, while `top` and
+`bottom` persist. A **dropped** field is absent regardless of value. Only the
+second is lossy. Diff a non-default value before concluding a field is
+unsupported, or an equality check on the readback will raise a false alarm and
+push you toward deleting a field that actually works.
+
 Before updating an existing report, compare the GET representation with page,
 element, and control inventory endpoints. A feature present in inventory but
 absent from the code representation is a destructive-update risk.
@@ -83,5 +91,5 @@ API success cannot prove visual or data parity.
 | page background has a flat `url` | Nest it under `backgroundImage.source` with `kind: url`. |
 | document uses `themeName` or `themeOverrides` | Move them under `settings.theme.name` / `settings.theme.overrides`. |
 | panel type mismatch | Make layout and metadata both `header` or both `footer`. |
-| field disappears on GET | Treat readback as lossy; do not blindly PUT the result. |
+| field disappears on GET | Re-send a non-default value first: a default-valued field is normalized away, not dropped. If it vanishes for every value, treat readback as lossy and do not blindly PUT the result. |
 | verify succeeds but PDF is wrong | Fix physical layout; verify is not a render test. |
