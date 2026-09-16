@@ -167,7 +167,19 @@ For elements with `source.kind: "data-model"`, you need:
 - **dataModelId** — the UUID of the data model
 - **elementId** — the UUID of the specific element within the data model
 
-Ask the user to supply the `dataModelId` (visible in the Sigma UI URL when viewing a data model). To find elements within the data model, fetch the data model spec and examine the `pages[].elements[]` array.
+Ask the user to supply the `dataModelId` (visible in the Sigma UI URL when viewing a data model), then list the model's elements:
+
+```bash
+curl -s -H "Authorization: Bearer $SIGMA_API_TOKEN" \
+  "$SIGMA_BASE_URL/v2/dataModels/<dataModelId>/elements" \
+  | jq '.entries[] | {elementId, name, columns}'
+```
+
+Each entry carries the `elementId` you need plus a `columns` array of **exposed column-name strings** — the names a consuming workbook element must reference.
+
+> **Use the elements endpoint, not the model's spec, to resolve column names.** `GET /v2/dataModels/{id}/spec` reports each column's internal id and its source formula (e.g. `[Order Fact/CUSTOMER_DIM/Region]`) and leaves `name` unset for passthrough columns. Those internal formulas are not what a consuming element references, so authoring formulas from the spec fails with `Dependency not found` on the first attempt.
+
+**Relationship-derived columns carry a join-leg suffix.** Columns the model element pulls through a relationship are exposed as `Column Name (SOURCE)`; the base table's own columns stay bare. The suffix exists to disambiguate — on one 104-column element, `Region`, `City`, `State`, and `Is Active` each appeared twice, once under `(CUSTOMER_DIM)` and once under `(STORE_DIM)`. Reference the suffixed form verbatim, parentheses included: `[Order Fact View/Region (CUSTOMER_DIM)]`, not `[Order Fact View/Region]`.
 
 ## Cross-Element Sources
 

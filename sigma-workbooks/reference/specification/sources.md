@@ -38,6 +38,8 @@ elementId: <element-uuid within that model>
 
 Optionally add `groupingId` to apply one of the model element's groupings.
 
+Resolve `elementId` and the element's exposed column names with `GET /v2/dataModels/{id}/elements` (see `reference/workflows/discover.md`). Columns reached through a relationship carry a `(SOURCE)` join-leg suffix that formulas must reproduce exactly.
+
 ## join
 
 Joins multiple sources into one logical source via an array of `joins`. Each leg (`primarySource`, `left`, `right`) can be any source kind, so warehouse tables, other elements, and data-model elements can be joined interchangeably.

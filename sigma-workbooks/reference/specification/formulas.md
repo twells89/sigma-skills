@@ -114,7 +114,7 @@ The prefix depends on the source type:
 - **Custom SQL source**: prefix is the literal `Custom SQL`; column is the
   query's exact output alias.
 
-- **Data-model source**: prefix is the data-model element's own `name`.
+- **Data-model source**: prefix is the data-model element's own `name`. The column half must be that element's **exposed** column name, as listed by `GET /v2/dataModels/{id}/elements` — relationship-derived columns include a join-leg suffix, so `[Order Fact View/Region (CUSTOMER_DIM)]` rather than `[Order Fact View/Region]`. See `reference/workflows/discover.md`.
 
 - **Union source**: `SourceName` = the union's `name` field. References resolve against the union's `matches[].outputColumnName` values, not the underlying tables' columns.
   - Union with `name: "All Sales"` → `[All Sales/Order Number]`.
