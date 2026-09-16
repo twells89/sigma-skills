@@ -255,6 +255,7 @@ Follow `reference/workflows/crud.md`. The short version is:
 | A workbook grid attribute appears in report XML | Replace it with absolute `x`, `y`, `width`, and `height`. |
 | `waterfall-chart`, `progress`, or synced control is requested | Stop or redesign; the published schema is not a safe report-authoring guarantee. |
 | Conversion succeeds with warnings | Review every warning and its element IDs before accepting the generated report. |
+| `Unknown column` or `Circular column reference` in a rendered cell | Qualify the formula with the source element name (`[Order Fact View/Net Revenue]`). Bare `[Column]` against a `data-model` source passes verify, create, and readback, then renders as error text. |
 
 Reports are private beta. Prefer explicit evidence and reversible local edits
 over speculative API writes.

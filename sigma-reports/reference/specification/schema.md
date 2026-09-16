@@ -149,6 +149,33 @@ All literal elements live in `document.elements`. Pages and panels never have
 nested `elements` arrays. Every element has a unique ID and is placed exactly
 once in layout.
 
+### Column formulas against a `data-model` source
+
+When an element's `source.kind` is `data-model`, a column formula must name the
+data-model element as a prefix — `[<element name>/<column name>]`:
+
+```json
+{"formula": "Sum([Order Fact View/Net Revenue])"}
+{"formula": "[Order Fact View/Region (CUSTOMER_DIM)]"}
+```
+
+A bare `[Net Revenue]` is **not** valid against a `data-model` source, and this
+is the most expensive mistake available here because it passes every structural
+gate. The offline validator, `POST /v2/reports/spec/verify`, the create call and
+the GET readback all succeed; only a PDF export or a per-element compile check
+reveals that each column rendered as the literal text `Unknown column "[Net
+Revenue]"` or `Circular column reference to [Net Revenue]`. The circular variant
+appears when the bare reference happens to match the consuming column's own
+display `name`.
+
+Resolve the exposed column names from
+`GET /v2/dataModels/{dataModelId}/elements`, whose `entries[].columns` is an
+array of name strings. Do not take them from the data model's own spec, which
+reports internal source formulas and leaves `name` unset on passthrough columns.
+Columns reached through a relationship carry a join-leg suffix that the formula
+must reproduce verbatim, parentheses included — `Region (CUSTOMER_DIM)`, not
+`Region`.
+
 Reports use the OpenAPI `CommonElement` union. This does not mean every union
 member works safely in reports. Apply `support-matrix.md` before authoring.
 
