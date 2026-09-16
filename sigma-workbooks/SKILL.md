@@ -290,7 +290,7 @@ curl -s -H "Authorization: Bearer $SIGMA_API_TOKEN" \
 # overlays, panels, layout, settings, and agents.
 # then PUT only the document object — see reference/workflows/crud.md for why
 # sending the outer name/folderId/response-only fields alongside it 400s:
-yq '{document: .document}' /tmp/current-spec.yaml > /tmp/current-spec-put.yaml
+yq '{"document": .document}' /tmp/current-spec.yaml > /tmp/current-spec-put.yaml
 curl -s -X PUT -H "Authorization: Bearer $SIGMA_API_TOKEN" \
   -H "Content-Type: application/yaml" \
   -H "Accept: application/yaml" \
