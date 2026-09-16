@@ -189,6 +189,11 @@ The shared released shapes use:
 - KPI `layout.anchor: left|center|right` and
   `layout.verticalAnchor: top|center|bottom`.
 
+`verticalAnchor` is supported but its default value is not echoed back. Sending
+`center` round-trips as an absent key, while `top` and `bottom` persist and read
+back verbatim. That is default normalization, not a dropped field — do not
+"fix" it by removing `verticalAnchor` from the spec.
+
 The legacy `{id: ...}`, keyed-map, and `start|middle|end` forms are rejected by
 the current report API.
 
@@ -217,6 +222,9 @@ jq '.paths."/v2/reports/{reportId}/spec".get.responses."200".content."applicatio
 ## Media type
 
 The current OpenAPI declares `application/json` for create, verify, read, and
-update. Some narrative documentation mentions YAML, but that contradiction has
-not been established as a safe report contract. Use JSON until a live probe
-proves otherwise.
+update. A live probe resolves the long-standing YAML question: the service will
+serve either, and **YAML is what it returns when nothing is requested**.
+`GET /v2/reports/{reportId}/spec` with no `Accept` header responds with YAML
+(`reportId: ...`); the same call with `Accept: application/json` responds with
+JSON. Always send `Accept: application/json` explicitly — the recipes in this
+skill do, and a JSON parser fed the unheadered response fails on the first byte.
