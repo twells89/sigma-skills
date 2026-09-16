@@ -1,17 +1,20 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-# Offline contract regression:
-#   ruby scripts/test-openapi-contract.rb
-# Compare with a freshly downloaded OpenAPI document:
+# Validate the skill's assumptions against a freshly downloaded OpenAPI document:
 #   ruby scripts/test-openapi-contract.rb /tmp/sigma-openapi.json
 
 require 'json'
 require 'open3'
 
-FIXTURE = File.expand_path('fixtures/openapi-report-contract.json', __dir__)
 EXTRACTOR = File.expand_path('extract-openapi-contract.rb', __dir__)
-contract = JSON.parse(File.read(FIXTURE))
+openapi_path = ARGV.fetch(0) do
+  abort 'usage: ruby scripts/test-openapi-contract.rb OPENAPI_JSON'
+end
+stdout, stderr, status = Open3.capture3('ruby', EXTRACTOR, openapi_path)
+abort "extractor failed: #{stderr.strip}" unless status.success?
+
+contract = JSON.parse(stdout)
 failures = []
 
 def assert_contract(failures, description)
@@ -126,20 +129,6 @@ end
 assert_contract(failures, 'conversion response requires warnings') do
   %w[convertedReport sourceWorkbook warnings].all? do |key|
     convert_response.fetch('required').include?(key)
-  end
-end
-
-if ARGV[0]
-  captured_at = contract.dig('source', 'capturedAt')
-  stdout, stderr, status = Open3.capture3(
-    {'CAPTURED_AT' => captured_at},
-    'ruby', EXTRACTOR, ARGV[0]
-  )
-  if status.success?
-    live_contract = JSON.parse(stdout)
-    failures << 'committed fixture differs from supplied OpenAPI' unless live_contract == contract
-  else
-    failures << "extractor failed: #{stderr.strip}"
   end
 end
 

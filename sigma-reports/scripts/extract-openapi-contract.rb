@@ -1,10 +1,9 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-# Extract the small, executable report-as-code contract pinned by this skill.
+# Extract the report-as-code contract needed by the live regression checks.
 # Usage: ruby scripts/extract-openapi-contract.rb OPENAPI_JSON
 
-require 'date'
 require 'json'
 
 def resolve(schema, openapi)
@@ -217,11 +216,6 @@ controls = (
 ).uniq { |entry| entry.fetch('controlType') }.sort_by { |entry| entry.fetch('controlType') }
 
 contract = {
-  'source' => {
-    'openapiVersion' => openapi.fetch('openapi'),
-    'apiVersion' => openapi.fetch('info').fetch('version'),
-    'capturedAt' => ENV.fetch('CAPTURED_AT', Date.today.iso8601)
-  },
   'mediaTypes' => {
     'create' => openapi.dig('paths', create_path, 'post', 'requestBody', 'content').keys.sort,
     'verify' => openapi.dig('paths', verify_path, 'post', 'requestBody', 'content').keys.sort,

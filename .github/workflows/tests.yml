@@ -26,6 +26,11 @@ jobs:
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.3'
+      - name: Download current Sigma OpenAPI
+        run: |
+          curl --fail --location --retry 3 --retry-all-errors --show-error --silent \
+            https://assets.sigmacomputing.com/openapi/public-rest-api/sigma-computing-public-rest-api.json \
+            --output /tmp/sigma-openapi.json
       - name: Validate Claude plugin marketplace
         run: ruby scripts/test-plugin-manifest.rb
       - name: Run every test-*.rb / test_*.rb (glob, aggregate failures)
@@ -60,7 +65,13 @@ jobs:
               sigma-workbooks/scripts/test-verify.rb) echo "SKIP $t (needs live Sigma creds; does not skip cleanly without them)"; continue ;;
             esac
             echo "::group::$t"
-            if ruby "$t"; then
+            test_args=()
+            case "$t" in
+              sigma-workbooks/scripts/test-openapi-contract.rb|sigma-reports/scripts/test-openapi-contract.rb)
+                test_args=(/tmp/sigma-openapi.json)
+                ;;
+            esac
+            if ruby "$t" "${test_args[@]}"; then
               echo "OK $t"
             else
               echo "::error file=$t::test failed"

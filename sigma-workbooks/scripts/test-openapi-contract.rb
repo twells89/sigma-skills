@@ -1,17 +1,20 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-# Offline contract regression:
-#   ruby scripts/test-openapi-contract.rb
-# Compare the pin with a freshly downloaded OpenAPI document:
+# Validate the skill's assumptions against a freshly downloaded OpenAPI document:
 #   ruby scripts/test-openapi-contract.rb /tmp/sigma-openapi.json
 
 require 'json'
 require 'open3'
 
-FIXTURE = File.expand_path('fixtures/openapi-workbook-contract.json', __dir__)
 EXTRACTOR = File.expand_path('extract-openapi-contract.rb', __dir__)
-contract = JSON.parse(File.read(FIXTURE))
+openapi_path = ARGV.fetch(0) do
+  abort 'usage: ruby scripts/test-openapi-contract.rb OPENAPI_JSON'
+end
+stdout, stderr, status = Open3.capture3('ruby', EXTRACTOR, openapi_path)
+abort "extractor failed: #{stderr.strip}" unless status.success?
+
+contract = JSON.parse(stdout)
 failures = []
 
 def assert_contract(failures, description)
@@ -29,9 +32,9 @@ effects = actions.fetch('effects')
 union_shapes = actions.fetch('unionShapes').values
 
 # ---- the 2026-08-26 action field rename -----------------------------------
-# This fixture pinned CreateWorkbookSpec and the element/control discriminators
-# but had ZERO Actions coverage. So when Sigma renamed every action identifier
-# field to a *Id shape, the pin did not move, this gate stayed green, and four
+# The old contract check covered CreateWorkbookSpec and the element/control
+# discriminators but had ZERO Actions coverage. So when Sigma renamed every
+# action identifier field to a *Id shape, this gate stayed green and four
 # repos emitted dead keys. These assertions exist so the NEXT rename is a
 # failing test rather than a field incident.
 #
@@ -259,20 +262,6 @@ assert_contract(failures, 'single-row-container exposes keyColumnId/keyColumnVal
 end
 assert_contract(failures, 'text control mode includes contains') do
   capabilities.dig('controls', 'text', 'mode').to_a.include?('contains')
-end
-
-if ARGV[0]
-  captured_at = contract.dig('source', 'capturedAt')
-  stdout, stderr, status = Open3.capture3(
-    { 'CAPTURED_AT' => captured_at },
-    'ruby', EXTRACTOR, ARGV[0]
-  )
-  if status.success?
-    live_contract = JSON.parse(stdout)
-    failures << 'committed fixture differs from supplied OpenAPI' unless live_contract == contract
-  else
-    failures << "extractor failed: #{stderr.strip}"
-  end
 end
 
 if failures.empty?

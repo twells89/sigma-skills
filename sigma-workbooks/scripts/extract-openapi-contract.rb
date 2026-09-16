@@ -1,12 +1,11 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-# Extract the small, executable workbook-as-code contract we pin in this repo.
+# Extract the workbook-as-code contract needed by the live regression checks.
 # Usage:
 #   ruby scripts/extract-openapi-contract.rb /path/to/sigma-openapi.json
 
 require 'json'
-require 'date'
 
 def merged_required(schema)
   return [] unless schema.is_a?(Hash)
@@ -88,12 +87,11 @@ end
 
 # ---- Actions coverage (issue: the 2026-08-26 action field rename) -----------
 #
-# This fixture pinned CreateWorkbookSpec and the element/control discriminators
-# but had ZERO Actions coverage -- no `effect`, no insert-rows, nothing. So when
-# Sigma renamed every action identifier field to a *Id shape (table ->
-# tableElementId, and eight more), the pinned contract did not move and this gate
-# stayed green while four repos emitted dead keys. It would not have caught the
-# next one either.
+# The old check covered CreateWorkbookSpec and the element/control
+# discriminators but had ZERO Actions coverage -- no `effect`, no insert-rows,
+# nothing. So when Sigma renamed every action identifier field to a *Id shape
+# (table -> tableElementId, and eight more), this gate stayed green while four
+# repos emitted dead keys. It would not have caught the next one either.
 #
 # Effects are NOT a named schema; they hang off
 # Actions.items.allOf[].properties.effects.items as a oneOf discriminated by
@@ -468,11 +466,6 @@ pages = property(create_document, 'pages')
 actions_schema = schemas.fetch('Actions')
 
 contract = {
-  'source' => {
-    'openapiVersion' => openapi.fetch('openapi'),
-    'apiVersion' => openapi.fetch('info').fetch('version'),
-    'capturedAt' => ENV.fetch('CAPTURED_AT', Date.today.iso8601)
-  },
   'schemas' => {
     'CreateWorkbookSpec' => shape(create),
     'CreateWorkbookSpec.document' => shape(create_document),
@@ -489,7 +482,7 @@ contract = {
     # looked like "Sigma removed every control type" and was really the wrong
     # schema: `controlType` appears 218x in the asset and Control.oneOf has 18
     # members. Verified live 2026-08-26 -- `list` and `file-upload` (the two the
-    # old 16-control pin lacked) both verify valid:true against the API.
+    # old 16-control check lacked) both verify valid:true against the API.
     # Kept CommonElement in the union so a future reshuffle back is still seen.
     'controls' => (
       collect_discriminators(schemas.fetch('Control'), 'controlType') +
@@ -497,7 +490,7 @@ contract = {
     ).uniq { |entry| entry['controlType'] }.sort_by { |entry| entry['controlType'] }
   },
   # Per-effect property/required sets + the nested union shapes they reference.
-  # A rename on either level is now a fixture diff instead of a silent 400.
+  # A rename on either level is now a failing assertion instead of a silent 400.
   'actions' => {
     # ELEMENT-level actions (the `Actions` schema). This is what a button /
     # on-select emits and what the converters generate.
@@ -505,7 +498,7 @@ contract = {
     'effects' => collect_effects(effects_schema(actions_schema)),
     'unionShapes' => collect_union_shapes(actions_schema).sort.to_h,
     # DOCUMENT-level `automatedActions` is a SEPARATE surface with its own effect
-    # union -- `call-agent` exists only here. Pinned so a rename on either
+    # union -- `call-agent` exists only here. Checked so a rename on either
     # surface is a diff; note automatedActions is documented as UI-authorable
     # only, so this is contract-tracking, not an emit target.
     'automatedActionEffects' => collect_effects(automated_actions_effects(create_document))
