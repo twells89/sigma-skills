@@ -69,6 +69,24 @@ Export the affected report to PDF and inspect:
 
 API success cannot prove visual or data parity.
 
+For a faster signal than a full PDF on whether each element's formulas actually
+compile, query one element at a time:
+
+```bash
+curl -s -H "Authorization: Bearer $SIGMA_API_TOKEN" \
+  "$SIGMA_BASE_URL/v2/reports/<report-id>/elements/<element-id>/query"
+```
+
+The response carries the generated SQL (`{elementId, name, sql}`), or the
+compile error for that element. This is the cheapest way to catch
+`Unknown column` and `Circular column reference` — neither of which fails
+create, verify, or readback. Run it for every data element before trusting a
+report.
+
+Non-data elements have no query: a `text` element returns HTTP 404
+`Could not get sheetId`. That is expected, not a defect — only query-backed
+kinds (tables, charts, KPIs) return SQL.
+
 ## Common failures
 
 | Failure | Meaning |
@@ -85,3 +103,5 @@ API success cannot prove visual or data parity.
 | panel type mismatch | Make layout and metadata both `header` or both `footer`. |
 | field disappears on GET | Treat readback as lossy; do not blindly PUT the result. |
 | verify succeeds but PDF is wrong | Fix physical layout; verify is not a render test. |
+| `Unknown column "[X]"` rendered in a cell | A formula referenced a column the element's source does not expose. Against a `data-model` source, prefix the element name: `[Order Fact View/X]`. |
+| `Circular column reference to [X]` | A bare `[X]` matched the consuming column's own `name`. Qualify it with the source element prefix. |
