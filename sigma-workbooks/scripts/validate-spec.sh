@@ -166,7 +166,7 @@ LAYOUT_ISSUES=$(printf '%s' "$SPEC_JSON" | jq -r '
 ')
 
 POINTER_ISSUES=$(printf '%s' "$SPEC_JSON" | jq -r '
-  def label($e): ($e.name // $e.controlId // $e.id // "(unnamed)");
+  def element_label($e): ($e.name // $e.controlId // $e.id // "(unnamed)");
   def pointer_issue($label; $path; $pointer; $ids):
     if ($pointer | type) == "object" then
       if ($pointer | has("id")) and (($pointer | has("columnId")) | not) then
@@ -179,7 +179,7 @@ POINTER_ISSUES=$(printf '%s' "$SPEC_JSON" | jq -r '
     else empty end;
 
   .document.elements[]? as $e |
-  (label($e)) as $label |
+  (element_label($e)) as $label |
   (($e.columns // []) | map(.id) | map(select(. != null))) as $ids |
   ($e | .. | objects | to_entries[] |
     select((.key | ascii_downcase) == "columnid" and .key != "columnId") |
