@@ -8,7 +8,18 @@ Auto-generated from SKILL.md by ~/sigma-skills/scripts/sync-targets.rb.
 Do not edit by hand — edit SKILL.md and re-run the script.
 -->
 
+# sigma-plugin-authoring
+
 > Build, register, host, embed, and data-bind a bespoke Sigma custom plugin (@sigmacomputing/plugin) to recreate a source visualization for which Sigma has no native chart/KPI/table equivalent — a radial gauge, a custom heatmap, a sankey, or any bespoke viz kind outside Sigma's native element set. **Use when a source viz has no native Sigma equivalent and should be recreated as a bespoke plugin** — not when a native Sigma chart, KPI, or table kind already covers it (that's the `sigma-workbooks` skill). Covers the full lifecycle: writing the single-file plugin, registering it via `POST /v2/plugins`, hosting it, embedding it in a workbook spec bound to real data, and verifying value parity. Ships a worked example (a radial gauge / "value vs. target" plugin) and the `plugin_embed` emitter. Requires an SIGMA_API_TOKEN — obtain via the sigma-api skill first.
+
+## Installed runtime
+
+When installed with `scripts/install-into-project.sh`, the complete runnable
+skill is copied to `<project>/.sigma-skills/sigma-plugin-authoring/` (project install) or
+`~/.sigma-skills/sigma-plugin-authoring/` (global install). Resolve every relative
+`scripts/`, `reference/`, `refs/`, and `docs/` path below from that runtime
+directory; `cd` there before running a command. The installer also copies
+`sigma-api` beside skills that need authentication.
 
 # Sigma Plugin Authoring (Recreate-as-Plugin)
 

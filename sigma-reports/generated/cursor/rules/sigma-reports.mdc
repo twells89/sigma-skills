@@ -8,7 +8,18 @@ Auto-generated from SKILL.md by ~/sigma-skills/scripts/sync-targets.rb.
 Do not edit by hand — edit SKILL.md and re-run the script.
 -->
 
+# sigma-reports
+
 > Build, validate, retrieve, and safely update Sigma report code representations through /v2/reports/spec. Use for fixed-layout or pixel-perfect reports, invoices, statements, regulatory documents, and PDF delivery. Covers report pages, absolute pixel layout, header/footer panels, common elements, verification, full-document replacement, and workbook conversion to reports. Do not use for responsive dashboards; use sigma-workbooks instead. Requires SIGMA_API_TOKEN from the sigma-api skill.
+
+## Installed runtime
+
+When installed with `scripts/install-into-project.sh`, the complete runnable
+skill is copied to `<project>/.sigma-skills/sigma-reports/` (project install) or
+`~/.sigma-skills/sigma-reports/` (global install). Resolve every relative
+`scripts/`, `reference/`, `refs/`, and `docs/` path below from that runtime
+directory; `cd` there before running a command. The installer also copies
+`sigma-api` beside skills that need authentication.
 
 # Sigma Reports (Code Representation via REST API)
 

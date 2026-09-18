@@ -4,6 +4,57 @@ Skills for building and maintaining analytics in Sigma Computing from any AI cod
 
 The skills split along the surfaces of the Sigma REST API: data models, responsive workbooks, fixed-layout reports, and utility skills that orchestrate them. Each skill is a self-contained directory.
 
+## Quick start
+
+These are coding-agent tools, not an end-user Sigma wizard. They can serve
+business users through an agent, but installation and API access still need a
+technical owner.
+
+### Claude Code
+
+```text
+/plugin marketplace add twells89/sigma-skills
+/plugin install sigma-skills@sigma-skills
+```
+
+This is the lowest-friction path: no clone or symlinks.
+
+### Cursor, Codex, Cline, Continue
+
+```bash
+git clone https://github.com/twells89/sigma-skills.git ~/sigma-skills
+cd ~/sigma-skills
+./scripts/check-prerequisites.sh sigma-workbooks
+./scripts/install-into-project.sh sigma-api cursor ~/work/myproject
+./scripts/install-into-project.sh sigma-workbooks cursor ~/work/myproject
+```
+
+Replace `cursor` with the agent name. The installer copies both the generated
+agent rule and a runnable companion under
+`<project>/.sigma-skills/<skill>/`, including scripts and reference files.
+It also installs the `sigma-api` runtime beside API-dependent skills.
+
+Credentials must be plain-text environment assignments, not an RTF/Word/TextEdit
+document. Start from [`.env.example`](.env.example), keep the result out of
+version control, and never paste tokens into prompts or logs.
+
+```bash
+cp .env.example .env
+# Edit .env as plain text, then load it into the current shell:
+set -a; source .env; set +a
+```
+
+### Prerequisites
+
+| Workflow | Required | Optional |
+|---|---|---|
+| Client-credentials auth | `bash`, `curl`, `jq`, `base64` | — |
+| Browser auth | Above + `python3`, `openssl` | macOS `security` or Linux `secret-tool` for refresh-token storage |
+| Workbook authoring | Auth tools + `ruby`, `yq` or Python + PyYAML | Sigma MCP for semantic workspace search |
+
+`scripts/check-prerequisites.sh` reports missing tools and platform-specific
+install hints without changing the machine.
+
 **Supported agents** (`generated/` outputs per skill, install via `scripts/install-into-project.sh`):
 
 | Agent | Format | How it loads |
@@ -116,11 +167,12 @@ paths in each `SKILL.md` are relative.
 
 Refresh later with `/plugin marketplace update sigma-skills`.
 
-### Claude Code & Cortex Code (symlink SKILL.md)
+### Advanced: Claude Code & Cortex Code manual clone/symlinks
 
-Use this when you want a clone on disk instead of (or in addition to) the
-plugin. Do not glob every top-level directory — `scripts/` and `skills/`
-are not skills.
+Prefer the plugin path above for Claude Code. Use this only when you
+specifically need a clone on disk. Do not glob every top-level directory —
+`scripts/` and `skills/` are not skills. Windows users should use WSL or the
+copy-based install helper instead of manual symlinks.
 
 ```bash
 git clone https://github.com/twells89/sigma-skills.git ~/sigma-skills
@@ -138,7 +190,7 @@ Each skill ships pre-built outputs in `generated/`. Use the install helper to dr
 
 ```bash
 # Project-local install
-~/sigma-skills/scripts/install-into-project.sh tableau-to-sigma codex ~/work/myproject
+~/sigma-skills/scripts/install-into-project.sh sigma-api         codex  ~/work/myproject
 ~/sigma-skills/scripts/install-into-project.sh sigma-workbooks   cursor ~/work/myproject
 ~/sigma-skills/scripts/install-into-project.sh sigma-reports     all    ~/work/myproject
 ~/sigma-skills/scripts/install-into-project.sh sigma-workbooks   all    ~/work/myproject
@@ -148,7 +200,10 @@ Each skill ships pre-built outputs in `generated/`. Use the install helper to dr
 ~/sigma-skills/scripts/install-into-project.sh sigma-workbooks   cursor --global   # → ~/.cursor/rules/
 ```
 
-The Codex installer appends to an existing `AGENTS.md` rather than overwriting, so you can layer multiple skills.
+The Codex installer preserves unrelated `AGENTS.md` content and replaces its
+own marked section on refresh, so rerunning it does not duplicate a skill.
+Non-Claude installs also copy runnable skill files to
+`<project>/.sigma-skills/` (or `~/.sigma-skills/` with `--global`).
 
 ### Regenerating outputs after a SKILL.md edit
 

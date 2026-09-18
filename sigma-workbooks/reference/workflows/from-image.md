@@ -169,6 +169,12 @@ Load `sigma-plugin-authoring` only for a **bespoke data visualization with no
 native Sigma equivalent**. A screenshot that merely looks polished is not a
 reason to build a custom plugin.
 
+If the inventory calls for `kind: form`, verify a minimal form spec before
+building the full screen. `Invalid kind: "form"` and “form elements are not
+enabled” both mean the workspace cannot author that element. Stop after the
+preflight and ask whether an `input-table` + controls workflow is an acceptable
+behavioral substitute; do not spend writes or tokens varying the form syntax.
+
 ### Step 0d.5 — Treat assets honestly
 
 For a visible logo, prefer an existing public HTTPS asset or a user-provided

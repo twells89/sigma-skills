@@ -102,6 +102,20 @@ def transform_for_non_claude(body)
   s.strip + "\n"
 end
 
+def runtime_note(name)
+  <<~NOTE
+    ## Installed runtime
+
+    When installed with `scripts/install-into-project.sh`, the complete runnable
+    skill is copied to `<project>/.sigma-skills/#{name}/` (project install) or
+    `~/.sigma-skills/#{name}/` (global install). Resolve every relative
+    `scripts/`, `reference/`, `refs/`, and `docs/` path below from that runtime
+    directory; `cd` there before running a command. The installer also copies
+    `sigma-api` beside skills that need authentication.
+
+  NOTE
+end
+
 # ---------- Per-target emitters ----------
 
 PROVENANCE = <<~PROV
@@ -147,7 +161,7 @@ def emit_continue(dir, name, desc, body_xform)
   path
 end
 
-body_xform = transform_for_non_claude(body)
+body_xform = runtime_note(name) + transform_for_non_claude(body)
 
 written = []
 written << emit_codex(SKILL_DIR_ABS, name, desc_oneline, body_xform)

@@ -3,7 +3,18 @@ Auto-generated from SKILL.md by ~/sigma-skills/scripts/sync-targets.rb.
 Do not edit by hand — edit SKILL.md and re-run the script.
 -->
 
+# sigma-workbooks
+
 > Build, edit, and iterate on Sigma workbook specs — the JSON definition you POST to /v2/workbooks/spec, covering pages, layout, controls, charts, KPIs, tables, formulas, and sources. The Sigma OpenAPI is the source of truth for every shape and field; this skill adds navigation, style guidance, and proven recipes for effective dashboards and operational apps. Use when the user wants to construct a dashboard from a spec, generate a Sigma app (planning, approval, allocation, or exception), reproduce a screenshot/mockup/Claude design artifact as a native Sigma app, add or modify pages / elements / controls / formulas, validate a spec before submission, or work through the workbook spec lifecycle programmatically. Requires an SIGMA_API_TOKEN — obtain via the sigma-api skill first.
+
+## Installed runtime
+
+When installed with `scripts/install-into-project.sh`, the complete runnable
+skill is copied to `<project>/.sigma-skills/sigma-workbooks/` (project install) or
+`~/.sigma-skills/sigma-workbooks/` (global install). Resolve every relative
+`scripts/`, `reference/`, `refs/`, and `docs/` path below from that runtime
+directory; `cd` there before running a command. The installer also copies
+`sigma-api` beside skills that need authentication.
 
 # Sigma Workbooks (Spec via REST API)
 
@@ -133,18 +144,23 @@ this type (do not stamp the five-recipe dashboard *or* the navy-hero
 command-center example). A
 target image still wins: load `from-image.md` instead.
 
-### Step 1 — Find a reference workbook to study
+### Step 1 — Optional: choose one relevant reference workbook
 
-Any existing workbook on the user's org doubles as a template. List and pick one with similar content:
+Use a live reference only when the OpenAPI and this skill do not answer a
+specific shape question, or when the user explicitly wants to match an
+existing workbook. Do not browse unrelated workbooks speculatively. If a
+reference is needed, list once and choose one relevant workbook:
 
 ```bash
 curl -s -H "Authorization: Bearer $SIGMA_API_TOKEN" \
   "$SIGMA_BASE_URL/v2/workbooks?limit=50" | jq '.entries[] | {workbookId, name}'
 ```
 
-If no relevant workbook exists, pick any — the goal is studying spec structure, not matching content. If the org has no workbooks at all, draft from scratch using the OpenAPI shapes + this skill's recipes.
+Save the chosen workbook ID for the session. If no relevant workbook exists,
+draft from the compiled OpenAPI and this skill's fixtures—do not pick a random
+workbook. Read only the one reference needed for the unresolved shape.
 
-### Step 2 — Study the reference spec
+### Step 2 — Cache the reference spec, if Step 1 selected one
 
 YAML is the canonical format for workbook specs in this skill — easier to read, diff, and review than JSON. Sigma's API accepts both (`Content-Type: application/yaml` or `application/json`); `Accept: application/yaml` is the default on `GET /v2/workbooks/<id>/spec`. Use `yq` to inspect spec YAML the same way you'd use `jq` on JSON.
 
@@ -155,15 +171,18 @@ curl -s -H "Authorization: Bearer $SIGMA_API_TOKEN" \
 ```
 
 Look at source structure, column IDs, formulas, flat `document.elements`, page
-metadata, and layout XML. Do not copy an obsolete `pages[].elements` shape.
+metadata, and layout XML. Reuse this cached file for the session instead of
+re-listing or re-fetching workbooks. Do not copy an obsolete
+`pages[].elements` shape.
 
 ### Step 3 — Discover data sources
 
 Load `reference/workflows/discover.md`. Quick summary:
 
-1. `GET /v2/connections` — find the user's connection by name or type.
-2. Ask the user for the table path; verify with `POST /v2/connection/<id>/lookup`.
-3. Discover columns directly via `GET /v2/connections/tables/{inodeId}/columns` (full mechanics in `reference/workflows/discover.md`). Only fall back to asking the user when the endpoint doesn't return what's needed.
+1. Prefer Sigma MCP `search` / `describe` (or a warehouse-native MCP) when it is already connected.
+2. Otherwise list connections and browse `/v2/connections/paths`, including pagination, before asking for an exact table path.
+3. Verify the selected path with `POST /v2/connection/<id>/lookup`, then discover columns via `GET /v2/connections/tables/{inodeId}/columns`.
+4. Ask one focused question only when semantic search/browse leaves multiple plausible sources or the endpoint cannot return what is needed.
 
 **Never invent column names** — only use names returned by the API or supplied by the user.
 
@@ -209,6 +228,12 @@ approach leaves the table empty.
 
 Write the spec YAML to disk (e.g., `/tmp/workbook-spec.yaml`). YAML is preferred over JSON in this skill — easier to read, diff, and comment for human review. The API accepts either; pick YAML unless something downstream specifically needs JSON. Key rules:
 
+For a build expected to exceed one page or roughly ten elements, start with
+the element rep now (`reference/workflows/element-rep.md`): scaffold/import the
+local spec, split it, and work in per-element files before the first POST.
+Do not wait until the first large whole-spec iteration has already consumed
+the context budget.
+
 - Every element needs a unique `id` and a descriptive `name`.
 - Every column needs a unique `id`, a `name`, and a `formula`.
 - Follow the formula reference rules in `reference/specification/formulas.md` exactly — most spec errors happen here.
@@ -252,7 +277,12 @@ cp /tmp/workbook-spec.yaml "/tmp/workbook-spec-${WORKBOOK_ID}.yaml"
 
 Persist the spec after a successful create so subsequent `PUT` updates can start from it. Report **both** the workbook URL **and** the saved spec path.
 
-If creation fails, read the error, fix the spec, re-validate, retry. See `reference/workflows/validate.md` for decoding cryptic errors.
+If creation fails, classify the error before changing anything. Correct the
+local spec, rerun all offline checks, and make at most one corrected write for
+the same error class. For a shape/schema error, inspect the live schema rather
+than submitting alternative guesses. If the same error persists after the
+corrected write, stop and report the unresolved contract mismatch. See
+`reference/workflows/validate.md` for error classification.
 
 ### Step 7b — Verify the workbook actually compiles
 
@@ -268,7 +298,11 @@ If any element reports `[FAIL]`, fix the column formulas in the spec (most often
 
 After initial creation, use `PUT /v2/workbooks/<id>/spec` to add pages or refine the workbook.
 
-**For anything beyond ~1 page / ~10 elements, switch to the element rep** (`reference/workflows/element-rep.md`): `scripts/wb-rep.rb pull <id> <dir>` explodes the spec into one file per element so each edit touches a ~½KB file instead of the whole spec, `push` handles drift-check + validation + PUT, and `render` exports page PNGs you can actually look at. The raw GET/PUT flow below remains fine for small workbooks and one-off tweaks.
+**Continue with the element rep for anything beyond ~1 page / ~10 elements**
+(`reference/workflows/element-rep.md`): `scripts/wb-rep.rb pull <id> <dir>`
+explodes an existing spec into one file per element, `push` handles drift-check
++ validation + PUT, and `render` exports page PNGs. The raw GET/PUT flow below
+remains fine for small workbooks and one-off tweaks.
 
 > **IDs are preserved on CREATE.** The `id` values you POST (pages, elements, columns) are kept verbatim, and `layout` `elementId` references stay valid — so you can edit your saved spec and `PUT` it back, re-wrapped as just `{document: {...}}` (see below — PUT does not take the outer `name`/`folderId`). `GET` the current spec first only if you don't have your latest copy. See `reference/workflows/crud.md`.
 
@@ -386,6 +420,11 @@ Fetch the OpenAPI. The skill documents stable, common surface area; the API has 
 ### API schema mismatch (skill is stale)
 
 A 400 about request *shape* — `invalid argument`, `unknown field`, `unexpected property`, `missing required field` — usually means the API moved past the skill. Fetch the OpenAPI (see **Consulting the shapes**), diff the live shape for that `kind`, and retry **once** with the correction. Tell the user it looks like the skill is out of date and worth updating through whatever channel they installed it from; don't loop on retries.
+
+`columnId` is case-sensitive camelCase. `columnID`, `columnid`, and
+`{id: <column>}` are not aliases for chart channels or pivot shelves. Run
+`validate-spec.sh` / `wb-rep.rb lint` before POST; both reject these forms and
+unknown local column pointers.
 
 ### 401 Unauthorized
 

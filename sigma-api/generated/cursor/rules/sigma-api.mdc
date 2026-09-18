@@ -8,13 +8,32 @@ Auto-generated from SKILL.md by ~/sigma-skills/scripts/sync-targets.rb.
 Do not edit by hand — edit SKILL.md and re-run the script.
 -->
 
+# sigma-api
+
 > Authenticate against the Sigma Computing REST API and obtain a bearer token. Use whenever the user wants to call the Sigma API directly with curl/HTTP, exchange OAuth client credentials for an access token, sign in interactively via a browser OAuth login (authorization-code + PKCE), configure SIGMA_BASE_URL / SIGMA_CLIENT_ID / SIGMA_CLIENT_SECRET, troubleshoot 401/403 responses, or pick the right Sigma API hostname for their cloud. Use as a prerequisite when another Sigma skill needs an SIGMA_API_TOKEN.
+
+## Installed runtime
+
+When installed with `scripts/install-into-project.sh`, the complete runnable
+skill is copied to `<project>/.sigma-skills/sigma-api/` (project install) or
+`~/.sigma-skills/sigma-api/` (global install). Resolve every relative
+`scripts/`, `reference/`, `refs/`, and `docs/` path below from that runtime
+directory; `cd` there before running a command. The installer also copies
+`sigma-api` beside skills that need authentication.
 
 # Sigma REST API Authentication
 
 Authenticate against the Sigma Computing REST API and obtain a bearer token. This skill is a prerequisite for any skill that calls the Sigma API directly with `curl`.
 
-`curl`, `jq`, and `base64` must be available. `curl` and `base64` ship with macOS and most Linux distros; `jq` usually does not — install with `brew install jq` (macOS) or `apt install jq` (Debian/Ubuntu).
+Client-credentials auth requires `curl`, `jq`, and `base64`. `curl` and
+`base64` ship with macOS and most Linux distros; `jq` usually does not
+(`brew install jq` on macOS or `apt install jq` on Debian/Ubuntu).
+Interactive browser auth additionally requires `python3` and `openssl`.
+Persisting its refresh token requires macOS `security` or Linux
+`secret-tool`; without one, the initial access token still works but
+`refresh-token.sh` cannot reuse the login. Run
+`scripts/check-prerequisites.sh sigma-api` from the repository root for a
+read-only check.
 
 ## Reference Index
 

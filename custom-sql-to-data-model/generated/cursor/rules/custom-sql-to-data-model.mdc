@@ -8,7 +8,18 @@ Auto-generated from SKILL.md by ~/sigma-skills/scripts/sync-targets.rb.
 Do not edit by hand — edit SKILL.md and re-run the script.
 -->
 
+# custom-sql-to-data-model
+
 > Scan Sigma workbooks for custom SQL elements, dedupe across workbooks, build or reuse Sigma data models, then repoint the workbooks via the v3alpha `:swapSources` endpoint. Use when you want to find ad-hoc SQL in workbooks and promote it to one reusable data model per unique query.
+
+## Installed runtime
+
+When installed with `scripts/install-into-project.sh`, the complete runnable
+skill is copied to `<project>/.sigma-skills/custom-sql-to-data-model/` (project install) or
+`~/.sigma-skills/custom-sql-to-data-model/` (global install). Resolve every relative
+`scripts/`, `reference/`, `refs/`, and `docs/` path below from that runtime
+directory; `cd` there before running a command. The installer also copies
+`sigma-api` beside skills that need authentication.
 
 # Custom SQL → Data Model
 

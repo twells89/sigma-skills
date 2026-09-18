@@ -371,6 +371,177 @@ def lint_reference_integrity(spec)
   die "reference integrity check failed:\n  - #{issues.join("\n  - ")}", 1 unless issues.empty?
 end
 
+AGGREGATE_FORMULA = /\b(?:sum|count|countdistinct|avg|average|min|max|median|percentile|stddev|variance)\s*\(/i.freeze
+SINGLE_COLUMN_POINTER_FIELDS = %w[
+  xAxis value comparisonColumn holeValue geography latitude longitude region
+  size category stage series
+].freeze
+
+def lint_column_references(spec)
+  elements = Array(document(spec)['elements'])
+  declared_elements = index_by_id(elements)
+  columns_by_element = elements.each_with_object({}) do |element, columns|
+    columns[element['id']] = Array(element['columns']).filter_map do |column|
+      column['id'] if column.is_a?(Hash)
+    end
+  end
+  issues = []
+
+  elements.each do |element|
+    label = element['name'] || element['controlId'] || element['id'] || '(unnamed)'
+    column_ids = columns_by_element[element['id']] || []
+
+    visit = lambda do |value, path|
+      case value
+      when Hash
+        value.each do |key, child|
+          if key.to_s.downcase == 'columnid' && key != 'columnId'
+            issues << "#{label} #{(path + [key]).join('.')} must be camelCase columnId"
+          end
+          visit.call(child, path + [key])
+        end
+      when Array
+        value.each_with_index { |child, index| visit.call(child, path + [index]) }
+      end
+    end
+    visit.call(element, [])
+
+    check_pointer = lambda do |pointer, path, valid_ids = column_ids|
+      if pointer.is_a?(Hash)
+        if pointer.key?('id') && !pointer.key?('columnId')
+          issues << "#{label} #{path} uses id; use columnId"
+          return
+        end
+        pointer = pointer['columnId']
+      end
+      return if pointer.nil?
+      return if valid_ids.include?(pointer)
+
+      issues << "#{label} #{path} references undeclared column #{pointer.inspect}"
+    end
+
+    SINGLE_COLUMN_POINTER_FIELDS.each do |field|
+      pointer = element[field]
+      check_pointer.call(pointer, field) if pointer.is_a?(Hash)
+    end
+
+    %w[yAxis yAxis2].each do |axis|
+      Array(element.dig(axis, 'columnIds')).each_with_index do |pointer, index|
+        check_pointer.call(pointer, "#{axis}.columnIds[#{index}]")
+      end
+    end
+
+    %w[rowsBy columnsBy].each do |shelf|
+      Array(element[shelf]).each_with_index do |pointer, index|
+        check_pointer.call(pointer, "#{shelf}[#{index}]")
+      end
+      Array(element.dig('trellis', shelf)).each_with_index do |pointer, index|
+        check_pointer.call(pointer, "trellis.#{shelf}[#{index}]")
+      end
+    end
+
+    Array(element['seriesLineAreaStyle']).each_with_index do |pointer, index|
+      check_pointer.call(pointer, "seriesLineAreaStyle[#{index}]")
+    end
+
+    if element['kind'] == 'pivot-table'
+      Array(element['values']).each_with_index do |pointer, index|
+        check_pointer.call(pointer, "values[#{index}]")
+      end
+    end
+
+    Array(element['order']).each_with_index do |pointer, index|
+      check_pointer.call(pointer, "order[#{index}]")
+    end
+
+    color = element['color']
+    if color.is_a?(Hash)
+      check_pointer.call(color, 'color') if color.key?('columnId') || color.key?('id')
+      check_pointer.call(color['column'], 'color.column') if color.key?('column')
+    end
+
+    next unless element['kind'] == 'control'
+
+    source = element['source']
+    next unless source.is_a?(Hash) && source.key?('columnId')
+
+    target_id = source.dig('source', 'elementId')
+    unless declared_elements.key?(target_id)
+      issues << "#{label} source targets unknown element #{target_id.inspect}"
+      next
+    end
+    check_pointer.call(source['columnId'], 'source.columnId', columns_by_element[target_id] || [])
+  end
+
+  die "column pointer validation failed:\n  - #{issues.join("\n  - ")}", 1 unless issues.empty?
+end
+
+def lint_groupings(spec)
+  issues = []
+  warnings = []
+
+  Array(document(spec)['elements']).each do |element|
+    next unless element.is_a?(Hash) && element['kind'] == 'table'
+
+    label = element['name'] || element['id'] || '(unnamed)'
+    columns = Array(element['columns']).select { |column| column.is_a?(Hash) }
+    columns_by_id = columns.each_with_object({}) { |column, out| out[column['id']] = column if column['id'] }
+    groupings = Array(element['groupings'])
+    aggregate_columns = columns.select { |column| column['formula'].to_s.match?(AGGREGATE_FORMULA) }
+
+    if groupings.empty?
+      unless aggregate_columns.empty?
+        ids = aggregate_columns.map { |column| column['id'] || column['name'] }.compact
+        issues << "#{label} has aggregate columns but no groupings: #{ids.join(', ')}"
+      end
+      next
+    end
+
+    referenced = []
+    groupings.each_with_index do |grouping, index|
+      unless grouping.is_a?(Hash)
+        issues << "#{label} groupings[#{index}] must be an object"
+        next
+      end
+      group_by = Array(grouping['groupBy'])
+      calculations = Array(grouping['calculations'])
+      referenced.concat(group_by, calculations)
+
+      (group_by + calculations).each do |column_id|
+        next if columns_by_id.key?(column_id)
+
+        issues << "#{label} groupings[#{index}] references undeclared column #{column_id.inspect}"
+      end
+      calculations.each do |column_id|
+        column = columns_by_id[column_id]
+        next unless column
+        next if column['formula'].to_s.match?(AGGREGATE_FORMULA)
+
+        issues << "#{label} groupings[#{index}].calculations references non-aggregate column #{column_id.inspect}"
+      end
+      Array(grouping['sort']).each_with_index do |sort, sort_index|
+        next unless sort.is_a?(Hash)
+
+        column_id = sort['columnId']
+        next if column_id.nil? || columns_by_id.key?(column_id)
+
+        issues << "#{label} groupings[#{index}].sort[#{sort_index}] references undeclared column #{column_id.inspect}"
+      end
+    end
+
+    visible_extras = columns.reject do |column|
+      column['hidden'] || referenced.include?(column['id'])
+    end
+    unless visible_extras.empty?
+      ids = visible_extras.map { |column| column['id'] || column['name'] }.compact
+      warnings << "#{label} leaves visible detail columns outside groupBy/calculations: #{ids.join(', ')}"
+    end
+  end
+
+  warnings.each { |message| warn "wb-rep: grouping warning — #{message}" }
+  die "grouping validation failed:\n  - #{issues.join("\n  - ")}", 1 unless issues.empty?
+end
+
 # ---- commands ------------------------------------------------------------
 
 def cmd_lint(args)
@@ -378,7 +549,8 @@ def cmd_lint(args)
   spec = File.directory?(target) ? assemble(target) : YAML.load_file(target)
   lint_layout_coverage(spec)
   lint_reference_integrity(spec)
-  lint_reference_integrity(spec)
+  lint_column_references(spec)
+  lint_groupings(spec)
   puts 'lint: ok'
 end
 
@@ -487,6 +659,9 @@ def cmd_push(args, force:, validate: true)
   end
 
   lint_layout_coverage(spec)
+  lint_reference_integrity(spec)
+  lint_column_references(spec)
+  lint_groupings(spec)
 
   clean_body = strip_response_only(spec)
   if validate

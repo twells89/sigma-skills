@@ -112,7 +112,19 @@ fields:
     label: Subscribe
 ```
 
-Verified live: `form` elements can be gated behind a per-workspace feature flag — a correctly-shaped spec can still fail `/v2/workbooks/spec/verify` with `` `form` elements are not enabled for this workspace``. That's an entitlement error, not a shape error; the field shape above round-tripped past validation to reach that gate. **Unlike `progress`/`navigation` below, this means `form`'s actual create/render/behavior is unverified in the available test org/workspace** — the entitlement gate blocks even a real `POST /v2/workbooks/spec` create, so there's no readback or screenshot to check against. Re-run this verification (real create, not just `/verify`) if a workspace with `form` enabled becomes available.
+Preflight a minimal `form` with `/v2/workbooks/spec/verify` before building the
+rest of a form-driven workbook. Workspace behavior varies: unavailable
+workspaces have returned both `` `form` elements are not enabled for this
+workspace`` and the generic `Invalid kind: "form"` (live-observed
+2026-09-18). Treat either as an entitlement/capability stop, not an invitation
+to guess alternate field names.
+
+**Unlike `progress`/`navigation` below, `form` create/render/behavior remains
+unverified in the available test workspace.** If the preflight fails, tell the
+user that native form is unavailable. Offer an `input-table` + controls
+workflow only when it matches the requested behavior and the user accepts the
+different writeback architecture; do not silently substitute decorative text
+fields.
 
 ## progress
 
