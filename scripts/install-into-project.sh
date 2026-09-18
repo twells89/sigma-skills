@@ -4,21 +4,21 @@
 # Usage:
 #   install-into-project.sh <skill-name> <target> [<dest-dir>]
 #
-#   <skill-name>   sigma-workbooks | sigma-reports | sigma-data-models
+#   <skill-name>   sigma-api | sigma-data-models | sigma-workbooks
+#                  | sigma-reports | sigma-plugin-authoring
 #                  | custom-sql-to-data-model
-#                  | tableau-to-sigma | tableau-vds-to-snowflake
 #   <target>       codex | cursor | cline | continue | cortex | all
 #   <dest-dir>     project directory (default: $PWD)
 #                  pass --global to install into user-global config paths instead.
 #
 # Examples:
-#   install-into-project.sh tableau-to-sigma codex ~/work/myproject
+#   install-into-project.sh sigma-api cursor ~/work/myproject
 #   install-into-project.sh sigma-workbooks all ~/work/myproject
 #   install-into-project.sh sigma-reports all ~/work/myproject
 #   install-into-project.sh sigma-workbooks codex --global   # → ~/.codex/AGENTS.md (concat)
 #
 # Cortex Code reads Claude's SKILL.md format natively — for `cortex`, this
-# script symlinks the canonical SKILL.md (and its refs/) into
+# script copies the canonical skill and its runtime into
 # ~/.snowflake/cortex/skills/<skill-name>/ when --global is used.
 
 set -euo pipefail
@@ -48,31 +48,74 @@ fi
 
 gen="$skill_dir/generated"
 
+runtime_root () {
+  local target_dir="$1"
+  if [[ "$target_dir" == "--global" ]]; then
+    printf '%s\n' "$HOME/.sigma-skills"
+  else
+    printf '%s\n' "$target_dir/.sigma-skills"
+  fi
+}
+
+copy_runtime_skill () {
+  local source_dir="$1"
+  local name="$2"
+  local root="$3"
+  local target_dir="$root/$name"
+  mkdir -p "$target_dir"
+  for entry in SKILL.md scripts reference refs docs examples plugins; do
+    if [[ -e "$source_dir/$entry" ]]; then
+      cp -R "$source_dir/$entry" "$target_dir/"
+    fi
+  done
+}
+
+install_runtime () {
+  local root="$1"
+  copy_runtime_skill "$skill_dir" "$skill" "$root"
+  if [[ "$skill" != "sigma-api" && -d "$REPO_ROOT/sigma-api" ]]; then
+    copy_runtime_skill "$REPO_ROOT/sigma-api" "sigma-api" "$root"
+  fi
+  cp "$REPO_ROOT/scripts/check-prerequisites.sh" "$root/check-prerequisites.sh"
+  echo "wrote runtime companion $root/$skill/"
+}
+
 install_codex () {
   local target_dir="$1"
   if [[ "$target_dir" == "--global" ]]; then
     target_dir="$HOME/.codex"
-    mkdir -p "$target_dir"
   fi
+  mkdir -p "$target_dir"
   local src="$gen/codex/AGENTS.md"
   local dst="$target_dir/AGENTS.md"
+  local begin="<!-- BEGIN sigma-skills:$skill -->"
+  local end="<!-- END sigma-skills:$skill -->"
+  local prior
+  prior="$(mktemp)"
   if [[ -f "$dst" ]]; then
-    echo "appending $skill section to $dst"
-    {
-      echo
-      echo "<!-- ===== $skill (from sigma-skills) ===== -->"
-      cat "$src"
-    } >> "$dst"
-  else
-    cp "$src" "$dst"
-    echo "wrote $dst"
+    awk -v begin="$begin" -v end="$end" '
+      $0 == begin { managed = 1; next }
+      $0 == end { managed = 0; next }
+      !managed { print }
+    ' "$dst" > "$prior"
   fi
+  {
+    if [[ -s "$prior" ]]; then
+      cat "$prior"
+      echo
+    fi
+    echo "$begin"
+    cat "$src"
+    echo "$end"
+  } > "$dst"
+  rm -f "$prior"
+  echo "wrote managed $skill section to $dst"
 }
 
 install_cursor () {
   local target_dir="$1"
   if [[ "$target_dir" == "--global" ]]; then
-    target_dir="$HOME/.cursor"
+    target_dir="$HOME"
   fi
   mkdir -p "$target_dir/.cursor/rules"
   local src="$gen/cursor/rules/$skill.mdc"
@@ -97,7 +140,7 @@ install_cline () {
 install_continue () {
   local target_dir="$1"
   if [[ "$target_dir" == "--global" ]]; then
-    target_dir="$HOME/.continue"
+    target_dir="$HOME"
   fi
   mkdir -p "$target_dir/.continue/rules"
   local src="$gen/continue/$skill.md"
@@ -123,12 +166,25 @@ install_cortex () {
 }
 
 case "$target" in
-  codex)    install_codex    "$dest" ;;
-  cursor)   install_cursor   "$dest" ;;
-  cline)    install_cline    "$dest" ;;
-  continue) install_continue "$dest" ;;
+  codex)
+    install_runtime "$(runtime_root "$dest")"
+    install_codex "$dest"
+    ;;
+  cursor)
+    install_runtime "$(runtime_root "$dest")"
+    install_cursor "$dest"
+    ;;
+  cline)
+    install_runtime "$(runtime_root "$dest")"
+    install_cline "$dest"
+    ;;
+  continue)
+    install_runtime "$(runtime_root "$dest")"
+    install_continue "$dest"
+    ;;
   cortex)   install_cortex   "$dest" ;;
   all)
+    install_runtime "$(runtime_root "$dest")"
     install_codex    "$dest"
     install_cursor   "$dest"
     install_cline    "$dest"

@@ -3,7 +3,18 @@ Auto-generated from SKILL.md by ~/sigma-skills/scripts/sync-targets.rb.
 Do not edit by hand — edit SKILL.md and re-run the script.
 -->
 
+# sigma-data-models
+
 > Author, retrieve, or modify a Sigma data model spec (the JSON/YAML semantic-layer definition with sources, columns, metrics, relationships, filters, controls, folder groupings, and column-level security) by calling the Sigma REST API directly. Use when the user wants to build a new data model from existing warehouse tables, add metrics or relationships to an existing model, change a model's source, edit columns, or round-trip a data model spec through code. **Out of scope: converting from another BI tool's format (dbt, LookML, Tableau, Power BI, Alteryx, etc.).** Those conversions are handled by the Sigma data-model converter (browser tool + MCP) — point users there when they paste source-format input. Requires an SIGMA_API_TOKEN — obtain via the sigma-api skill first.
+
+## Installed runtime
+
+When installed with `scripts/install-into-project.sh`, the complete runnable
+skill is copied to `<project>/.sigma-skills/sigma-data-models/` (project install) or
+`~/.sigma-skills/sigma-data-models/` (global install). Resolve every relative
+`scripts/`, `reference/`, `refs/`, and `docs/` path below from that runtime
+directory; `cd` there before running a command. The installer also copies
+`sigma-api` beside skills that need authentication.
 
 # Sigma Data Models (Author / Get / Update)
 

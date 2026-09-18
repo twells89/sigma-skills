@@ -15,7 +15,15 @@ description: >-
 
 Authenticate against the Sigma Computing REST API and obtain a bearer token. This skill is a prerequisite for any skill that calls the Sigma API directly with `curl`.
 
-`curl`, `jq`, and `base64` must be available. `curl` and `base64` ship with macOS and most Linux distros; `jq` usually does not — install with `brew install jq` (macOS) or `apt install jq` (Debian/Ubuntu).
+Client-credentials auth requires `curl`, `jq`, and `base64`. `curl` and
+`base64` ship with macOS and most Linux distros; `jq` usually does not
+(`brew install jq` on macOS or `apt install jq` on Debian/Ubuntu).
+Interactive browser auth additionally requires `python3` and `openssl`.
+Persisting its refresh token requires macOS `security` or Linux
+`secret-tool`; without one, the initial access token still works but
+`refresh-token.sh` cannot reuse the login. Run
+`scripts/check-prerequisites.sh sigma-api` from the repository root for a
+read-only check.
 
 ## Reference Index
 
