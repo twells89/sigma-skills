@@ -99,6 +99,21 @@ For elements with `source.kind: "warehouse-table"`, you need three things:
 
 **Prefer a pre-existing MCP tool when you have one.** If an MCP is connected, discover through it: the **Sigma MCP** (`search` / `describe` across connections, tables, and data models) or a **warehouse-native MCP** (Snowflake, BigQuery, Databricks, …) querying `INFORMATION_SCHEMA`. The REST endpoints below are the universal fallback when no MCP is available — they cover all three and need no extra setup.
 
+Use this decision order for an open-ended business prompt:
+
+1. Search with an already-connected Sigma or warehouse MCP.
+2. Without MCP, list connections and browse every needed page from
+   `/v2/connections/paths`; rank candidate paths by the user's business terms.
+3. Resolve the best candidates and inspect their columns. Do not treat the
+   first name match as sufficient when many paths match.
+4. If several candidates remain semantically plausible—or browsing is blocked
+   by permissions—show a short candidate list and ask one focused source
+   question.
+
+REST path browsing is name matching, not semantic catalog search. A vague
+request such as “sales performance” can match dozens of tables. Stop after a
+bounded candidate pass instead of repeatedly opening tables or workbooks.
+
 ### Step 1: Find the Connection
 
 List available connections:
@@ -129,7 +144,7 @@ curl -s -H "Authorization: Bearer $SIGMA_API_TOKEN" \
       '.entries[] | select(.connectionId == $c) | select(.path | length == 3) | .path | join(".")'
 ```
 
-(Adjust the `length` filter to your path depth — `3` for Snowflake/BigQuery/Databricks, `2` for Redshift/Postgres/MySQL. Paginate via `page`/`limit` on large connections. The response carries no `inodeId` — capture that from `lookup` next.)
+(Adjust the `length` filter to your path depth — `3` for Snowflake/BigQuery/Databricks, `2` for Redshift/Postgres/MySQL. The service may cap a requested `limit`; continue through `nextPage` while `hasMore` is true. A first page is not a complete search. The response carries no `inodeId` — capture that from `lookup` next.)
 
 Verify the path resolves and capture the `inodeId` — Step 3 needs it:
 

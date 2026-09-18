@@ -165,14 +165,101 @@ LAYOUT_ISSUES=$(printf '%s' "$SPEC_JSON" | jq -r '
   ($declared_regions - $placed_regions)[]? | "Page/overlay/panel is missing from document.layout: \(.)"
 ')
 
-if [ -z "$SHAPE_ISSUES" ] && [ -z "$FORMULA_ISSUES" ] && [ -z "$LAYOUT_ISSUES" ]; then
-  echo "OK: no obvious formula qualification errors."
+POINTER_ISSUES=$(printf '%s' "$SPEC_JSON" | jq -r '
+  def label($e): ($e.name // $e.controlId // $e.id // "(unnamed)");
+  def pointer_issue($label; $path; $pointer; $ids):
+    if ($pointer | type) == "object" then
+      if ($pointer | has("id")) and (($pointer | has("columnId")) | not) then
+        "\($label) \($path) uses id; use columnId"
+      elif $pointer.columnId != null and (($ids | index($pointer.columnId)) == null) then
+        "\($label) \($path) references undeclared column \($pointer.columnId)"
+      else empty end
+    elif ($pointer | type) == "string" and (($ids | index($pointer)) == null) then
+      "\($label) \($path) references undeclared column \($pointer)"
+    else empty end;
+
+  .document.elements[]? as $e |
+  (label($e)) as $label |
+  (($e.columns // []) | map(.id) | map(select(. != null))) as $ids |
+  ($e | .. | objects | to_entries[] |
+    select((.key | ascii_downcase) == "columnid" and .key != "columnId") |
+    "\($label) uses incorrectly-cased field \(.key); use columnId"),
+  (["xAxis", "value", "comparisonColumn", "holeValue", "geography",
+    "latitude", "longitude", "region", "size", "category", "stage", "series"][] as $field |
+    pointer_issue($label; $field; $e[$field]; $ids)),
+  (["yAxis", "yAxis2"][] as $axis |
+    ($e[$axis].columnIds // []) | to_entries[]? |
+    pointer_issue($label; "\($axis).columnIds[\(.key)]"; .value; $ids)),
+  (["rowsBy", "columnsBy"][] as $shelf |
+    ($e[$shelf] // []) | to_entries[]? |
+    pointer_issue($label; "\($shelf)[\(.key)]"; .value; $ids)),
+  (["rowsBy", "columnsBy"][] as $shelf |
+    ($e.trellis[$shelf] // []) | to_entries[]? |
+    pointer_issue($label; "trellis.\($shelf)[\(.key)]"; .value; $ids)),
+  (($e.seriesLineAreaStyle // []) | to_entries[]? |
+    pointer_issue($label; "seriesLineAreaStyle[\(.key)]"; .value; $ids)),
+  (select($e.kind == "pivot-table") |
+    ($e.values // []) | to_entries[]? |
+    pointer_issue($label; "values[\(.key)]"; .value; $ids)),
+  (($e.order // []) | to_entries[]? |
+    pointer_issue($label; "order[\(.key)]"; .value; $ids)),
+  (select(($e.color | type) == "object" and ($e.color.columnId != null or $e.color.id != null)) |
+    pointer_issue($label; "color"; $e.color; $ids)),
+  (select(($e.color | type) == "object" and $e.color.column != null) |
+    pointer_issue($label; "color.column"; $e.color.column; $ids))
+')
+
+GROUPING_ISSUES=$(printf '%s' "$SPEC_JSON" | jq -r '
+  def aggregate_formula: test("(?i)\\b(sum|count|countdistinct|avg|average|min|max|median|percentile|stddev|variance)\\s*\\(");
+  .document.elements[]? |
+  select(.kind == "table") as $e |
+  ($e.name // $e.id // "(unnamed)") as $label |
+  ($e.columns // []) as $columns |
+  ($columns | map(.id) | map(select(. != null))) as $ids |
+  ($columns | map(select(.id != null) | {key: .id, value: .}) | from_entries) as $by_id |
+  ($columns | map(select((.formula // "") | aggregate_formula))) as $aggregates |
+  ($e.groupings // []) as $groupings |
+  (if ($groupings | length) == 0 and ($aggregates | length) > 0 then
+    "\($label) has aggregate columns but no groupings: \($aggregates | map(.id // .name) | join(", "))"
+  else empty end),
+  ($groupings | to_entries[]? | .key as $index | .value as $grouping |
+    ((($grouping.groupBy // []) + ($grouping.calculations // []))[]? as $column_id |
+      select(($ids | index($column_id)) == null) |
+      "\($label) groupings[\($index)] references undeclared column \($column_id)"),
+    (($grouping.calculations // [])[]? as $column_id |
+      select($by_id[$column_id] != null and (($by_id[$column_id].formula // "") | aggregate_formula | not)) |
+      "\($label) groupings[\($index)].calculations references non-aggregate column \($column_id)"),
+    (($grouping.sort // []) | to_entries[]? |
+      select(.value.columnId != null and (($ids | index(.value.columnId)) == null)) |
+      "\($label) groupings[\($index)].sort[\(.key)] references undeclared column \(.value.columnId)")
+  )
+')
+
+GROUPING_WARNINGS=$(printf '%s' "$SPEC_JSON" | jq -r '
+  .document.elements[]? |
+  select(.kind == "table" and ((.groupings // []) | length) > 0) as $e |
+  ($e.name // $e.id // "(unnamed)") as $label |
+  ([($e.groupings // [])[] | (.groupBy // [])[], (.calculations // [])[]] | unique) as $used |
+  [($e.columns // [])[] |
+    select((.hidden // false) != true and (($used | index(.id)) == null)) |
+    (.id // .name)] as $visible_extras |
+  select(($visible_extras | length) > 0) |
+  "\($label) leaves visible detail columns outside groupBy/calculations: \($visible_extras | join(", "))"
+')
+
+if [ -z "$SHAPE_ISSUES" ] && [ -z "$FORMULA_ISSUES" ] && [ -z "$LAYOUT_ISSUES" ] && [ -z "$POINTER_ISSUES" ] && [ -z "$GROUPING_ISSUES" ]; then
+  echo "OK: no obvious workbook spec errors."
   echo ""
   echo "Note: bare refs on warehouse-table sources are accepted as raw warehouse columns."
   echo "For other sources, this validator flags bare refs ([col] without a '/') that don't"
   echo "match a declared sibling column. It also checks the wrapped flat-document shape and"
-  echo "layout coverage. Qualified refs require server readback and compile verification"
-  echo "because Sigma may canonicalize warehouse names on POST."
+  echo "layout coverage, column pointers, and grouped-table semantics. Qualified refs still"
+  echo "require server readback and compile verification because Sigma may canonicalize names."
+  if [ -n "$GROUPING_WARNINGS" ]; then
+    echo ""
+    echo "Workbook grouping warnings:"
+    echo "$GROUPING_WARNINGS"
+  fi
   exit 0
 fi
 
@@ -199,5 +286,25 @@ if [ -n "$FORMULA_ISSUES" ]; then
   echo ""
   echo "  Wrong:  Count([Question ID])"
   echo "  Right:  Count([AI Usage Data/Question ID])"
+fi
+if [ -n "$POINTER_ISSUES" ]; then
+  echo "Workbook column pointer errors:"
+  echo ""
+  echo "$POINTER_ISSUES"
+  echo ""
+fi
+
+if [ -n "$GROUPING_ISSUES" ]; then
+  echo "Workbook grouping errors:"
+  echo ""
+  echo "$GROUPING_ISSUES"
+  echo ""
+fi
+
+if [ -n "$GROUPING_WARNINGS" ]; then
+  echo "Workbook grouping warnings:"
+  echo ""
+  echo "$GROUPING_WARNINGS"
+  echo ""
 fi
 exit 1

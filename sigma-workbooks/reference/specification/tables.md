@@ -58,6 +58,13 @@ groupings:
 >
 > **Multiple `groupings` on one element NEST hierarchically** (array order = levels: `[by-region, by-flag]` ⇒ region→flag, not two independent rollups). For two *independent* group-bys (e.g. one table by Region and another by Flag) give each its **own source element**, or let a chart aggregate the second one by axis. (Verified 2026-06-15.)
 >
+> **Hide support/detail columns that are not on a grouping shelf.** A visible
+> row-level measure outside `groupBy` / `calculations` can expose expandable
+> detail alongside the grouped result, making a summary table appear to have
+> hundreds of thousands of rows even though the aggregate cell is correct.
+> Keep the raw measure for formulas when needed, but set `hidden: true`; show
+> only grouping dimensions and aggregate calculations.
+>
 > **Exclude a NULL/unwanted bucket** with an element list filter on the dimension — this is how a Tableau view filter maps: `filters: [{ id: f, columnId: col-flag, kind: list, mode: include, values: ["Cur FYTD", "Prior FYTD"] }]`. (A grouped bar that includes the NULL bucket is the classic "giant first bar" artifact.)
 
 ### Visible-column budget
