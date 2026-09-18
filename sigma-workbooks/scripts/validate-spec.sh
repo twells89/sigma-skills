@@ -229,9 +229,9 @@ GROUPING_ISSUES=$(printf '%s' "$SPEC_JSON" | jq -r '
     (($grouping.calculations // [])[]? as $column_id |
       select($by_id[$column_id] != null and (($by_id[$column_id].formula // "") | aggregate_formula | not)) |
       "\($label) groupings[\($index)].calculations references non-aggregate column \($column_id)"),
-    (($grouping.sort // []) | to_entries[]? |
-      select(.value.columnId != null and (($ids | index(.value.columnId)) == null)) |
-      "\($label) groupings[\($index)].sort[\(.key)] references undeclared column \(.value.columnId)")
+    (($grouping.sort // []) | to_entries[]? as $sort |
+      select($sort.value.columnId != null and (($ids | index($sort.value.columnId)) == null)) |
+      "\($label) groupings[\($index)].sort[\($sort.key)] references undeclared column \($sort.value.columnId)")
   )
 ')
 

@@ -145,10 +145,18 @@ source['columns'] << {
 }
 source['columns'][1]['hidden'] = true
 source['groupings'] = [
-  { 'id' => 'by-region', 'groupBy' => ['source-region'], 'calculations' => ['source-total'] }
+  {
+    'id' => 'by-region',
+    'groupBy' => ['source-region'],
+    'calculations' => ['source-total'],
+    'sort' => [{ 'columnId' => 'source-total', 'direction' => 'descending' }]
+  }
 ]
 out, status = lint(spec)
 check(failures, 'valid grouped table passes lint') { status.success? }
+warn out unless status.success?
+out, status = validate(spec)
+check(failures, 'shell validator accepts valid grouping sort') { status.success? }
 warn out unless status.success?
 
 spec = base_spec
