@@ -240,9 +240,9 @@ GROUPING_WARNINGS=$(printf '%s' "$SPEC_JSON" | jq -r '
   select(.kind == "table" and ((.groupings // []) | length) > 0) as $e |
   ($e.name // $e.id // "(unnamed)") as $label |
   ([($e.groupings // [])[] | (.groupBy // [])[], (.calculations // [])[]] | unique) as $used |
-  [($e.columns // [])[] |
-    select((.hidden // false) != true and (($used | index(.id)) == null)) |
-    (.id // .name)] as $visible_extras |
+  [($e.columns // [])[] as $column |
+    select(($column.hidden // false) != true and (($used | index($column.id)) == null)) |
+    ($column.id // $column.name)] as $visible_extras |
   select(($visible_extras | length) > 0) |
   "\($label) leaves visible detail columns outside groupBy/calculations: \($visible_extras | join(", "))"
 ')
