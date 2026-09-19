@@ -93,7 +93,11 @@ resolved by GET, reapplying the intended edit, and repeating validation; do not
 blindly retry without reconciling.
 
 After PUT, GET again and compare normalized documents. Export the affected
-pages as PDF and inspect them.
+pages as PDF and inspect them:
+
+```bash
+ruby scripts/render-report.rb "<report-id>" /tmp/report-render --layout portrait
+```
 
 Live-confirmed 2026-08-11: PUT returned HTTP 200, retained the report ID, and
 advanced `documentVersion`/`latestDocumentVersion` from 1 to 2. Header/footer
