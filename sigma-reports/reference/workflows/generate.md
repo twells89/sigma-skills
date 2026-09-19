@@ -143,7 +143,10 @@ page breaks reviewable and preserves subtotal groups. Keep source/detail row
 ordering stable and color subtotal rows through conditional formatting.
 
 Estimate rows before finalizing height. Tables can clip their last row without
-an API error; export and inspect every page.
+an API error. Conversely, an over-tall table can be classified as expanded by
+PDF export and moved onto a separate continuation page, leaving its authored
+column-band page empty. Size each page clone to its expected row slice and
+export every page before acceptance.
 
 ## 7. Validation and render loop
 

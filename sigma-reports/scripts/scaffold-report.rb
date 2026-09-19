@@ -445,7 +445,10 @@ def wide_table_report(name:, folder_id:, connection_id:, company:)
       'name' => {'visibility' => 'hidden'},
       'style' => {'backgroundColor' => '#FFFFFF', 'borderColor' => builder.brand['line'], 'borderWidth' => 1}
     }
-    builder.place(table, region: page_id, x: 0, y: 48, width: builder.content_width, height: 870)
+    # Keep the box proportional to the page slice's expected rows. An
+    # over-tall table can be treated as "expanded" by PDF export and moved to
+    # a separate continuation page, leaving the authored band page empty.
+    builder.place(table, region: page_id, x: 0, y: 48, width: builder.content_width, height: 320)
   end
 
   builder.to_h(description: 'Four-page tabloid-landscape operational table scaffold with explicit page slices')
