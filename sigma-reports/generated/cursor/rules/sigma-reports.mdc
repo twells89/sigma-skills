@@ -122,6 +122,9 @@ reference, cache its spec, and use it only for that question. Obtain the
 current `schemaVersion` from a relevant report GET or a user-provided target;
 do not hardcode the value shown in examples.
 
+Load `reference/workflows/discover.md` and resolve the report's source,
+columns, grain, period rules, and page-slice counts before drafting.
+
 ### Step 2: Classify and scaffold the report
 
 Load `reference/workflows/generate.md`. Classify the request as an executive/
@@ -149,6 +152,7 @@ Always read:
 - `reference/specification/schema.md`
 - `reference/specification/layout.md`
 - `reference/specification/support-matrix.md`
+- `reference/workflows/discover.md`
 - `reference/workflows/validate.md`
 
 Also read `reference/workflows/crud.md` before an API write and
@@ -263,6 +267,7 @@ silently dropped. Then export the affected pages to PDF and inspect the actual
 page breaks, clipping, typography, header/footer repetition, and margins.
 
 ```bash
+ruby scripts/verify-report.rb "<report-id>"
 ruby scripts/render-report.rb "<report-id>" /tmp/report-render --layout portrait
 ```
 
@@ -295,6 +300,7 @@ Follow `reference/workflows/crud.md`. The short version is:
 | `reference/specification/layout.md` | Always. Pixel XML, bounds, page and panel placement. |
 | `reference/specification/support-matrix.md` | Always. Safe, gated, unsupported, and workbook-only kinds. |
 | `reference/specification/example-minimal.json` | Starting a new report representation. |
+| `reference/workflows/discover.md` | Finding sources/columns, proving grain, resolving periods, and sizing page slices. |
 | `reference/workflows/generate.md` | Generating executive/board reports, statements, or wide multi-page operational tables. |
 | `reference/workflows/crud.md` | Creating, retrieving, or replacing a report document. |
 | `reference/workflows/validate.md` | Before every verify, POST, or PUT and after readback. |

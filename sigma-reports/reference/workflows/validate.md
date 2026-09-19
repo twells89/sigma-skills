@@ -109,6 +109,15 @@ Non-data elements have no query: a `text` element returns HTTP 404
 `Could not get sheetId`. That is expected, not a defect — only query-backed
 kinds (tables, charts, KPIs) return SQL.
 
+The bundled verifier runs this check across the complete report:
+
+```bash
+ruby scripts/verify-report.rb "<report-id>"
+```
+
+It skips expected non-queryable elements and fails on query endpoint errors,
+unknown columns, circular references, or missing dependencies.
+
 ## Common failures
 
 | Failure | Meaning |

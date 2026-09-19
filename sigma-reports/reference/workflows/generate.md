@@ -32,7 +32,8 @@ data page, and source-column contracts until the first successful render.
 
 ## 2. Record the report contract before authoring
 
-Write a short local manifest containing:
+Run `reference/workflows/discover.md`, then write a short local manifest
+containing:
 
 - audience and decision the report supports;
 - physical paper/orientation;
@@ -158,6 +159,7 @@ retry per error class—do not rotate through guessed property names.
 After the approved persistent create/update:
 
 ```bash
+ruby scripts/verify-report.rb "<report-id>"
 ruby scripts/render-report.rb "<report-id>" /tmp/report-render --layout portrait
 ```
 
