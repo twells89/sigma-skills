@@ -9,8 +9,17 @@ class BrowserLoginPlatformTest < Minitest::Test
   LIB = File.expand_path('lib/browser-login-platform.sh', __dir__)
   BASH = ENV.fetch('BASH_BIN', 'bash')
 
+  def shell_path(path)
+    return path unless Gem.win_platform?
+
+    out, status = Open3.capture2(BASH, '-c', 'cygpath -u "$1"', 'test', path)
+    raise "cygpath failed for #{path}" unless status.success?
+
+    out.strip
+  end
+
   def bash(script, *args, env: {})
-    Open3.capture3(env, BASH, '-c', script, 'test', LIB, *args)
+    Open3.capture3(env, BASH, '-c', script, 'test', shell_path(LIB), *args)
   end
 
   def write_executable(path, body)
@@ -28,10 +37,8 @@ class BrowserLoginPlatformTest < Minitest::Test
   end
 
   def test_verifier_removes_crlf_before_length_cap
-    input = "#{'A' * 32}\r\n#{'B' * 40}\r\n"
     out, err, status = bash(
-      'source "$1"; printf "%s" "$2" | sigma_pkce_verifier',
-      input
+      %(source "$1"; printf "#{'A' * 32}\\r\\n#{'B' * 40}\\r\\n" | sigma_pkce_verifier)
     )
 
     assert status.success?, err
@@ -59,8 +66,8 @@ class BrowserLoginPlatformTest < Minitest::Test
 
       _out, err, status = bash(
         'export PATH="$3:$PATH"; source "$1"; sigma_open_system_browser "$2"',
-        'https://example.com/auth?a=1&b=2', dir,
-        env: {'LOG' => log, 'SIGMA_UNAME_OVERRIDE' => 'MINGW64_NT'}
+        'https://example.com/auth?a=1&b=2', shell_path(dir),
+        env: {'LOG' => shell_path(log), 'SIGMA_UNAME_OVERRIDE' => 'MINGW64_NT'}
       )
 
       assert status.success?, err
@@ -81,8 +88,8 @@ class BrowserLoginPlatformTest < Minitest::Test
 
       _out, err, status = bash(
         'export PATH="$3:$PATH"; source "$1"; sigma_open_system_browser "$2"',
-        'https://example.com/auth', dir,
-        env: {'LOG' => log, 'SIGMA_UNAME_OVERRIDE' => 'MSYS_NT'}
+        'https://example.com/auth', shell_path(dir),
+        env: {'LOG' => shell_path(log), 'SIGMA_UNAME_OVERRIDE' => 'MSYS_NT'}
       )
 
       assert status.success?, err
@@ -100,7 +107,7 @@ class BrowserLoginPlatformTest < Minitest::Test
         'source "$1"; sigma_prepare_callback_file "$2"; ' \
         '(sleep 1; printf "%s\\n" "$3" > "$2") & ' \
         'sigma_wait_for_callback_file "$2" 3',
-        path, callback
+        shell_path(path), callback
       )
 
       assert status.success?, err
@@ -114,7 +121,7 @@ class BrowserLoginPlatformTest < Minitest::Test
       path = File.join(dir, 'callback')
       _out, err, status = bash(
         'source "$1"; sigma_prepare_callback_file "$2"',
-        path
+        shell_path(path)
       )
 
       assert status.success?, err
@@ -127,7 +134,7 @@ class BrowserLoginPlatformTest < Minitest::Test
       path = File.join(dir, 'callback')
       _out, _err, status = bash(
         'source "$1"; sigma_prepare_callback_file "$2"; sigma_wait_for_callback_file "$2" 1',
-        path
+        shell_path(path)
       )
 
       refute status.success?
@@ -145,8 +152,8 @@ class BrowserLoginPlatformTest < Minitest::Test
         'export PATH="$3:$PATH"; unset SIGMA_UNAME_OVERRIDE; source "$1"; ' \
         'case "$(sigma_uname)" in MINGW*|MSYS*|CYGWIN*) ;; *) exit 9;; esac; ' \
         'sigma_open_system_browser "$2"',
-        'https://example.com/auth', dir,
-        env: {'LOG' => log}
+        'https://example.com/auth', shell_path(dir),
+        env: {'LOG' => shell_path(log)}
       )
 
       assert status.success?, err
