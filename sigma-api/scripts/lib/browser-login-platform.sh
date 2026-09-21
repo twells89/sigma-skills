@@ -82,6 +82,9 @@ sigma_prepare_callback_file() {
   umask 077
   : > "$path"
   umask "$old_umask"
+  # Best effort on POSIX filesystems. Git Bash on NTFS can report inherited
+  # ACLs as 0644 even after chmod; the file must never be group/world writable.
+  chmod 600 "$path" 2>/dev/null || true
 }
 
 sigma_wait_for_callback_file() {

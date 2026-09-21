@@ -125,7 +125,12 @@ class BrowserLoginPlatformTest < Minitest::Test
       )
 
       assert status.success?, err
-      assert_equal 0o600, File.stat(path).mode & 0o777
+      mode = File.stat(path).mode & 0o777
+      if Gem.win_platform?
+        assert_equal 0, mode & 0o022, "callback file must not be group/world writable (got #{mode.to_s(8)})"
+      else
+        assert_equal 0o600, mode
+      end
     end
   end
 

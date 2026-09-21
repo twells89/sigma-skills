@@ -90,10 +90,10 @@ eval "$(bash scripts/browser-login.sh)"
 ```
 
 The script skips the loopback listener, opens/logs the authorization URL, and
-waits for another process to write the full callback URL as one line. The file
-is created with mode `0600` and removed immediately after reading or timeout.
-Treat the callback as a one-time credential and keep this path outside the
-workspace.
+waits for another process to write the full callback URL as one line. It
+applies mode `0600` where supported (Windows NTFS access is governed by its
+ACLs) and removes the file immediately after reading or timeout. Treat the
+callback as a one-time credential and keep this path outside the workspace.
 
 Either way, verify the returned `state` equals the `$STATE` you sent (mismatch ⇒ abort, possible CSRF) before exchanging `code`.
 
