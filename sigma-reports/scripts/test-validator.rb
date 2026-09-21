@@ -64,11 +64,33 @@ class ReportSpecValidatorTest < Minitest::Test
 
   def test_rejects_unsupported_and_workbook_only_elements
     payload = valid_payload
-    payload['document']['elements'][0]['kind'] = 'waterfall-chart'
+    payload['document']['elements'][0]['kind'] = 'progress'
     payload['document']['elements'][1]['kind'] = 'container'
     result = validate(payload)
-    assert result.errors.any? { |error| error.include?('waterfall-chart is unsupported') }
+    assert result.errors.any? { |error| error.include?('progress is unsupported') }
     assert result.errors.any? { |error| error.include?('container is workbook-only') }
+  end
+
+  def test_accepts_live_proven_waterfall_shape
+    payload = valid_payload
+    payload['document']['elements'][0].merge!(
+      'kind' => 'waterfall-chart',
+      'columns' => [
+        {'id' => 'label', 'formula' => '[Bridge/label]'},
+        {'id' => 'delta', 'formula' => 'Sum([Bridge/delta])'},
+        {'id' => 'prior', 'formula' => 'Max([Bridge/prior])'}
+      ],
+      'xAxis' => {'columnId' => 'label'},
+      'yAxis' => {'columnIds' => ['delta']},
+      'startPoint' => {
+        'label' => 'Prior',
+        'value' => {'type' => 'column', 'columnId' => 'prior', 'func' => 'max'}
+      }
+    )
+    result = validate(payload)
+
+    assert_empty result.errors
+    refute result.warnings.any? { |warning| warning.include?('waterfall') }
   end
 
   def test_warns_for_schema_only_element
@@ -119,10 +141,14 @@ class ReportSpecValidatorTest < Minitest::Test
   def test_rejects_removed_id_pointer_on_maps_and_pivot_shelves
     payload = valid_payload
     payload['document']['elements'][0].merge!(
-      'kind' => 'geography-map', 'geography' => {'id' => 'geo-column'}
+      'kind' => 'geography-map',
+      'columns' => [{'id' => 'geo-column', 'formula' => '[Source/geo]'}],
+      'geography' => {'id' => 'geo-column'}
     )
     payload['document']['elements'][1].merge!(
-      'kind' => 'pivot-table', 'rowsBy' => [{'id' => 'row-column'}]
+      'kind' => 'pivot-table',
+      'columns' => [{'id' => 'row-column', 'formula' => '[Source/row]'}],
+      'rowsBy' => [{'id' => 'row-column'}]
     )
     result = validate(payload)
     assert result.errors.any? { |error| error.include?('geography uses removed id; use columnId') }
@@ -133,8 +159,100 @@ class ReportSpecValidatorTest < Minitest::Test
     assert_empty validate(payload).errors
   end
 
+  def test_rejects_incorrect_pointer_casing_and_unknown_local_columns
+    payload = valid_payload
+    payload['document']['elements'][0].merge!(
+      'kind' => 'bar-chart',
+      'columns' => [
+        {'id' => 'category', 'formula' => '[Source/category]'},
+        {'id' => 'value', 'formula' => 'Sum([Source/value])'}
+      ],
+      'xAxis' => {'columnID' => 'category'},
+      'yAxis' => {'columnIds' => ['missing']}
+    )
+    result = validate(payload)
+
+    assert result.errors.any? { |error| error.include?('columnID') && error.include?('columnId') }
+    assert result.errors.any? { |error| error.include?('yAxis.columnIds[0]') && error.include?('missing') }
+  end
+
+  def test_validates_grouping_calculations_and_visible_detail_columns
+    payload = valid_payload
+    payload['document']['elements'][0].merge!(
+      'kind' => 'table',
+      'columns' => [
+        {'id' => 'region', 'formula' => '[Source/region]'},
+        {'id' => 'amount', 'formula' => '[Source/amount]'},
+        {'id' => 'total', 'formula' => 'Sum([amount])'}
+      ],
+      'groupings' => [
+        {
+          'id' => 'by-region',
+          'groupBy' => ['region'],
+          'calculations' => ['total'],
+          'sort' => [{'columnId' => 'total', 'direction' => 'descending'}]
+        }
+      ]
+    )
+    result = validate(payload)
+
+    assert_empty result.errors
+    assert result.warnings.any? { |warning| warning.include?('visible detail columns') && warning.include?('amount') }
+
+    payload['document']['elements'][0]['groupings'][0]['calculations'] = ['amount']
+    result = validate(payload)
+    assert result.errors.any? { |error| error.include?('non-aggregate column') }
+  end
+
+  def test_rejects_aggregate_table_without_groupings
+    payload = valid_payload
+    payload['document']['elements'][0].merge!(
+      'kind' => 'table',
+      'columns' => [{'id' => 'total', 'formula' => 'Sum([Source/amount])'}]
+    )
+    result = validate(payload)
+
+    assert result.errors.any? { |error| error.include?('aggregate columns but no groupings') }
+  end
+
+  def test_validates_custom_sql_column_contract
+    payload = valid_payload
+    payload['document']['elements'][0].merge!(
+      'kind' => 'table',
+      'name' => 'SQL Source',
+      'source' => {'kind' => 'sql', 'connectionId' => 'connection', 'statement' => 'SELECT 1 AS "value"'},
+      'columns' => [{'id' => 'value', 'name' => 'value', 'formula' => '[Custom SQL/value]'}]
+    )
+    assert_empty validate(payload).errors
+
+    payload['document']['elements'][0]['columns'][0]['formula'] = '[value]'
+    result = validate(payload)
+    assert result.errors.any? { |error| error.include?('[Custom SQL/<alias>]') }
+  end
+
+  def test_rejects_unresolved_bare_formula_references_on_derived_sources
+    payload = valid_payload
+    payload['document']['elements'][0].merge!(
+      'kind' => 'kpi-chart',
+      'source' => {'kind' => 'table', 'elementId' => 'source-table'},
+      'columns' => [
+        {'id' => 'value', 'name' => 'Value', 'formula' => 'Sum([Revenue])'}
+      ],
+      'value' => {'columnId' => 'value'}
+    )
+    result = validate(payload)
+
+    assert result.errors.any? { |error| error.include?('unresolved bare references: Revenue') }
+
+    payload['document']['elements'][0]['columns'][0]['formula'] = 'Sum([Source Table/Revenue])'
+    refute validate(payload).errors.any? { |error| error.include?('unresolved bare references') }
+  end
+
   def test_rejects_map_shaped_series_styles_and_color_overrides
     payload = valid_payload
+    payload['document']['elements'][0]['columns'] = [
+      {'id' => 'value-column', 'formula' => 'Sum([Source/value])'}
+    ]
     payload['document']['elements'][0]['seriesLineAreaStyle'] = {
       'value-column' => {'interpolation' => 'monotone'}
     }
@@ -196,6 +314,28 @@ class ReportSpecValidatorTest < Minitest::Test
     assert result.errors.any? { |error| error.include?('placed more than once') }
     assert result.errors.any? { |error| error.include?('exceeds page width') }
     assert result.errors.any? { |error| error.include?('exceeds panel height') }
+  end
+
+  def test_rejects_overlapping_elements_on_same_page
+    payload = valid_payload
+    payload['document']['layout'] = <<~XML
+      <Page id="page-1">
+        <Element elementId="title" x="40" y="40" width="720" height="80"/>
+        <Element elementId="footer-text" x="60" y="60" width="200" height="30"/>
+      </Page>
+      <Panel id="footer" type="footer"></Panel>
+    XML
+    result = validate(payload)
+
+    assert result.errors.any? { |error| error.include?('title and footer-text overlap') }
+  end
+
+  def test_requires_explicit_fixed_page_config
+    payload = valid_payload
+    payload['document'].delete('config')
+    result = validate(payload)
+
+    assert_includes result.errors, 'document.config is required for fixed-page report authoring'
   end
 
   def test_rejects_panel_assignment_and_layout_type_mismatch

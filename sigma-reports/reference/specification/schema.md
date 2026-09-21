@@ -35,7 +35,8 @@ JSON shape:
 
 Required outer fields are `name`, `folderId`, and `document`. Required
 document fields are `schemaVersion`, `kind`, `elements`, and `pages`. This
-skill requires explicit layout when elements are non-empty.
+skill additionally requires explicit `config` for physical page size and
+explicit layout when elements are non-empty.
 
 Use a `schemaVersion` returned by a recent report GET. Do not infer it from a
 workbook or hardcode the value shown in examples.
@@ -149,6 +150,36 @@ All literal elements live in `document.elements`. Pages and panels never have
 nested `elements` arrays. Every element has a unique ID and is placed exactly
 once in layout.
 
+### Custom-SQL source contracts
+
+Place reusable SQL source tables on a hidden data page. Define every returned
+alias explicitly:
+
+```json
+{
+  "id": "src-summary",
+  "kind": "table",
+  "name": "Summary",
+  "source": {
+    "kind": "sql",
+    "connectionId": "<connection-id>",
+    "statement": "SELECT 1 AS \"current_value\""
+  },
+  "columns": [
+    {
+      "id": "summary-current",
+      "name": "current_value",
+      "formula": "[Custom SQL/current_value]"
+    }
+  ]
+}
+```
+
+The local validator requires `connectionId`, `statement`, column names, and a
+`[Custom SQL/<alias>]` reference for SQL-source columns. Quote aliases when the
+warehouse would otherwise change case. The hidden source element still needs
+an absolute layout placement.
+
 ### Column formulas against a `data-model` source
 
 When an element's `source.kind` is `data-model`, a column formula must name the
@@ -200,11 +231,11 @@ the current report API.
 ## Settings
 
 The current shared theme path is `document.settings.theme`, with optional
-`name` and `overrides`. The removed document-level `themeName` and
-`themeOverrides` keys can be silently dropped; move them under
-`settings.theme` before verify or PUT. Settings remain schema-published but
-not report/PDF-proven, so preserve readback exactly and follow the support
-matrix.
+`name` and `overrides`. Colors, categorical schemes, and spacing overrides
+are proven in multi-page PDF output. The removed document-level `themeName`
+and `themeOverrides` keys can be silently dropped; move them under
+`settings.theme` before verify or PUT. Preserve unknown settings from
+readback and follow the support matrix.
 
 ## GET metadata
 
