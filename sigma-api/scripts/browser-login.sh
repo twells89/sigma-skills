@@ -24,6 +24,10 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/lib/browser-login-platform.sh
+source "$SCRIPT_DIR/lib/browser-login-platform.sh"
+
 : "${SIGMA_BASE_URL:?SIGMA_BASE_URL is not set (see SKILL.md for the per-cloud host)}"
 
 for bin in curl jq openssl; do
@@ -125,9 +129,12 @@ CLIENT_ID=$(printf '%s' "$REG" | jq -r '.client_id // empty')
 [ -n "$CLIENT_ID" ] || { echo "Error: client registration failed:" >&2; printf '%s\n' "$REG" >&2; exit 1; }
 
 # --- C. PKCE verifier/challenge + a CSRF state. ---
-VERIFIER=$(openssl rand -base64 96 | tr -d '\n=+/' | cut -c1-64)
-CHALLENGE=$(printf '%s' "$VERIFIER" | openssl dgst -binary -sha256 | openssl base64 | tr '+/' '-_' | tr -d '=\n')
-STATE=$(openssl rand -base64 24 | tr '+/' '-_' | tr -d '=\n')
+VERIFIER=$(openssl rand -base64 96 | sigma_pkce_verifier)
+CHALLENGE=$(printf '%s' "$VERIFIER" | openssl dgst -binary -sha256 | openssl base64 | sigma_base64url)
+STATE=$(openssl rand -base64 24 | sigma_base64url)
+sigma_require_component "PKCE verifier" "$VERIFIER" '^[A-Za-z0-9._~-]{43,128}$'
+sigma_require_component "PKCE challenge" "$CHALLENGE" '^[A-Za-z0-9_-]+$'
+sigma_require_component "OAuth state" "$STATE" '^[A-Za-z0-9_-]+$'
 
 # --- D. Authorize in the browser, capturing the redirect automatically. ---
 AUTH_REQ="${AUTHORIZE_URL}?response_type=code&client_id=$(urlenc "$CLIENT_ID")&redirect_uri=$(urlenc "$REDIRECT_URI")&state=$(urlenc "$STATE")&code_challenge=${CHALLENGE}&code_challenge_method=S256&scope=$(urlenc "$SCOPE")"
@@ -152,6 +159,16 @@ CODE=""
 RET_STATE=""
 LISTENER_PID=""
 LISTENER_OUT=""
+CALLBACK_FILE="${SIGMA_OAUTH_CALLBACK_FILE:-}"
+CALLBACK_TIMEOUT="${SIGMA_OAUTH_CALLBACK_TIMEOUT:-300}"
+
+if [ -n "$CALLBACK_FILE" ]; then
+  sigma_prepare_callback_file "$CALLBACK_FILE"
+fi
+cleanup_callback_file() {
+  [ -z "$CALLBACK_FILE" ] || rm -f "$CALLBACK_FILE"
+}
+trap cleanup_callback_file EXIT
 
 open_browser() {
   log ""
@@ -160,17 +177,15 @@ open_browser() {
   log ""
   log "  $AUTH_REQ"
   log ""
-  if command -v open >/dev/null 2>&1; then
-    open "$AUTH_REQ" >/dev/null 2>&1 || true
-  elif command -v xdg-open >/dev/null 2>&1; then
-    xdg-open "$AUTH_REQ" >/dev/null 2>&1 || true
+  if ! sigma_open_system_browser "$AUTH_REQ"; then
+    log "No supported browser launcher was found; open the URL above manually."
   fi
 }
 
 # Start a one-shot local listener BEFORE opening the browser, so the redirect
 # lands on it directly and the code never has to be read back from the address
 # bar. Bind failure or no python3 → CODE stays empty and we fall back below.
-if command -v python3 >/dev/null 2>&1; then
+if command -v python3 >/dev/null 2>&1 && [ -z "$CALLBACK_FILE" ]; then
   LISTENER_OUT=$(mktemp)
   python3 - "$REDIRECT_PORT" >"$LISTENER_OUT" 2>/dev/null <<'PYEOF' &
 import socket, sys, time
@@ -255,12 +270,19 @@ if [ -z "$CODE" ]; then
   log "  http://127.0.0.1:${REDIRECT_PORT}/oauth/callback?code=…&state=…"
   log "page that fails to connect — that is expected (nothing is listening there)."
   log "Copy the FULL address-bar URL, paste it here, and press Enter:"
-  # Prefer the controlling terminal (works even under `eval "$(...)"`, where
-  # stdout is captured). If there is no usable tty — the open/read fails, e.g.
-  # macOS "Device not configured" — fall back to stdin (piped/automated callers).
   CALLBACK=""
-  if ! { read -r CALLBACK < /dev/tty; } 2>/dev/null; then
-    read -r CALLBACK || true
+  if [ -n "$CALLBACK_FILE" ]; then
+    log "Waiting up to ${CALLBACK_TIMEOUT}s for the callback URL in:"
+    log "  $CALLBACK_FILE"
+    log "Write the URL as one line; the file is removed immediately after reading."
+    CALLBACK=$(sigma_wait_for_callback_file "$CALLBACK_FILE" "$CALLBACK_TIMEOUT" || true)
+  else
+    # Prefer the controlling terminal (works even under `eval "$(...)"`, where
+    # stdout is captured). If there is no usable tty — the open/read fails, e.g.
+    # macOS "Device not configured" — fall back to stdin (piped callers).
+    if ! { read -r CALLBACK < /dev/tty; } 2>/dev/null; then
+      read -r CALLBACK || true
+    fi
   fi
   [ -n "$CALLBACK" ] || { echo "Error: no callback URL provided." >&2; exit 1; }
   CODE=$(urldec "$(qs_param "$CALLBACK" code)")
