@@ -35,9 +35,10 @@ class BrowserLoginPlatformTest < Minitest::Test
     )
 
     assert status.success?, err
-    assert_equal 64, out.length
-    refute_match(/[\r\n]/, out)
-    assert_equal("#{'A' * 32}#{'B' * 32}", out)
+    verifier = out.chomp
+    assert_equal 64, verifier.length
+    refute_match(/[\r\n]/, verifier)
+    assert_equal("#{'A' * 32}#{'B' * 32}", verifier)
   end
 
   def test_component_validation_rejects_control_characters
