@@ -55,16 +55,23 @@ CLIENT_ID=$(curl -sS -X POST "$REGISTER_URL" \
 ## C. Generate PKCE + a CSRF state
 
 ```sh
-VERIFIER=$(openssl rand -base64 96 | tr -d '\n=+/' | cut -c1-64)                 # 43–128 unreserved chars
-CHALLENGE=$(printf '%s' "$VERIFIER" | openssl dgst -binary -sha256 | openssl base64 | tr '+/' '-_' | tr -d '=\n')
-STATE=$(openssl rand -base64 24 | tr '+/' '-_' | tr -d '=\n')                    # ≥22 chars
+VERIFIER=$(openssl rand -base64 96 | tr -d '\r\n=+/' | cut -c1-64)                 # 43–128 unreserved chars
+CHALLENGE=$(printf '%s' "$VERIFIER" | openssl dgst -binary -sha256 | openssl base64 | tr '+/' '-_' | tr -d '=\r\n')
+STATE=$(openssl rand -base64 24 | tr '+/' '-_' | tr -d '=\r\n')                    # ≥22 chars
 ```
+
+Strip both CR and LF. Windows-native OpenSSL emits CRLF; leaving the CR in
+`state` or `code_challenge` URL-encodes it as `%0D` and breaks authorization.
+The bundled script validates every generated component before opening the
+browser.
 
 ## D. Authorize in the browser and capture the code
 
 ```sh
 OPEN_URL="$AUTHORIZE_URL?response_type=code&client_id=$CLIENT_ID&redirect_uri=$REDIRECT_URI&state=$STATE&code_challenge=$CHALLENGE&code_challenge_method=S256&scope=$SCOPE"
-open "$OPEN_URL"   # macOS; use xdg-open on Linux, or have the user paste it into a browser
+open "$OPEN_URL"   # macOS
+# Linux: xdg-open "$OPEN_URL"
+# Windows/Git Bash: powershell.exe Start-Process, cmd.exe //c start, or explorer.exe
 ```
 
 After signing in, the browser is redirected to `http://127.0.0.1:<port>/oauth/callback?code=…&state=…`.
@@ -72,6 +79,21 @@ After signing in, the browser is redirected to `http://127.0.0.1:<port>/oauth/ca
 **Preferred: capture it automatically.** Start a one-shot loopback listener on the port _before_ opening the browser, and read `code`/`state` straight from the single request it receives — no callback URL ever has to be typed, pasted, or shown to anyone. `scripts/browser-login.sh` does exactly this with a short Python HTTP handler (bind → accept once matching `/oauth/callback`, ignoring stray requests like a browser's speculative `/favicon.ico` → respond with a plain "you can close this tab" page → exit), bounded by a 2-minute timeout.
 
 **Fallback: manual copy.** If `python3` isn't available, the listener can't bind, or nothing arrives before the timeout, fall back to the zero-dependency path: with no local server listening the redirect page just fails to load — that's expected. Have the user copy the full address-bar URL back to you.
+
+For a noninteractive coding agent, set an absolute temporary callback path
+before launching:
+
+```sh
+export SIGMA_OAUTH_CALLBACK_FILE=/tmp/sigma-oauth-callback
+export SIGMA_OAUTH_CALLBACK_TIMEOUT=300  # optional
+eval "$(bash scripts/browser-login.sh)"
+```
+
+The script skips the loopback listener, opens/logs the authorization URL, and
+waits for another process to write the full callback URL as one line. It
+applies mode `0600` where supported (Windows NTFS access is governed by its
+ACLs) and removes the file immediately after reading or timeout. Treat the
+callback as a one-time credential and keep this path outside the workspace.
 
 Either way, verify the returned `state` equals the `$STATE` you sent (mismatch ⇒ abort, possible CSRF) before exchanging `code`.
 

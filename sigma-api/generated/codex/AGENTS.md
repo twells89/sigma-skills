@@ -23,8 +23,11 @@ Authenticate against the Sigma Computing REST API and obtain a bearer token. Thi
 Client-credentials auth requires `curl`, `jq`, and `base64`. `curl` and
 `base64` ship with macOS and most Linux distros; `jq` usually does not
 (`brew install jq` on macOS or `apt install jq` on Debian/Ubuntu).
-Interactive browser auth additionally requires `python3` and `openssl`.
-Persisting its refresh token requires macOS `security` or Linux
+Interactive browser auth additionally requires `openssl`; `python3` is
+recommended for automatic loopback callback capture. Without Python, use
+interactive paste or `SIGMA_OAUTH_CALLBACK_FILE` as documented in the browser
+OAuth reference. Browser launch supports macOS, Linux, and Windows/Git Bash.
+Persisting the refresh token requires macOS `security` or Linux
 `secret-tool`; without one, the initial access token still works but
 `refresh-token.sh` cannot reuse the login. Run
 `scripts/check-prerequisites.sh sigma-api` from the repository root for a
@@ -118,7 +121,7 @@ Prefer signing in through a browser over provisioning a client ID/secret? Sigma 
 - **Claude Code:** `eval "$(${CLAUDE_PLUGIN_ROOT}/skills/sigma-api/scripts/browser-login.sh)"`
 - **Cursor / Codex / generic:** `eval "$(bash <repo-root>/skills/sigma-api/scripts/browser-login.sh)"`
 
-The script picks a random high loopback port that nothing is currently listening on for its redirect URI, so the one-time authorization code is never delivered to another local process. Prompts go to stderr; only the `export` line reaches stdout.
+The script picks a random high loopback port that nothing is currently listening on for its redirect URI, so the one-time authorization code is never delivered to another local process. It strips Windows CRLF from PKCE/state values and opens the system browser on macOS, Linux, or Windows/Git Bash. Prompts go to stderr; only the `export` line reaches stdout.
 
 Full discovery-driven walkthrough (including the refresh-token storage the script performs) in **[reference/browser-oauth-login.md](reference/browser-oauth-login.md)** — read it to understand or customize what the script does.
 

@@ -49,7 +49,7 @@ set -a; source .env; set +a
 | Workflow | Required | Optional |
 |---|---|---|
 | Client-credentials auth | `bash`, `curl`, `jq`, `base64` | — |
-| Browser auth | Above + `python3`, `openssl` | macOS `security` or Linux `secret-tool` for refresh-token storage |
+| Browser auth | Above + `openssl` | `python3` for automatic callback capture; macOS `security` or Linux `secret-tool` for refresh-token storage |
 | Workbook authoring | Auth tools + `ruby`, `yq` or Python + PyYAML | Sigma MCP for semantic workspace search |
 
 `scripts/check-prerequisites.sh` reports missing tools and platform-specific

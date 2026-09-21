@@ -36,7 +36,7 @@ jobs:
       - name: Run every test-*.rb / test_*.rb (glob, aggregate failures)
         run: |
           set -uo pipefail
-          dirs=(scripts sigma-workbooks sigma-reports custom-sql-to-data-model sigma-plugin-authoring)
+          dirs=(scripts sigma-api sigma-workbooks sigma-reports custom-sql-to-data-model sigma-plugin-authoring)
           # Each directory must exist on its own — an aggregate count alone
           # would let one moved/renamed directory silently vanish from the
           # glob while the other directories still supply enough matches to pass.
@@ -50,7 +50,7 @@ jobs:
           # Belt-and-suspenders: a directory can exist but have every test
           # file deleted from it. A moved/renamed directory (caught above) or
           # an emptied one (caught here) must FAIL, never vacuously pass.
-          [ "${#tests[@]}" -gt 0 ] || { echo "::error::glob matched no test files under scripts/, sigma-workbooks/, sigma-reports/, custom-sql-to-data-model/, sigma-plugin-authoring/"; exit 1; }
+          [ "${#tests[@]}" -gt 0 ] || { echo "::error::glob matched no test files under scripts/, sigma-api/, sigma-workbooks/, sigma-reports/, custom-sql-to-data-model/, sigma-plugin-authoring/"; exit 1; }
           fail=0; ran=0
           for t in "${tests[@]}"; do
             case "$t" in
@@ -82,3 +82,19 @@ jobs:
           done
           echo "ran $ran ruby test file(s)"
           exit $fail
+
+  windows-oauth-tests:
+    name: Windows Git Bash OAuth helpers
+    runs-on: windows-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+      - name: Test CRLF, browser launch, and callback-file helpers
+        shell: bash
+        env:
+          BASH_BIN: bash
+          RUN_WINDOWS_BROWSER_TESTS: '1'
+        run: ruby sigma-api/scripts/test-browser-login-platform.rb
