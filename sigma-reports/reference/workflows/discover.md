@@ -12,7 +12,8 @@ the PDF can look polished while showing duplicated totals or clipped groups.
 2. Otherwise list Sigma connections and browse
    `/v2/connections/paths`, following `nextPage` while `hasMore` is true.
 3. Resolve candidate paths with `/v2/connection/{connectionId}/lookup`.
-4. Read columns with `/v2/connections/tables/{inodeId}/columns`.
+4. Read every column-metadata page with the shared `sigma-api`
+   `list-table-columns.sh` helper.
 5. If several sources remain plausible, show a short candidate list and ask
    one focused question. Do not repeatedly open unrelated reports.
 
@@ -52,10 +53,13 @@ INODE_ID=$(curl -sf -X POST \
   "$SIGMA_BASE_URL/v2/connection/<connection-id>/lookup" |
   jq -r '.inodeId')
 
-curl -sf -H "Authorization: Bearer $SIGMA_API_TOKEN" \
-  "$SIGMA_BASE_URL/v2/connections/tables/$INODE_ID/columns" |
+bash <sigma-api-skill-dir>/scripts/list-table-columns.sh "$INODE_ID" |
   jq '.entries[] | {name,type,description,visibility}'
 ```
+
+The raw columns endpoint defaults to 50 results and returns
+`nextPageToken`; pagination is complete only when that field is absent. Never
+conclude a report field is unavailable from one page.
 
 Use exact returned names. For custom SQL, quote output aliases and declare each
 with `[Custom SQL/<alias>]`.

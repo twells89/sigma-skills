@@ -118,7 +118,8 @@ current `schemaVersion` from a relevant report GET or a user-provided target;
 do not hardcode the value shown in examples.
 
 Load `reference/workflows/discover.md` and resolve the report's source,
-columns, grain, period rules, and page-slice counts before drafting.
+all paginated columns, grain, period rules, and page-slice counts before
+drafting. The raw table-columns endpoint returns only 50 entries by default.
 
 ### Step 2: Classify and scaffold the report
 
