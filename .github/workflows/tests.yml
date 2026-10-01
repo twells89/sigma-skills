@@ -67,7 +67,7 @@ jobs:
             echo "::group::$t"
             test_args=()
             case "$t" in
-              sigma-workbooks/scripts/test-openapi-contract.rb|sigma-reports/scripts/test-openapi-contract.rb)
+              scripts/test-table-columns-openapi.rb|sigma-workbooks/scripts/test-openapi-contract.rb|sigma-reports/scripts/test-openapi-contract.rb)
                 test_args=(/tmp/sigma-openapi.json)
                 ;;
             esac

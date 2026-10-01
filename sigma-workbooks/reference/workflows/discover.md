@@ -163,10 +163,14 @@ Use the verified path in the source definition.
 Use the `inodeId` from Step 2 to list the table's columns directly — no need to ask the user or have them query the warehouse:
 
 ```bash
-curl -sf -H "Authorization: Bearer $SIGMA_API_TOKEN" \
-  "$SIGMA_BASE_URL/v2/connections/tables/$INODE_ID/columns" \
+bash <sigma-api-skill-dir>/scripts/list-table-columns.sh "$INODE_ID" \
   | jq '.entries[] | {name, type}'
 ```
+
+The raw endpoint defaults to 50 columns. It returns an opaque
+`nextPageToken`, which must be sent as `pageToken` until absent. The helper
+requests `pageSize=1000`, follows every page, and returns combined entries.
+Never infer that a column is missing from the first response.
 
 Each entry has `name`, `type`, `description`, and `visibility`. Use the `name` value verbatim in formulas — do not invent or transform it.
 

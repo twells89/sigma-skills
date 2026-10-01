@@ -186,7 +186,7 @@ Load `reference/workflows/discover.md`. Quick summary:
 
 1. Prefer Sigma MCP `search` / `describe` (or a warehouse-native MCP) when it is already connected.
 2. Otherwise list connections and browse `/v2/connections/paths`, including pagination, before asking for an exact table path.
-3. Verify the selected path with `POST /v2/connection/<id>/lookup`, then discover columns via `GET /v2/connections/tables/{inodeId}/columns`.
+3. Verify the selected path with `POST /v2/connection/<id>/lookup`, then use the `sigma-api` paginated column helper to exhaust `GET /v2/connections/tables/{inodeId}/columns`; its default raw response contains only 50 columns.
 4. Ask one focused question only when semantic search/browse leaves multiple plausible sources or the endpoint cannot return what is needed.
 
 **Never invent column names** — only use names returned by the API or supplied by the user.
