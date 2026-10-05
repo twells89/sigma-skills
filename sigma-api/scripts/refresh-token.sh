@@ -11,6 +11,8 @@
 #
 # Prints (stdout, meant to be eval'd):
 #   export SIGMA_API_TOKEN=<token>
+#   export SIGMA_TOKEN_MINTED_AT=<UTC ISO-8601 timestamp>
+#   export SIGMA_AUTH_METHOD=browser
 # Progress/errors go to stderr, so `eval "$(refresh-token.sh)"` works.
 #
 # Usage:
@@ -44,28 +46,41 @@ kc_get() { # kc_get <name>
 }
 kc_set() { # kc_set <name> <value>
   case "$KC" in
-    macos)     security add-generic-password -U -a "$USER" -s "sigma-api:$1" -w "$2" >/dev/null 2>&1 || true ;;
-    libsecret) printf '%s' "$2" | secret-tool store --label="sigma-api $1" service sigma-api key "$1" >/dev/null 2>&1 || true ;;
+    macos)     security add-generic-password -U -a "$USER" -s "sigma-api:$1" -w "$2" >/dev/null 2>&1 ;;
+    libsecret) printf '%s' "$2" | secret-tool store --label="sigma-api $1" service sigma-api key "$1" >/dev/null 2>&1 ;;
   esac
 }
 
-emit() { # validate against the RFC 6750 bearer alphabet before it is eval'd, then print
-  local t="$1"
+emit() { # validate every keychain-derived value before stdout is eval'd
+  local t="$1" minted="$2"
   if ! [[ "$t" =~ ^[A-Za-z0-9._~+/=-]+$ ]]; then
     echo "Error: token contains unexpected characters; refusing to emit." >&2
     exit 1
   fi
+  if ! [[ "$minted" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]]; then
+    echo "Error: token mint timestamp contains unexpected characters; refusing to emit." >&2
+    exit 1
+  fi
   printf 'export SIGMA_API_TOKEN=%q\n' "$t"
+  printf 'export SIGMA_TOKEN_MINTED_AT=%q\n' "$minted"
+  printf 'export SIGMA_AUTH_METHOD=%q\n' "browser"
 }
 
 NOW=$(date +%s)
+minted_now() { date -u '+%Y-%m-%dT%H:%M:%SZ'; }
 
 # --- 1. Serve a still-valid cached access token without touching the network. ---
 CACHED=$(kc_get access-token)
 EXPIRY=$(kc_get access-expiry)
 if [ -n "$CACHED" ] && [ -n "$EXPIRY" ] && [ "$EXPIRY" -gt "$NOW" ] 2>/dev/null; then
+  MINTED_AT=$(kc_get access-minted-at)
+  if ! [[ "$MINTED_AT" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]]; then
+    # Backward compatibility for caches written before mint metadata existed.
+    MINTED_AT=$(minted_now)
+    kc_set access-minted-at "$MINTED_AT" || true
+  fi
   log "Using cached access token ($(( EXPIRY - NOW ))s remaining)."
-  emit "$CACHED"
+  emit "$CACHED" "$MINTED_AT"
   exit 0
 fi
 
@@ -83,6 +98,10 @@ fi
 # first '/', '?', or '#'; drop userinfo and port) so a fragment cannot spoof
 # the trusted suffix.
 SIGMA_DOMAIN="sigma""computing.com"
+case "$TOKEN_URL" in
+  https://*) ;;
+  *) echo "Error: stored token-url is not HTTPS; refusing to use it." >&2; exit 1 ;;
+esac
 TU_HOST=$(printf '%s' "$TOKEN_URL" | sed -E 's#^https?://##; s#[/?#].*##; s#^[^@]*@##; s#:[0-9]+$##')
 case "$TU_HOST" in
   *."${SIGMA_DOMAIN}"|"${SIGMA_DOMAIN}") ;;
@@ -101,19 +120,34 @@ if [ -z "$ACCESS" ]; then
   printf '%s\n' "$RESP" | jq . >&2 2>/dev/null || printf '%s\n' "$RESP" >&2
   exit 1
 fi
+if ! [[ "$ACCESS" =~ ^[A-Za-z0-9._~+/=-]+$ ]]; then
+  echo "Error: token contains unexpected characters; refusing to cache or emit." >&2
+  exit 1
+fi
 
 EXPIRES_IN=$(printf '%s' "$RESP" | jq -r '.expires_in // 3600')
 case "$EXPIRES_IN" in ''|*[!0-9]*) EXPIRES_IN=3600 ;; esac
-# 60s safety margin so a token never expires mid-request.
-kc_set access-token "$ACCESS"
-kc_set access-expiry "$(( NOW + EXPIRES_IN - 60 ))"
+MINTED_AT=$(minted_now)
 
-# Refresh tokens may rotate; persist the new one so the next redeem still works.
+# Refresh tokens may be single-use and rotate. Persist the replacement before
+# returning the access token; silently retaining a spent token is not safe.
 NEW_REFRESH=$(printf '%s' "$RESP" | jq -r '.refresh_token // empty')
 if [ -n "$NEW_REFRESH" ] && [ "$NEW_REFRESH" != "$REFRESH" ]; then
-  kc_set refresh-token "$NEW_REFRESH"
+  if ! kc_set refresh-token "$NEW_REFRESH"; then
+    echo "Error: refresh token rotated but its replacement could not be stored; re-run browser-login.sh." >&2
+    exit 1
+  fi
   log "Rotated the stored refresh token."
 fi
 
+# Cache commit: write the token and mint metadata first, then expiry last. A
+# partial keychain write can therefore never mark stale cache data as valid.
+if kc_set access-token "$ACCESS" && kc_set access-minted-at "$MINTED_AT"; then
+  kc_set access-expiry "$(( NOW + EXPIRES_IN - 60 ))" ||
+    log "Warning: could not cache access-token expiry; the next call will refresh again."
+else
+  log "Warning: could not cache the access token; the next call will refresh again."
+fi
+
 log "Minted a fresh access token via refresh (valid ~${EXPIRES_IN}s)."
-emit "$ACCESS"
+emit "$ACCESS" "$MINTED_AT"

@@ -48,8 +48,8 @@ set -a; source .env; set +a
 
 | Workflow | Required | Optional |
 |---|---|---|
-| Client-credentials auth | `bash`, `curl`, `jq`, `base64` | — |
-| Browser auth | Above + `openssl` | `python3` for automatic callback capture; macOS `security` or Linux `secret-tool` for refresh-token storage |
+| Browser-first token provider | `python3`; browser setup also needs `bash`, `curl`, `jq`, `openssl` | macOS `security` or Linux `secret-tool` for refresh-token storage |
+| Python-free client-credentials fallback | `bash`, `curl`, `jq`, `base64` | — |
 | Workbook authoring | Auth tools + `ruby`, `yq` or Python + PyYAML | Sigma MCP for semantic workspace search |
 
 `scripts/check-prerequisites.sh` reports missing tools and platform-specific
@@ -72,7 +72,7 @@ See [Installation](#installation) below for the install helper.
 
 | Skill | Purpose |
 |-------|---------|
-| [`sigma-api`](sigma-api/) | Configure Sigma API credentials and mint short-lived bearer tokens with client credentials or interactive browser OAuth. Prerequisite for skills that call the REST API. |
+| [`sigma-api`](sigma-api/) | Configure Sigma API authentication and mint short-lived bearer tokens with preferred interactive browser OAuth plus a client-credentials fallback. Prerequisite for skills that call the REST API. |
 | [`sigma-data-models`](sigma-data-models/) | Author Sigma data models from existing warehouse tables — sources, columns, metrics, relationships, filters, calc columns, CLS. Covers spec shape, discovery, CRUD, validation, and authoring judgment calls. **Out of scope: converting from another BI tool's format** (use the converter MCP / browser tool). |
 | [`sigma-workbooks`](sigma-workbooks/) | Build, edit, and iterate on Sigma workbook specs — pages, layout, controls, charts (line/bar/area/combo/donut), KPIs, tables, pivot tables, formulas, sources, and question-driven operational apps (planning / approval / allocation / exception). Canonical reference for the workbook spec; other skills cross-link here for spec shape. |
 | [`sigma-reports`](sigma-reports/) | Build, validate, render, and safely update private-beta Sigma report code representations: executive board packets, wide operational tables, fixed pixel pages, header/footer panels, PDF-oriented validation, and workbook-to-report conversion. Includes reusable `board` and `wide-table` scaffolds. |
@@ -111,42 +111,50 @@ custom-sql-to-data-model    ─── orchestrator: SQL extraction + DM creation
 
 ## Auth
 
-Use the `sigma-api` skill to configure credentials and mint a token. There are
-**two options** — pick whichever fits.
-
-### Option 1 — Client credentials (headless / automation)
+Use the `sigma-api` skill to configure authentication and mint a token.
+Interactive browser OAuth is preferred when a human is present; OAuth client
+credentials are the unattended fallback. The common helper resolves a saved
+browser session first, then client credentials:
 
 ```bash
 export SIGMA_BASE_URL="https://api.sigmacomputing.com"
-export SIGMA_CLIENT_ID="..."
-export SIGMA_CLIENT_SECRET="..."
-
-# Exchange for an access token using HTTP Basic authentication.
 eval "$(bash ~/sigma-skills/sigma-api/scripts/get-token.sh)"
 ```
 
-Sigma client credentials are issued from **Administration → Developer Access** in your Sigma org.
+It emits `SIGMA_API_TOKEN`, `SIGMA_TOKEN_MINTED_AT`, and
+`SIGMA_AUTH_METHOD`. Select `auto` (default), `browser`, or
+`client-credentials` with `SIGMA_AUTH_MODE` / `--auth-mode`. Before the
+canonical Python provider emits either kind of token, it verifies it with a
+non-redirecting `GET /v2/whoami`; failed, forbidden, malformed, or redirecting
+responses abort without printing or writing the bearer token.
 
-### Option 2 — Interactive browser login (no client ID/secret)
-
-Prefer signing in through the browser? The `sigma-api` skill also supports an
-OAuth authorization-code + PKCE login — no pre-provisioned credentials, the
-client registers itself. Best when a human is at the keyboard:
+### Preferred — interactive browser login (one-time setup)
 
 ```bash
 export SIGMA_BASE_URL="https://api.sigmacomputing.com"  # adjust per cloud; pragma: allowlist secret
 
-# Opens your browser, captures the redirect, and prints an export line to eval.
+# Opens the browser, captures the redirect, and stores the refresh token plus
+# a short-lived access-token cache in the OS keychain, never the workspace.
 eval "$(bash ~/sigma-skills/sigma-api/scripts/browser-login.sh)"
 
-# Later, mint a fresh token headlessly (no browser) from the stored refresh token:
-eval "$(bash ~/sigma-skills/sigma-api/scripts/refresh-token.sh)"
+# Later, use the cached access token or refresh headlessly:
+eval "$(bash ~/sigma-skills/sigma-api/scripts/get-token.sh)"
 ```
 
-`browser-login.sh` stores the refresh token in your OS keychain, so
-`refresh-token.sh` can renew the ~1h access token without another sign-in. See
+The refresh token never enters `auth.json` or the workspace. See
 [`sigma-api/reference/browser-oauth-login.md`](sigma-api/reference/browser-oauth-login.md)
 for the full flow.
+
+### Fallback — client credentials (headless / automation)
+
+```bash
+export SIGMA_CLIENT_ID="..."
+export SIGMA_CLIENT_SECRET="..."
+eval "$(bash ~/sigma-skills/sigma-api/scripts/get-token.sh)"
+```
+
+Sigma client credentials are issued from **Administration → Developer Access**
+in your Sigma org. Force this method with `--auth-mode client-credentials`.
 
 ## Installation
 

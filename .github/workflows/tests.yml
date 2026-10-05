@@ -17,6 +17,22 @@ on:
     branches: [main]
 
 jobs:
+  python-auth-tests:
+    name: Python auth provider (creds-free)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check synced auth runtimes
+        run: python3 scripts/sync_auth_runtime.py --check
+      - name: Run token-provider tests
+        run: python3 -m unittest discover -s sigma-api/scripts -p 'test_*.py'
+      - name: Check auth shell syntax
+        run: bash -n sigma-api/scripts/get-token.sh sigma-api/scripts/browser-login.sh sigma-api/scripts/refresh-token.sh
+
   ruby-tests:
     name: ruby unit tests (creds-free, globbed)
     runs-on: ubuntu-24.04

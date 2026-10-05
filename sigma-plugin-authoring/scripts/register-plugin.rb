@@ -32,10 +32,10 @@
 #   -> prints the pluginId to stdout on success (exit 0); on failure, prints
 #      an error to stderr and exits non-zero.
 #
-# Env: SIGMA_BASE_URL, SIGMA_CLIENT_ID, SIGMA_CLIENT_SECRET (or an
-#      SIGMA_API_TOKEN minted via the sigma-api skill). See
-#      scripts/lib/sigma_rest.rb for the full auth/retry contract — it
-#      auto-refreshes on a 401 mid-run.
+# Env: SIGMA_BASE_URL plus an SIGMA_API_TOKEN, a browser-login keychain
+#      session, or SIGMA_CLIENT_ID / SIGMA_CLIENT_SECRET fallback. See
+#      scripts/lib/sigma_rest.rb for the full browser-first auth/retry contract
+#      — it auto-refreshes on a 401 mid-run.
 
 require 'json'
 

@@ -105,7 +105,11 @@ ruby scripts/wb-rep.rb capabilities --kind bar-chart --field source  # one field
 
 ## Auth
 
-Authenticate via the `sigma-api` skill first to populate `$SIGMA_BASE_URL` and `$SIGMA_API_TOKEN`. Two options there: **client credentials** (`SIGMA_CLIENT_ID`/`SIGMA_CLIENT_SECRET`, best for headless/automation) or **interactive browser login** (`sigma-api/scripts/browser-login.sh` → refresh headlessly with `refresh-token.sh`, no client ID/secret). Either yields a `$SIGMA_API_TOKEN`; the rest of this skill is identical.
+Authenticate via the `sigma-api` skill first to populate `$SIGMA_BASE_URL` and
+`$SIGMA_API_TOKEN`. Its common `get-token.sh` path prefers a saved interactive
+browser session and falls back to `SIGMA_CLIENT_ID` /
+`SIGMA_CLIENT_SECRET` for unattended use. Either method yields the same token;
+the rest of this skill is identical.
 
 ## Recommended Workflow
 
@@ -437,7 +441,9 @@ require_relative 'lib/sigma_rest'
 spec = Sigma.request(:get, "/v2/workbooks/#{id}/spec")   # auto-refreshes on 401
 ```
 
-**Bash / curl callers**: re-run `eval "$(scripts/get-token.sh)"` to refresh manually. For long shell loops, wrap the curl in a small helper that retries once on 401:
+**Bash / curl callers**: re-run the `sigma-api` skill's browser-first
+`get-token.sh` to refresh manually. For long shell loops, wrap the curl in a
+small helper that retries once on 401:
 
 ```bash
 sigma_curl() {
@@ -445,14 +451,17 @@ sigma_curl() {
   resp=$(curl -sS -w '\n%{http_code}' -H "Authorization: Bearer $SIGMA_API_TOKEN" "$@")
   code=$(echo "$resp" | tail -1)
   if [ "$code" = "401" ]; then
-    eval "$(scripts/get-token.sh)"
+    eval "$(bash ../sigma-api/scripts/get-token.sh)"
     resp=$(curl -sS -w '\n%{http_code}' -H "Authorization: Bearer $SIGMA_API_TOKEN" "$@")
   fi
   echo "$resp" | sed '$d'  # strip trailing status code
 }
 ```
 
-If 401 persists after refresh, re-authenticate via `sigma-api`: for client credentials verify `SIGMA_BASE_URL`, `SIGMA_CLIENT_ID`, `SIGMA_CLIENT_SECRET`; for browser login re-run `sigma-api/scripts/refresh-token.sh` (or `browser-login.sh` if the refresh token has expired).
+If 401 persists after refresh, re-authenticate via `sigma-api`: rerun
+`browser-login.sh` if the keychain refresh token was revoked, or verify
+`SIGMA_BASE_URL`, `SIGMA_CLIENT_ID`, and `SIGMA_CLIENT_SECRET` for the
+client-credentials fallback.
 
 ### 403 Forbidden on workbook create
 

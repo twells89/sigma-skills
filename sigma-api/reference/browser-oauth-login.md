@@ -1,8 +1,17 @@
 # Interactive Browser Login (OAuth authorization-code + PKCE)
 
-Use this when a human is at the keyboard and would rather sign in through the browser than provision a client ID/secret. It needs no pre-issued credentials — the client registers itself. The **client-credentials** flow in `SKILL.md` remains the right fit for headless automation.
+Use this for the preferred interactive setup when a human is at the keyboard.
+It needs no pre-issued credentials—the client registers itself. After this
+one-time login, the canonical `scripts/get_token.py` provider refreshes the
+keychain session headlessly and falls back to client credentials when
+available. Client credentials remain useful for unattended hosts.
 
-> **Just want to log in?** `scripts/browser-login.sh` performs every step below end to end (`eval "$(bash <repo-root>/skills/sigma-api/scripts/browser-login.sh)"`), including capturing the redirect automatically (§D) — no callback URL to copy or paste anywhere. The walkthrough here explains what it does and how to customize or run the flow by hand.
+> **Just want to log in?** `scripts/browser-login.sh` performs every step below
+> end to end
+> (`eval "$(bash <repo-root>/skills/sigma-api/scripts/browser-login.sh)"`),
+> including capturing the redirect automatically (§D). Later, rerun
+> `get-token.sh` (default `auto` mode) to use the cached/refreshable browser
+> session first. The walkthrough here explains the underlying flow.
 
 The flow is **discovery-driven**: you don't hardcode any endpoints — you read them from `/v2/whoami`. If `SIGMA_BASE_URL` is unset, ask the user which cloud they're on (see the Base URL table in `SKILL.md`).
 
@@ -112,13 +121,25 @@ export SIGMA_API_TOKEN=$(printf '%s' "$TOKENS" | jq -r '.access_token')
 REFRESH_TOKEN=$(printf '%s' "$TOKENS" | jq -r '.refresh_token')   # long-lived — persist this
 ```
 
-Verify with the `GET /v2/whoami` check in `SKILL.md` ("Verify the Token").
+Because `browser-login.sh` emits this one-time exchange directly, verify it
+with the `GET /v2/whoami` check in `SKILL.md` ("Verify the Token"). Subsequent
+cached/refresh flows through `get_token.py` perform the same check
+automatically and refuse redirects.
 
 ## F. Persist the refresh token (encrypted) and refresh on demand
 
-> `scripts/refresh-token.sh` packages everything in this section — cached-token reuse, refresh-token redemption, and rotation. Reach for the manual steps below only to understand or customize it. **Refresh tokens are single-use and rotate:** each redemption may return a new one, so you must persist the replacement or the next redemption fails — the script does this for you.
+> `scripts/get_token.py` is the canonical implementation of cached-token reuse,
+> refresh-token redemption, and rotation; `scripts/get-token.sh` invokes it
+> automatically. `scripts/refresh-token.sh` remains a browser-only shell
+> compatibility helper. Reach for the manual steps below only to understand or
+> customize the flow. **Refresh tokens are single-use and rotate:** each
+> redemption may return a new one, so the replacement must be persisted before
+> returning success.
 
-The access token still expires in ~1 hour, but the **refresh token** lets you mint a new one without another browser login. Store it — plus the `client_id` and `token_endpoint` you'll need to redeem it — in the OS keychain, never a workspace file:
+The access token still expires in ~1 hour, but the **refresh token** lets you
+mint a new one without another browser login. Store it—plus the `client_id` and
+`token_endpoint` needed to redeem it—in the OS keychain, never `auth.json` or
+another workspace file:
 
 ```sh
 # macOS
