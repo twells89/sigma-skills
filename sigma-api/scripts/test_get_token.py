@@ -331,6 +331,34 @@ class TokenProviderTest(unittest.TestCase):
             ):
                 get_token.mint_token()
 
+    def test_neutral_env_supplies_missing_migration_settings(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = os.path.join(directory, "env")
+            with open(path, "w", encoding="utf-8") as handle:
+                handle.write(
+                    "export SIGMA_BASE_URL='https://api.sigmacomputing.com'\n"
+                    "export SIGMA_CLIENT_ID='neutral-id'\n"
+                    "export SIGMA_CLIENT_SECRET='neutral secret'\n"
+                    "export SIGMA_API_TOKEN='must-not-be-loaded'\n"
+                )
+            with mock.patch.dict(os.environ, {}, clear=True):
+                get_token._load_neutral_env(path)
+                self.assertEqual(BASE, os.environ["SIGMA_BASE_URL"])
+                self.assertEqual("neutral-id", os.environ["SIGMA_CLIENT_ID"])
+                self.assertEqual("neutral secret", os.environ["SIGMA_CLIENT_SECRET"])
+                self.assertNotIn("SIGMA_API_TOKEN", os.environ)
+
+    def test_explicit_environment_wins_over_neutral_env(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = os.path.join(directory, "env")
+            with open(path, "w", encoding="utf-8") as handle:
+                handle.write("export SIGMA_CLIENT_ID='from-file'\n")
+            with mock.patch.dict(
+                os.environ, {"SIGMA_CLIENT_ID": "from-environment"}, clear=True
+            ):
+                get_token._load_neutral_env(path)
+                self.assertEqual("from-environment", os.environ["SIGMA_CLIENT_ID"])
+
     def test_platform_selects_only_native_keychain_backend(self):
         def which(command):
             return f"/fake/{command}"

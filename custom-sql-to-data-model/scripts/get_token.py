@@ -27,6 +27,7 @@ import getpass
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -59,6 +60,10 @@ PUBLISHED_API_HOSTS = frozenset(
 AUTH_MODES = ("auto", "browser", "client-credentials")
 _BEARER_RE = re.compile(r"^[A-Za-z0-9._~+/=-]+$")
 _MINTED_AT_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
+_NEUTRAL_ENV = os.path.expanduser("~/.sigma-migration/env")
+_NEUTRAL_KEYS = frozenset(
+    ("SIGMA_BASE_URL", "SIGMA_CLIENT_ID", "SIGMA_CLIENT_SECRET", "SIGMA_AUTH_MODE")
+)
 
 
 class TokenProviderError(RuntimeError):
@@ -89,6 +94,37 @@ class TokenResult(NamedTuple):
     token: str
     minted_at: str
     auth_method: str
+
+
+def _load_neutral_env(path=None):
+    """Load missing non-token settings written by migration setup helpers."""
+    env_path = path or _NEUTRAL_ENV
+    if not os.path.isfile(env_path):
+        return
+    with open(env_path, encoding="utf-8") as handle:
+        for raw_line in handle:
+            line = raw_line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if line.startswith("export "):
+                line = line[7:].strip()
+            if "=" not in line:
+                continue
+            key, raw_value = line.split("=", 1)
+            key = key.strip()
+            if key not in _NEUTRAL_KEYS or os.environ.get(key):
+                continue
+            try:
+                values = shlex.split(raw_value, posix=True)
+            except ValueError as exc:
+                raise TokenProviderError(
+                    f"{env_path}: invalid shell quoting for {key}"
+                ) from exc
+            if len(values) != 1:
+                raise TokenProviderError(
+                    f"{env_path}: {key} must contain one literal value"
+                )
+            os.environ[key] = values[0]
 
 
 def _iso_z(timestamp=None):
@@ -433,6 +469,7 @@ def _resolve_auth_mode(cli_mode=None):
 
 
 def mint_token(auth_mode=None):
+    _load_neutral_env()
     base_value = os.environ.get("SIGMA_BASE_URL")
     if not base_value:
         raise TokenProviderError(
