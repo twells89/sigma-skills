@@ -10,13 +10,15 @@
 #      to pasting the callback URL back if python3 isn't available, or the
 #      listener times out), verifying the CSRF state,
 #   5. exchanges the code, stores the refresh token in the OS keychain,
-#   6. prints `export SIGMA_API_TOKEN=<token>` on stdout.
+#   6. prints access-token mint metadata on stdout.
 #
 # Reads (env):
 #   SIGMA_BASE_URL   a published Sigma API host (required)
 #
 # Prints (stdout, meant to be eval'd):
 #   export SIGMA_API_TOKEN=<token>
+#   export SIGMA_TOKEN_MINTED_AT=<UTC ISO-8601 timestamp>
+#   export SIGMA_AUTH_METHOD=browser
 # All prompts/progress go to stderr, so `eval "$(browser-login.sh)"` works.
 #
 # Usage:
@@ -60,6 +62,10 @@ esac
 # or POST credentials to, an authorization server a spoofed discovery doc names.
 assert_sigma_host() {
   local url="$1" host
+  case "$url" in
+    https://*) ;;
+    *) echo "Error: refusing non-HTTPS OAuth endpoint: $url" >&2; exit 1 ;;
+  esac
   # The authority ends at the first '/', '?', or '#'; strip any userinfo and port
   # so the check sees exactly the host curl will connect to. A naive "everything
   # up to the first /" parse would let a fragment spoof the trusted suffix.
@@ -314,29 +320,41 @@ if ! [[ "$ACCESS" =~ ^[A-Za-z0-9._~+/=-]+$ ]]; then
   echo "Error: token contains unexpected characters; refusing to emit." >&2
   exit 1
 fi
+EXPIRES_IN=$(printf '%s' "$TOKENS" | jq -r '.expires_in // 3600')
+case "$EXPIRES_IN" in ''|*[!0-9]*) EXPIRES_IN=3600 ;; esac
+MINTED_AT=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
+NOW=$(date +%s)
+CACHE_EXPIRY=$(( NOW + EXPIRES_IN - 60 ))
 
 # --- F. Persist the refresh token (never to a workspace file) so a later
 # --- refresh needs no browser round-trip. client_id + token_url ride along so
-# --- the refresh is self-contained (see reference/browser-oauth-login.md, §F). ---
+# --- the refresh is self-contained (see reference/browser-oauth-login.md, §F).
+# --- Store refresh metadata first and the refresh token last; then cache the
+# --- access token with expiry as the final cache-commit key. ---
 if [ -n "$REFRESH" ]; then
   if command -v security >/dev/null 2>&1; then
-    if security add-generic-password -U -a "$USER" -s "sigma-api:refresh-token" -w "$REFRESH" 2>/dev/null; then
-      security add-generic-password -U -a "$USER" -s "sigma-api:client-id" -w "$CLIENT_ID" >/dev/null 2>&1 || true
-      security add-generic-password -U -a "$USER" -s "sigma-api:token-url" -w "$TOKEN_URL" >/dev/null 2>&1 || true
+    if security add-generic-password -U -a "$USER" -s "sigma-api:client-id" -w "$CLIENT_ID" >/dev/null 2>&1 &&
+       security add-generic-password -U -a "$USER" -s "sigma-api:token-url" -w "$TOKEN_URL" >/dev/null 2>&1 &&
+       security add-generic-password -U -a "$USER" -s "sigma-api:refresh-token" -w "$REFRESH" >/dev/null 2>&1; then
+      if security add-generic-password -U -a "$USER" -s "sigma-api:access-token" -w "$ACCESS" >/dev/null 2>&1 &&
+         security add-generic-password -U -a "$USER" -s "sigma-api:access-minted-at" -w "$MINTED_AT" >/dev/null 2>&1; then
+        security add-generic-password -U -a "$USER" -s "sigma-api:access-expiry" -w "$CACHE_EXPIRY" >/dev/null 2>&1 || true
+      fi
       log "Stored refresh token in the macOS keychain (service 'sigma-api:refresh-token')."
     else
-      log "Warning: could not write to the macOS keychain; refresh token NOT persisted."
+      log "Warning: could not store the complete browser session in the macOS keychain; the new refresh token was not safely persisted."
     fi
   elif command -v secret-tool >/dev/null 2>&1; then
-    if printf '%s' "$REFRESH" | secret-tool store --label="sigma-api refresh token" service sigma-api key refresh-token; then
-      # client_id + token_url ride along so refresh-token.sh / get_token.py can
-      # redeem the refresh token without re-discovering anything (mirrors the
-      # macOS branch above — without these, headless refresh on Linux fails).
-      printf '%s' "$CLIENT_ID" | secret-tool store --label="sigma-api client-id" service sigma-api key client-id >/dev/null 2>&1 || true
-      printf '%s' "$TOKEN_URL" | secret-tool store --label="sigma-api token-url" service sigma-api key token-url >/dev/null 2>&1 || true
+    if printf '%s' "$CLIENT_ID" | secret-tool store --label="sigma-api client-id" service sigma-api key client-id >/dev/null 2>&1 &&
+       printf '%s' "$TOKEN_URL" | secret-tool store --label="sigma-api token-url" service sigma-api key token-url >/dev/null 2>&1 &&
+       printf '%s' "$REFRESH" | secret-tool store --label="sigma-api refresh token" service sigma-api key refresh-token >/dev/null 2>&1; then
+      if printf '%s' "$ACCESS" | secret-tool store --label="sigma-api access-token" service sigma-api key access-token >/dev/null 2>&1 &&
+         printf '%s' "$MINTED_AT" | secret-tool store --label="sigma-api access-minted-at" service sigma-api key access-minted-at >/dev/null 2>&1; then
+        printf '%s' "$CACHE_EXPIRY" | secret-tool store --label="sigma-api access-expiry" service sigma-api key access-expiry >/dev/null 2>&1 || true
+      fi
       log "Stored refresh token via libsecret (service 'sigma-api', key 'refresh-token')."
     else
-      log "Warning: could not write to libsecret; refresh token NOT persisted."
+      log "Warning: could not store the complete browser session in libsecret; the new refresh token was not safely persisted."
     fi
   else
     log "Note: no OS keychain tool (security/secret-tool) found; refresh token NOT persisted."
@@ -346,3 +364,5 @@ else
 fi
 
 printf 'export SIGMA_API_TOKEN=%q\n' "$ACCESS"
+printf 'export SIGMA_TOKEN_MINTED_AT=%q\n' "$MINTED_AT"
+printf 'export SIGMA_AUTH_METHOD=%q\n' "browser"

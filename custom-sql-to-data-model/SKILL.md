@@ -30,21 +30,24 @@ catches.
 
 ## Prerequisites
 
-Required env var: `SIGMA_BASE_URL`. Then pick **one** of two auth options:
+Required env var: `SIGMA_BASE_URL`. For an interactive terminal, prefer a
+one-time browser login through the `sigma-api` skill:
 
-- **Client credentials (headless):** set `SIGMA_CLIENT_ID` and
-  `SIGMA_CLIENT_SECRET` (from Sigma → Administration → Developer Access). Best
-  for automation.
-- **Browser login (no client ID/secret):** sign in once through the browser
-  using the `sigma-api` skill —
-  `eval "$(bash <repo-root>/sigma-api/scripts/browser-login.sh)"`. It stores a
-  refresh token in your OS keychain, and the token scripts below redeem it
-  headlessly (no browser round-trip on subsequent runs). `SIGMA_CLIENT_ID` /
-  `SIGMA_CLIENT_SECRET` can stay unset.
+```bash
+eval "$(bash <repo-root>/sigma-api/scripts/browser-login.sh)"
+```
 
-Both options feed the same `get_token.py` / `get-token.sh` helpers below —
-when the client-credential env vars are absent they automatically fall back to
-the stored browser-login refresh token.
+It keeps the refresh token exclusively in the OS keychain. For unattended
+hosts, set `SIGMA_CLIENT_ID` and `SIGMA_CLIENT_SECRET` (Sigma Administration →
+Developer Access) as the fallback.
+
+The local `get_token.py` is a byte-identical synced copy of the canonical
+`sigma-api` provider. In default `auto` mode it uses a cached/refreshable
+browser session first, then client credentials. Override with
+`SIGMA_AUTH_MODE` / `--auth-mode` (`auto`, `browser`, or
+`client-credentials`). Before either auth mode succeeds, the provider requires
+a non-redirecting, valid-JSON `GET /v2/whoami`; 401, 403, non-JSON, and
+redirect responses fail without emitting or writing the token.
 
 **Default (shell-neutral, works in bash/zsh/PowerShell/cmd):** mint a token
 with the stdlib-only Python script and let `scripts/lib/sigma_rest.rb` pick
@@ -54,12 +57,12 @@ it up automatically from `auth.json` — no `eval`, no shell-specific syntax:
 python3 scripts/get_token.py --workdir /tmp/custom-sql-run
 ```
 
-This writes `/tmp/custom-sql-run/auth.json` (mode 0600). Every Ruby script in
-this skill checks `$SIGMA_WORKDIR/auth.json` (or `./auth.json`) before
-falling back to a fresh client-credentials exchange, so point `SIGMA_WORKDIR`
-at the same directory (or run from inside it) and every subsequent `ruby
-scripts/*.rb` invocation authenticates without any shell-specific token
-plumbing:
+After verification, this writes `/tmp/custom-sql-run/auth.json` (mode 0600)
+with the access token, base URL, mint timestamp, and auth method—never the
+refresh token. Every Ruby script in this skill checks
+`$SIGMA_WORKDIR/auth.json` (or `./auth.json`) before invoking the same dual
+provider, so point `SIGMA_WORKDIR` at the same directory (or run from inside
+it):
 
 ```bash
 export SIGMA_WORKDIR=/tmp/custom-sql-run
@@ -72,7 +75,13 @@ ruby scripts/scan-workbooks.rb
 eval "$(bash scripts/get-token.sh)"
 ```
 
-> Tokens expire after ~1 hour. **With client credentials, the Ruby scripts auto-refresh on 401** via `scripts/lib/sigma_rest.rb` — full-site scans on large orgs (hundreds of workbooks, sometimes >1 hour total) no longer fail mid-run. **Browser-login users** don't have client credentials for the in-process refresh, so re-run `python3 scripts/get_token.py --workdir "$SIGMA_WORKDIR"` between phases — it serves the cached keychain token or redeems the stored refresh token headlessly. Either way, if you still see `Token missing or malformed`, re-run `python3 scripts/get_token.py --workdir "$SIGMA_WORKDIR"` (or `eval "$(bash scripts/get-token.sh)"` in bash) manually.
+> Tokens expire after ~1 hour. Using `SIGMA_TOKEN_MINTED_AT` from the
+> environment or `auth.json`, the Ruby wrapper proactively refreshes at 50
+> minutes through the dual provider and also refreshes/retries once on 401.
+> Caller tokens with missing or malformed mint-age metadata remain in use until
+> a 401. If authentication still fails, re-run `browser-login.sh` when a
+> browser refresh token was revoked, or verify the client credentials used as
+> fallback.
 
 ---
 
