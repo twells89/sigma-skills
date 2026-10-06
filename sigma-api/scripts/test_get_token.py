@@ -118,6 +118,25 @@ class TokenProviderTest(unittest.TestCase):
         self.assertEqual("fallback-client-token", result.token)
         self.assertEqual("client-credentials", result.auth_method)
 
+    def test_auto_falls_back_when_browser_token_verification_fails(self):
+        browser = get_token.TokenResult(BASE, "browser-token", MINTED, "browser")
+        client = get_token.TokenResult(
+            BASE, "client-token", MINTED, "client-credentials"
+        )
+        with self.env(SIGMA_CLIENT_ID="client-id", SIGMA_CLIENT_SECRET="client-secret"), \
+             mock.patch.object(get_token, "_mint_browser_refresh", return_value=browser), \
+             mock.patch.object(get_token, "_mint_client_credentials", return_value=client) as mint_client, \
+             mock.patch.object(
+                 get_token,
+                 "_verify_token",
+                 side_effect=[get_token.TokenProviderError("HTTP 401"), client],
+             ) as verify, contextlib.redirect_stderr(io.StringIO()):
+            result = get_token.mint_token()
+
+        self.assertEqual(client, result)
+        mint_client.assert_called_once_with(BASE, "client-id", "client-secret")
+        self.assertEqual([mock.call(browser), mock.call(client)], verify.call_args_list)
+
     def test_whoami_verification_succeeds_with_bearer_header(self):
         result = get_token.TokenResult(BASE, "minted-token", MINTED, "browser")
         opener = mock.Mock()

@@ -490,7 +490,14 @@ def mint_token(auth_mode=None):
         else:
             browser_error = None
         if browser_error is None:
-            return _verify_token(result)
+            try:
+                return _verify_token(result)
+            except SecurityError:
+                raise
+            except TokenProviderError as exc:
+                if mode == "browser":
+                    raise
+                browser_error = BrowserUnavailable(str(exc), warn=True)
     else:
         browser_error = None
 
