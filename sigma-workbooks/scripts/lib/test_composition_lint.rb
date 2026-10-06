@@ -89,6 +89,25 @@ check('a top-level Container overlapping a sibling band flags') do
   CompositionLint.check(container_sibling_overlap).any? { |e| e =~ /overlap/i }
 end
 
+stack = %Q(<Container elementId="stack" type="stack" gridColumn="1 / 25" gridRow="1 / 8">
+  <Style><Desktop direction="row" gap="shown"/><Mobile direction="column"/></Style>
+  <Element elementId="first"/>
+  <Element elementId="second"/>
+  <Container elementId="nested-grid" type="grid" gridTemplateColumns="repeat(12, 1fr)" gridTemplateRows="auto">
+    <Element elementId="nested-child" gridColumn="1 / 13" gridRow="1 / 4"/>
+  </Container>
+</Container>)
+check('stack containers allow ordered children without grid coordinates') do
+  CompositionLint.check(stack).empty?
+end
+check('stack containers reject grid coordinates on direct children') do
+  invalid_stack = stack.sub(
+    '<Element elementId="first"/>',
+    '<Element elementId="first" gridColumn="1 / 13" gridRow="1 / 2"/>'
+  )
+  CompositionLint.check(invalid_stack).any? { |e| e =~ /stack child first.*gridColumn/i }
+end
+
 ledger_els = [
   { id: 'title', role: :ledger_header },
   { id: 'count', role: :ledger_count },
