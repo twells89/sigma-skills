@@ -78,7 +78,7 @@ Stack and grid configuration are mutually exclusive: a stack has no
     <Element elementId="kpi-revenue">
       <Size>
         <Desktop width="fill" widthFillFactor="2" height="fixed" heightPixels="160"/>
-        <Mobile width="fill" height="fit-content"/>
+        <Mobile width="fill" height="fixed" heightPixels="120"/>
       </Size>
     </Element>
     <Element elementId="kpi-orders"/>
@@ -114,7 +114,8 @@ style uses the product defaults; omit fields that do not need an override.
 
 | Child kind | Width | Height |
 |---|---|---|
-| `<Element>` or nested stack `<Container>` | `fill`, `fit-content`, or `fixed` | `fill`, `fit-content`, or `fixed` |
+| `<Element>` | `fill`, `fit-content`, or `fixed`, subject to the element kind | `fill`, `fit-content`, or `fixed`, subject to the element kind |
+| Nested stack `<Container>` | `fill`, `fit-content`, or `fixed` | `fill`, `fit-content`, or `fixed` |
 | Nested grid `<Container>` or `<TabbedContainer>` | `fill` or `fixed` | `fixed-rows` |
 
 Use `widthFillFactor` / `heightFillFactor` with `fill` (1x through 8x;
@@ -122,6 +123,10 @@ omitted means 1x), `widthPixels` / `heightPixels` with `fixed` (1 through
 10,000 pixels), and `heightRows` with `fixed-rows` (1 through 100 rows).
 `fit-content` is not valid for a nested grid or tabbed-container width. A
 tabbed-container's fixed row height applies to every tab layout.
+Element kinds also restrict sizing. For example, viz/image/embed/plugin
+elements do not support `fit-content`, while text, button, and most control
+elements do not expose configurable height. Check the element kind's allowed
+flex modes before adding `<Size>`.
 
 Stack children must not carry `gridColumn` or `gridRow`. Put grid-positioned
 children inside a nested `type="grid"` container instead. Only `kind:
@@ -285,7 +290,12 @@ The actual content for each tab is ordinary flat elements; layout places them.
 Two `<Tab>`s, two elements (`overview-chart`, `detail-table`) each declared once
 in `document.elements[]`; `<Tab>` order ties them to the labels above.
 
-- **Gotcha (verified):** inside a `<Tab>`, use **bare `<Element>` children only** — never nest a `<Container>` inside a `<Tab>`. A `<Tab>` is already a mini-grid (its own `gridTemplateColumns` / `gridTemplateRows`), so elements position directly in it; a nested `<Container>` scrambles tab render order.
+- **Simple tabs:** use **bare `<Element>` children** when each tab only needs
+  directly positioned leaves. A `<Tab>` is already a mini-grid with its own
+  `gridTemplateColumns` / `gridTemplateRows`.
+- **Nested layouts:** stack support allows a correctly placed `type="stack"`
+  container inside a tab. Preserve grid placement for any nested grid or stack
+  container and verify the rendered order after creation.
 - **When to use it:** several views that are alternates of each other (a summary + a detail table, one view per region/segment) rather than sequential reading — pack them into one region instead of a long scroll or extra pages.
 - **Building it:** hand-authoring the position-mapped `<Tab>` block is error-prone. Use `Composition.tabbed_container(id:, tabs:, grid_column:, grid_row:, tab_bar_alignment: 'left')` in `scripts/lib/composition.rb` — `tabs:` is `[{name:, inner:}]`, where `inner` is the tab's bare-`<Element>` XML (built with `Composition.band`/`Composition.le` or by hand). It returns `{element:, layout:}`, ready to add to `document.elements[]` and `document.layout`.
 

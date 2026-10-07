@@ -107,6 +107,13 @@ check('stack containers reject grid coordinates on direct children') do
   )
   CompositionLint.check(invalid_stack).any? { |e| e =~ /stack child first.*gridColumn/i }
 end
+check('stack containers preserve tabbed-container children') do
+  stack_with_tabs = stack.sub(
+    '  <Container elementId="nested-grid" type="grid" gridTemplateColumns="repeat(12, 1fr)" gridTemplateRows="auto">\n    <Element elementId="nested-child" gridColumn="1 / 13" gridRow="1 / 4"/>\n  </Container>',
+    '  <TabbedContainer elementId="tabs" type="tabbed-container">\n    <Tab gridTemplateColumns="repeat(12, 1fr)" gridTemplateRows="auto">\n      <Element elementId="tab-child" gridColumn="1 / 13" gridRow="1 / 4"/>\n    </Tab>\n  </TabbedContainer>'
+  )
+  CompositionLint.check(stack_with_tabs).empty?
+end
 
 ledger_els = [
   { id: 'title', role: :ledger_header },

@@ -91,8 +91,8 @@ module Sigma
       # top-level layout block keyed by id. Live GET specs emit a distinct
       # <Panel> tag for header/sidebar panels (live-confirmed 2026-08-10), and
       # <Overlay> for overlay chrome, alongside <Page> for normal pages; all
-       # three carry <Element> leaves, <Container> grid/stack containers, and
-       # <TabbedContainer> tab groups the same way. Match on the opening tag and
+      # three carry <Element> leaves, <Container> grid/stack containers, and
+      # <TabbedContainer> tab groups the same way. Match on the opening tag and
       # its own closing tag via a backreference so a <Panel> body is never
       # mis-attributed to the preceding <Page>. Keep the two pre-release aliases
       # readable for old snapshots, but do not treat arbitrary XML tags carrying

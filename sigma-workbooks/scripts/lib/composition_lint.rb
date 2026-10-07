@@ -17,7 +17,7 @@ module CompositionLint
   # Canonical GET/POST grammar is Element + Container. The two old aliases
   # remain parseable so the linter can inspect historical snapshots, but every
   # helper in this package emits only the canonical names.
-  CONTAINER_TAGS = %w[Container GridContainer].freeze
+  CONTAINER_TAGS = %w[Container GridContainer TabbedContainer Tab].freeze
   ELEMENT_TAGS = %w[Element LayoutElement].freeze
   TOKENS = %r{
     </(?:#{CONTAINER_TAGS.join('|')})>|
@@ -61,7 +61,11 @@ module CompositionLint
         node = stack.pop
         (stack.empty? ? roots : stack.last[:children]) << node if node
       elsif CONTAINER_TAGS.include?(tag_name)
-        mode = tag[/\btype="([^"]*)"/, 1] == 'stack' ? :stack : :grid
+        mode = case tag_name
+               when 'TabbedContainer' then :tabbed
+               when 'Tab' then :tab
+               else tag[/\btype="([^"]*)"/, 1] == 'stack' ? :stack : :grid
+               end
         node = rect_of(tag).merge(
           type: :container,
           layout_mode: mode,
@@ -133,6 +137,8 @@ module CompositionLint
 
                  errors << "container #{node[:id]}: stack child #{child[:id]} must not use gridColumn or gridRow"
                end
+             elsif node[:layout_mode] == :tabbed
+               []
              else
                check_region(node[:children], ncols, "container #{node[:id]}")
              end
