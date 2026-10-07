@@ -114,6 +114,17 @@ check('stack containers preserve tabbed-container children') do
   )
   CompositionLint.check(stack_with_tabs).empty?
 end
+check('the documented stack XML sample is well-formed and lints clean') do
+  documentation = File.read(
+    File.join(__dir__, '..', '..', 'reference', 'specification', 'layout.md')
+  )
+  sample = documentation[/## Stack containers.*?```xml\n(.*?)```/m, 1]
+  raise 'stack layout sample is missing from layout.md' if sample.nil?
+
+  require 'rexml/document'
+  REXML::Document.new(sample)
+  CompositionLint.check(sample).empty?
+end
 
 ledger_els = [
   { id: 'title', role: :ledger_header },
