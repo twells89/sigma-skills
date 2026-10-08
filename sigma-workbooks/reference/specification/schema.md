@@ -168,6 +168,9 @@ They are not part of a PUT body.
 - Every layout `elementId` must match a flat `document.elements[].id`.
 - Every element must be placed exactly where intended in layout. Do not infer
   ownership from array adjacency.
+- Page, overlay, and panel roots use grid layout. A grid container's children
+  use `gridColumn` / `gridRow`; a stack container's direct children are ordered
+  and omit those attributes. See `layout.md` for stack style and sizing.
 
 ## Related: `kind: "report"` documents are a separate resource, not a workbook variant
 

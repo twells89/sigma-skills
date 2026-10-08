@@ -8,14 +8,16 @@
 # but against the container's OWN rect — column count from the container's
 # gridTemplateColumns ("repeat(N, ...)" -> N; absent -> page_cols), and rows
 # starting at 1 (children use container-relative row numbering, same convention
-# as Styling.header/section_card). Nesting-aware — a stack walk so a nested
-# container's own close tag can't truncate an outer container's body. Returns
-# an array of human-readable errors ([] = clean).
+# as Styling.header/section_card). Responsive stack containers are checked for
+# their own grid placement, but their ordered direct children intentionally skip
+# grid tiling; nested grid containers still get checked recursively. Nesting-aware
+# — a stack walk so a nested container's own close tag can't truncate an outer
+# container's body. Returns an array of human-readable errors ([] = clean).
 module CompositionLint
   # Canonical GET/POST grammar is Element + Container. The two old aliases
   # remain parseable so the linter can inspect historical snapshots, but every
   # helper in this package emits only the canonical names.
-  CONTAINER_TAGS = %w[Container GridContainer].freeze
+  CONTAINER_TAGS = %w[Container GridContainer TabbedContainer Tab].freeze
   ELEMENT_TAGS = %w[Element LayoutElement].freeze
   TOKENS = %r{
     </(?:#{CONTAINER_TAGS.join('|')})>|
@@ -32,7 +34,8 @@ module CompositionLint
   def self.rect_of(tag)
     { id: tag[/elementId="([^"]*)"/, 1],
       c0: tag[/gridColumn="\s*(\d+)/, 1].to_i, c1: tag[/gridColumn="\s*\d+\s*\/\s*(\d+)/, 1].to_i,
-      r0: tag[/gridRow="\s*(\d+)/, 1].to_i, r1: tag[/gridRow="\s*\d+\s*\/\s*(\d+)/, 1].to_i }
+      r0: tag[/gridRow="\s*(\d+)/, 1].to_i, r1: tag[/gridRow="\s*\d+\s*\/\s*(\d+)/, 1].to_i,
+      grid_placement: tag.include?('gridColumn=') || tag.include?('gridRow=') }
   end
 
   # A container's own local column count, from its gridTemplateColumns
@@ -44,10 +47,10 @@ module CompositionLint
   end
 
   # Parse the top-level entries of a layout XML fragment into a tree:
-  # [{type: :element|:container, id:, c0:, c1:, r0:, r1:, tmpl_cols:, children: [...]}, ...]
-  # (tmpl_cols/children only meaningful for :container). A nesting-aware
-  # stack walk so an inner container's </Container> can't truncate an
-  # outer one's body.
+  # [{type: :element|:container, layout_mode: :grid|:stack, id:, c0:, c1:, r0:, r1:, tmpl_cols:, children: [...]}, ...]
+  # (layout_mode/tmpl_cols/children only meaningful for :container). A
+  # nesting-aware stack walk keeps an inner container's </Container> from
+  # truncating an outer one's body.
   def self.parse(xml)
     roots = []
     stack = []
@@ -58,7 +61,17 @@ module CompositionLint
         node = stack.pop
         (stack.empty? ? roots : stack.last[:children]) << node if node
       elsif CONTAINER_TAGS.include?(tag_name)
-        node = rect_of(tag).merge(type: :container, tmpl_cols: tmpl_cols_of(tag), children: [])
+        mode = case tag_name
+               when 'TabbedContainer' then :tabbed
+               when 'Tab' then :tab
+               else tag[/\btype="([^"]*)"/, 1] == 'stack' ? :stack : :grid
+               end
+        node = rect_of(tag).merge(
+          type: :container,
+          layout_mode: mode,
+          tmpl_cols: tmpl_cols_of(tag),
+          children: []
+        )
         if tag.end_with?('/>')
           (stack.empty? ? roots : stack.last[:children]) << node
         else
@@ -118,7 +131,17 @@ module CompositionLint
   def self.check_containers(node, page_cols)
     return [] unless node[:type] == :container
     ncols = node[:tmpl_cols] || page_cols
-    errors = check_region(node[:children], ncols, "container #{node[:id]}")
+    errors = if node[:layout_mode] == :stack
+               node[:children].each_with_object([]) do |child, errors|
+                 next unless child[:grid_placement]
+
+                 errors << "container #{node[:id]}: stack child #{child[:id]} must not use gridColumn or gridRow"
+               end
+             elsif node[:layout_mode] == :tabbed
+               []
+             else
+               check_region(node[:children], ncols, "container #{node[:id]}")
+             end
     node[:children].each { |child| errors.concat(check_containers(child, page_cols)) }
     errors
   end

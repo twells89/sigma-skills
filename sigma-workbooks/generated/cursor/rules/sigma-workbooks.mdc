@@ -27,7 +27,7 @@ This skill helps you build effective Sigma workbooks by **navigating the Sigma O
 
 ## Scope
 
-The workbook **spec** — the JSON you POST to `/v2/workbooks/spec` defining pages, elements, sources, formulas, and layout. Lifecycle around the workbook (embeds, grants, materialization schedules, bookmarks, sharing) is a separate API surface and out of scope here.
+The workbook **spec** — the JSON you POST to `/v2/workbooks/spec` defining pages, elements, sources, formulas, and layout. Layout supports grid placement plus responsive stack containers. Lifecycle around the workbook (embeds, grants, materialization schedules, bookmarks, sharing) is a separate API surface and out of scope here.
 
 ## Sources of truth
 
@@ -248,8 +248,11 @@ the context budget.
 - Follow the formula reference rules in `reference/specification/formulas.md` exactly — most spec errors happen here.
 - **Write explicit `document.layout` XML whenever elements are non-empty.** It
   is the source of truth for page/container/tab organization.
-- Emit `<Element>` for layout leaves and `<Container>` for nested grids,
-  including repeated-container elements. `<TabbedContainer>` / `<Tab>` remain
+- Emit `<Element>` for layout leaves and `<Container>` for nested grid or stack
+  containers. Use `type="grid"` when children need `gridColumn` / `gridRow`;
+  use `type="stack"` for ordered responsive flow. Stack children omit grid
+  coordinates and may use responsive `<Size>` blocks. Repeated-container
+  elements still use the grid-bodied form. `<TabbedContainer>` / `<Tab>` remain
   valid. Never emit the legacy `<LayoutElement>` / `<GridContainer>` aliases;
   live verification rejects `<LayoutElement>` (`valid:false`; some API
   versions returned HTTP 400 instead).
