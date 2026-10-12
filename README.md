@@ -250,4 +250,4 @@ Each skill's `SKILL.md` includes a Troubleshooting section that points at the li
 
 ## License
 
-See individual skill directories for license information.
+Licensed under the [Apache License, Version 2.0](LICENSE).
