@@ -234,11 +234,11 @@ assert_contract(failures, 'region-map requires columnId + regionType') do
   %w[columnId regionType].all? { |field| region.fetch('required').include?(field) } &&
     region.fetch('regionTypes').include?('us-state')
 end
-assert_contract(failures, 'document layout is required grid XML') do
+assert_contract(failures, 'document layout is required grid/stack XML') do
   doc_caps = capabilities.fetch('document')
   doc_caps['layoutRequired'] == true &&
     doc_caps.dig('layout', 'type') == 'string' &&
-    doc_caps.dig('layout', 'description').to_s.match?(/grid layout as xml/i)
+    doc_caps.dig('layout', 'description').to_s.match?(/\bgrid(?: and stack)? layout as xml\b/i)
 end
 assert_contract(failures, 'workbook theme overrides are pinned') do
   overrides = capabilities.dig('document', 'themeOverrideProperties')
