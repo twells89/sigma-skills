@@ -199,7 +199,8 @@ y += 32
 # At-a-glance callout: tinted surface + accent rule baked into SVGs; data-bound text sits beside, never over, them.
 accent_svg = %(<svg xmlns="http://www.w3.org/2000/svg" width="8" height="140" viewBox="0 0 8 140"><rect width="8" height="140" rx="4" fill="#{BRAND['primary']}"/></svg>)
 b.place(b.svg_image(id: 'p1-accent', svg: accent_svg), region: P1, x: 0, y: y, width: 4, height: 66)
-b.place(b.text(id: 'p1-glance-label', body: '**AT A GLANCE**', color: br['primary'], font_size: 10), region: P1, x: 16, y: y, width: 300, height: 16)
+# A 16px box clipped the label's cap tops in the PDF; 20px clears them and still ends above the headline at y + 18.
+b.place(b.text(id: 'p1-glance-label', body: '**AT A GLANCE**', color: br['primary'], font_size: 10), region: P1, x: 16, y: y - 4, width: 300, height: 20)
 b.place(b.text(id: 'p1-glance', body: dyn.('headline'), color: br['ink'], font_size: 14), region: P1, x: 16, y: y + 18, width: CW - 16, height: 48)
 y += 80
 
