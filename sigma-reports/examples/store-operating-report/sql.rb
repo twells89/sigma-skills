@@ -102,6 +102,26 @@ SUMMARY_SQL = <<~SQL
       RANK() OVER (PARTITION BY s.REGION ORDER BY s.cur_net DESC) AS rank_v,
       COUNT(*) OVER (PARTITION BY s.REGION) AS region_n_v
     FROM s CROSS JOIN p
+  ),
+  -- Optional headline clauses. Each is NULL when its inputs are missing, so the
+  -- sentence drops that clause instead of '||' nulling the whole headline.
+  h AS (
+    SELECT f.*,
+      IFF(f.pm_net > 0,
+          IFF(f.cur_net >= f.pm_net, ' were up ', ' were down ')
+            || #{fmt_sql('ABS(f.cur_net / NULLIF(f.pm_net, 0) - 1)', 'pct')}
+            || ' vs ' || TO_CHAR(DATEADD(month, -1, f.m_start), 'MMMM'),
+          NULL) AS pm_clause,
+      IFF(f.ly_net > 0,
+          IFF(f.cur_net >= f.ly_net, 'up ', 'down ')
+            || #{fmt_sql('ABS(f.cur_net / NULLIF(f.ly_net, 0) - 1)', 'pct')}
+            || ' vs ' || TO_CHAR(DATEADD(year, -1, f.m_start), 'MMMM YYYY'),
+          NULL) AS ly_clause,
+      '. Average ticket was ' || #{fmt_sql('f.cur_ticket', 'usd2')}
+        || COALESCE(IFF(f.cur_ticket >= f.peer_ticket_v, ', above', ', below')
+                    || ' the ' || f.REGION || ' peer average of ' || #{fmt_sql('f.peer_ticket_v', 'usd2')}, '')
+        AS ticket_clause
+    FROM f
   )
   SELECT
     s.STORE_ID AS "store_id",
@@ -117,16 +137,14 @@ SUMMARY_SQL = <<~SQL
     TO_CHAR(DATEADD(month, -1, s.m_start), 'MMMM') AS "pm_label",
     TO_CHAR(DATEADD(year, -1, s.m_start), 'MMMM YYYY') AS "ly_label",
     'Net sales of ' || #{fmt_sql('s.cur_net', 'usd0')}
-      || IFF(s.cur_net >= s.pm_net, ' were up ', ' were down ')
-      || COALESCE(#{fmt_sql('ABS(s.cur_net / NULLIF(s.pm_net, 0) - 1)', 'pct')}, 'N/A')
-      || ' vs ' || TO_CHAR(DATEADD(month, -1, s.m_start), 'MMMM')
-      || IFF(s.cur_net >= s.ly_net, ' and up ', ' and down ')
-      || COALESCE(#{fmt_sql('ABS(s.cur_net / NULLIF(s.ly_net, 0) - 1)', 'pct')}, 'N/A')
-      || ' vs ' || TO_CHAR(DATEADD(year, -1, s.m_start), 'MMMM YYYY')
-      || '. Average ticket was ' || COALESCE(#{fmt_sql('s.cur_ticket', 'usd2')}, 'N/A')
-      || IFF(s.cur_ticket >= s.peer_ticket_v, ', above', ', below')
-      || ' the ' || s.REGION || ' peer average of ' || COALESCE(#{fmt_sql('s.peer_ticket_v', 'usd2')}, 'N/A')
-      || ', and the store ranked #' || s.rank_v || ' of ' || s.region_n_v || ' in the region on net sales.' AS "headline",
+      || CASE
+           WHEN s.pm_clause IS NOT NULL AND s.ly_clause IS NOT NULL THEN s.pm_clause || ' and ' || s.ly_clause
+           WHEN s.pm_clause IS NOT NULL THEN s.pm_clause
+           WHEN s.ly_clause IS NOT NULL THEN ' were ' || s.ly_clause
+           ELSE ''
+         END
+      || COALESCE(s.ticket_clause || ', and the store ranked #', '. The store ranked #')
+      || s.rank_v || ' of ' || s.region_n_v || ' in the region on net sales.' AS "headline",
   #{METRICS.flat_map { |k, *| %w[cur pm ly].map { |q| "  s.#{q}_#{k} AS \"#{q}_#{k}\"" } }.join(",\n")},
     s.cur_refund_cnt AS "cur_refund_cnt",
     s.pm_refund_cnt AS "pm_refund_cnt",
@@ -135,7 +153,7 @@ SUMMARY_SQL = <<~SQL
     s.region_n_v - 1 AS "peer_n",
     s.rank_v AS "region_rank",
     s.region_n_v AS "region_n"
-  FROM f s
+  FROM h s
 SQL
 
 SCORECARD_SQL = <<~SQL

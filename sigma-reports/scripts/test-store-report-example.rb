@@ -66,6 +66,16 @@ class StoreReportExampleTest < Minitest::Test
     assert_includes bodies.fetch('ftr-2-page')['body'], 'Page 2 of 2'
   end
 
+  def test_refunds_and_headline_sql_are_consistent_and_null_safe
+    require_relative '../examples/store-operating-report/sql'
+    assert_includes STORE_CTES, "ORDER_STATUS = 'refunded', COALESCE(REFUND_AMOUNT_USD, 0)"
+    assert_includes EXCEPTIONS_SQL, "o.ORDER_STATUS = 'refunded'"
+    headline = SUMMARY_SQL[/'Net sales of '.*?AS "headline"/m]
+    assert headline, 'headline expression not found'
+    refute_match(/NULLIF|\.(pm|ly)_net\b/, headline, 'optional clauses must be built in the h CTE, not inline')
+    assert_includes headline, "COALESCE(s.ticket_clause || ', and the store ranked #', '. The store ranked #')"
+  end
+
   def test_scorecard_deltas_are_colored_by_direction_aware_signals
     scorecard = elements(build).fetch('p1-scorecard')
     formulas = scorecard['conditionalFormats'].map { |rule| [rule['condition'], rule['formula']] }
@@ -85,6 +95,13 @@ class StoreReportExampleTest < Minitest::Test
 
       _out, _err, refused = Open3.capture3('ruby', script, '--recipients', csv)
       refute refused.success?, 'drafter must refuse without --test-email or --live'
+
+      duplicated = File.join(tmp, 'duplicated.csv')
+      File.write(duplicated, File.read(csv) + "ST001,New York Main,other@example.com,store manager\n")
+      _out, err, dup_status = Open3.capture3('ruby', script, '--recipients', duplicated,
+                                             '--test-email', 'review@example.com', '--output', File.join(tmp, 'dup.json'))
+      refute dup_status.success?, 'drafter must refuse a CSV that repeats a store'
+      assert_includes err, 'duplicate store_id rows: ST001'
 
       path = File.join(tmp, 'schedules.json')
       stdout, stderr, status = Open3.capture3('ruby', script, '--recipients', csv,

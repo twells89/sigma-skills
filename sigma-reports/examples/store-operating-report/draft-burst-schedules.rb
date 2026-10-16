@@ -41,6 +41,8 @@ abort 'draft-burst-schedules.rb: --test-email and --live are mutually exclusive'
 rows = CSV.read(options[:recipients], headers: true)
 missing = %w[store_id store_name recipient_email] - rows.headers
 abort "draft-burst-schedules.rb: recipients CSV is missing #{missing.join(', ')}" unless missing.empty?
+duplicates = rows.map { |row| row['store_id'] }.tally.select { |_, count| count > 1 }.keys
+abort "draft-burst-schedules.rb: duplicate store_id rows: #{duplicates.join(', ')}" unless duplicates.empty?
 
 bodies = rows.map do |row|
   intended = row['recipient_email']

@@ -7,8 +7,12 @@ the Sigma Sample Database (`EXAMPLES.COLD_PROVISIONS`: `ORDERS`, `STORES`,
 
 Live-proven on 2026-10-16: verify, create, seven full-document PUTs, readback,
 and populated PDF exports for three stores, with headline values matched
-against direct warehouse queries. The schedule bodies are drafted from the
-OpenAPI and were not created. See
+against direct warehouse queries. After review, the SQL was hardened (one
+recipient per store, refund dollars only from refunded orders, a headline that
+drops missing clauses instead of going blank). It was re-checked with `/verify`,
+which compiles each statement in Snowflake. On the sample data these changes
+leave every value unchanged. The schedule bodies are drafted from the OpenAPI
+and were not created. See
 [`reference/workflows/burst.md`](../../reference/workflows/burst.md).
 
 ## What it shows
