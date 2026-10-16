@@ -49,6 +49,27 @@ proved:
 These are now safe authoring baselines. Formula correctness, SQL semantics,
 and physical layout still require per-report verification.
 
+A two-page bursted store report (`examples/store-operating-report/`) passed
+verify, create, seven full-document PUTs, readback, and populated portrait PDF
+exports for three control values on 2026-10-16, additionally proving:
+
+- `control` with `controlType: list`, `selectionMode: single`, a table-element
+  `source` with `displayColumnId`, and `filters[]` targeting nine custom-SQL
+  sources. Export `parameters` select the value. The spec GET returns it as
+  `synced` (see the lossy-readback note below);
+- table `conditionalFormats` with `condition: formula` (for example
+  `[pm_signal] > 0`) and `type: backgroundScale` tints, column `style.align`,
+  `tableStyle.textStyles`, `headerDividerColor`, and `bandingColor`;
+- `bar-chart` `color: {by: scale, column}` on a duplicate measure column, and
+  `barStyle.cornerRadius`;
+- `combo-chart` series colors from `settings.theme.overrides.categoricalScheme`,
+  with `lineAreaStyle.interpolation: monotone` and a positioned legend;
+- KPI `comparison.direction: higher|lower`, `layout.comparisonValueOrient`, and
+  hidden trend;
+- text `{{Max([Element/column])}}` dynamic values in page bodies and in header
+  and footer panels;
+- one footer panel per page, for static "Page X of N" numbering.
+
 ## Current shared-shape contract
 
 A 2026-09-15 readback of 16 existing reports and non-persistent `/verify`
@@ -149,3 +170,8 @@ representation. Before PUT, compare the code representation with the report's
 element, page, and control inventory APIs. If inventory objects are missing
 from `document`, stop. Replacing the document can permanently remove omitted
 features from the next report version.
+
+A report-level `list` control is a known case: it reads back as
+`{"controlType": "synced"}` without its source or filters, which the local
+validator rejects. Rebuild update bodies from the authored document, and
+confirm the control with `GET /v2/reports/{reportId}/controls`.
