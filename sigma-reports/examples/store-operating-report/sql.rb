@@ -43,7 +43,7 @@ STORE_CTES = <<~SQL.strip
       COUNT_IF(per = '#{q}' AND ORDER_STATUS = 'completed') AS #{q}_orders,
       SUM(IFF(per = '#{q}' AND ORDER_STATUS = 'completed', ORDER_DISCOUNT_USD, 0)) AS #{q}_disc,
       SUM(IFF(per = '#{q}' AND ORDER_STATUS = 'completed', ORDER_SUBTOTAL_USD, 0)) AS #{q}_gross,
-      SUM(IFF(per = '#{q}', COALESCE(REFUND_AMOUNT_USD, 0), 0)) AS #{q}_refunds,
+      SUM(IFF(per = '#{q}' AND ORDER_STATUS = 'refunded', COALESCE(REFUND_AMOUNT_USD, 0), 0)) AS #{q}_refunds,
       COUNT_IF(per = '#{q}' AND ORDER_STATUS = 'refunded') AS #{q}_refund_cnt,
       SUM(IFF(per = '#{q}' AND ORDER_STATUS = 'completed', TIP_AMOUNT_USD, 0)) AS #{q}_tips,
       COUNT_IF(per = '#{q}' AND ORDER_STATUS = 'completed' AND COUPON_CODE IS NOT NULL) AS #{q}_coupons
@@ -118,14 +118,14 @@ SUMMARY_SQL = <<~SQL
     TO_CHAR(DATEADD(year, -1, s.m_start), 'MMMM YYYY') AS "ly_label",
     'Net sales of ' || #{fmt_sql('s.cur_net', 'usd0')}
       || IFF(s.cur_net >= s.pm_net, ' were up ', ' were down ')
-      || #{fmt_sql('ABS(s.cur_net / NULLIF(s.pm_net, 0) - 1)', 'pct')}
+      || COALESCE(#{fmt_sql('ABS(s.cur_net / NULLIF(s.pm_net, 0) - 1)', 'pct')}, 'N/A')
       || ' vs ' || TO_CHAR(DATEADD(month, -1, s.m_start), 'MMMM')
       || IFF(s.cur_net >= s.ly_net, ' and up ', ' and down ')
-      || #{fmt_sql('ABS(s.cur_net / NULLIF(s.ly_net, 0) - 1)', 'pct')}
+      || COALESCE(#{fmt_sql('ABS(s.cur_net / NULLIF(s.ly_net, 0) - 1)', 'pct')}, 'N/A')
       || ' vs ' || TO_CHAR(DATEADD(year, -1, s.m_start), 'MMMM YYYY')
-      || '. Average ticket was ' || #{fmt_sql('s.cur_ticket', 'usd2')}
+      || '. Average ticket was ' || COALESCE(#{fmt_sql('s.cur_ticket', 'usd2')}, 'N/A')
       || IFF(s.cur_ticket >= s.peer_ticket_v, ', above', ', below')
-      || ' the ' || s.REGION || ' peer average of ' || #{fmt_sql('s.peer_ticket_v', 'usd2')}
+      || ' the ' || s.REGION || ' peer average of ' || COALESCE(#{fmt_sql('s.peer_ticket_v', 'usd2')}, 'N/A')
       || ', and the store ranked #' || s.rank_v || ' of ' || s.region_n_v || ' in the region on net sales.' AS "headline",
   #{METRICS.flat_map { |k, *| %w[cur pm ly].map { |q| "  s.#{q}_#{k} AS \"#{q}_#{k}\"" } }.join(",\n")},
     s.cur_refund_cnt AS "cur_refund_cnt",
