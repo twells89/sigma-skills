@@ -13,6 +13,7 @@ Choose one primary composition:
 | Executive / board | Narrative, KPIs, trends, bridge, drill-down | `board` |
 | Wide operational table | Many columns, subtotals, repeated column groups, multiple physical pages | `wide-table` |
 | Statement / notice | Account-level facts, activity detail, legal text | Start from `board`, then simplify |
+| Bursted statement | One copy per store/account, delivered to its owner | `examples/store-operating-report/` + `burst.md` |
 
 Generate a local starting point:
 

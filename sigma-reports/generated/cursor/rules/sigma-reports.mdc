@@ -1,5 +1,5 @@
 ---
-description: "Build, validate, retrieve, and safely update Sigma report code representations through /v2/reports/spec. Use for fixed-layout or pixel-perfect reports, executive board packets, wide operational tables, invoices, statements, regulatory documents, and PDF delivery. Covers reusable report scaffolds, report pages, absolute pixel layout, header/footer panels, common elements, verification, full-document replacement, and workbook conversion to reports. Do not use for responsive dashboards; use sigma-workbooks instead. Requires SIGMA_API_TOKEN from the sigma-api skill."
+description: "Build, validate, retrieve, and safely update Sigma report code representations through /v2/reports/spec. Use for fixed-layout or pixel-perfect reports, executive board packets, wide operational tables, invoices, statements, regulatory documents, PDF delivery, and bursting one copy per store/account/recipient. Covers reusable report scaffolds, report pages, absolute pixel layout, header/footer panels, common elements, verification, full-document replacement, and workbook conversion to reports. Do not use for responsive dashboards; use sigma-workbooks instead. Requires SIGMA_API_TOKEN from the sigma-api skill."
 alwaysApply: false
 ---
 
@@ -10,7 +10,7 @@ Do not edit by hand — edit SKILL.md and re-run the script.
 
 # sigma-reports
 
-> Build, validate, retrieve, and safely update Sigma report code representations through /v2/reports/spec. Use for fixed-layout or pixel-perfect reports, executive board packets, wide operational tables, invoices, statements, regulatory documents, and PDF delivery. Covers reusable report scaffolds, report pages, absolute pixel layout, header/footer panels, common elements, verification, full-document replacement, and workbook conversion to reports. Do not use for responsive dashboards; use sigma-workbooks instead. Requires SIGMA_API_TOKEN from the sigma-api skill.
+> Build, validate, retrieve, and safely update Sigma report code representations through /v2/reports/spec. Use for fixed-layout or pixel-perfect reports, executive board packets, wide operational tables, invoices, statements, regulatory documents, PDF delivery, and bursting one copy per store/account/recipient. Covers reusable report scaffolds, report pages, absolute pixel layout, header/footer panels, common elements, verification, full-document replacement, and workbook conversion to reports. Do not use for responsive dashboards; use sigma-workbooks instead. Requires SIGMA_API_TOKEN from the sigma-api skill.
 
 ## Installed runtime
 
@@ -80,6 +80,13 @@ alignment uses directional values (`left`/`center`/`right` and
 alignment forms returned HTTP 400 while the replacement forms verified
 `valid:true`. Report PUT also publishes optional `documentVersion` for
 optimistic concurrency.
+
+Bursting baseline, verified 2026-10-16 from populated two-page PDFs: a
+single-select `list` control filtering nine custom-SQL sources, per-value
+exports through `parameters`, formula-driven conditional formats,
+`backgroundScale` tints, scale-colored bars, theme-driven combo series colors,
+and per-page footer panels. See `reference/workflows/burst.md` and
+`examples/store-operating-report/`.
 
 When documentation, this skill, and a live verify/readback disagree, prefer
 the live result and preserve the evidence. Run the bundled OpenAPI contract
@@ -260,6 +267,12 @@ curl -sf -X POST \
 Save the submitted representation under a report-ID-specific path. Report the
 report URL, ID, and saved path.
 
+Send create and update bodies as compact JSON (`jq -c .`). A pretty-printed
+~96 KB PUT body was answered with a Cloudflare challenge page (HTML, not JSON)
+while the same document compacted to ~66 KB was accepted; `/verify` accepted
+both. Treat an HTML "Just a moment..." response as a transport block, not a
+Sigma validation error.
+
 ### Step 8: Read back and inspect output
 
 Immediately GET the representation and compare normalized documents. Confirm
@@ -303,6 +316,8 @@ Follow `reference/workflows/crud.md`. The short version is:
 | `reference/specification/example-minimal.json` | Starting a new report representation. |
 | `reference/workflows/discover.md` | Finding sources/columns, proving grain, resolving periods, and sizing page slices. |
 | `reference/workflows/generate.md` | Generating executive/board reports, statements, or wide multi-page operational tables. |
+| `reference/workflows/burst.md` | One copy per store/account/recipient: report-level list control, per-value exports, schedule drafting. |
+| `examples/store-operating-report/` | Worked, live-proven bursted statement: builder script, SQL contracts, recipient fallback, schedule drafter, demo prompt. |
 | `reference/workflows/crud.md` | Creating, retrieving, or replacing a report document. |
 | `reference/workflows/validate.md` | Before every verify, POST, or PUT and after readback. |
 | `reference/workflows/convert.md` | Converting an existing workbook into a report. |
@@ -321,6 +336,11 @@ Follow `reference/workflows/crud.md`. The short version is:
 | A workbook grid attribute appears in report XML | Replace it with absolute `x`, `y`, `width`, and `height`. |
 | `progress` or synced control is requested | Stop or redesign; the published schema is not a safe report-authoring guarantee. `waterfall-chart` is supported using the proven shape in the board scaffold. |
 | Conversion succeeds with warnings | Review every warning and its element IDs before accepting the generated report. |
+| PUT/POST returns an HTML "Just a moment..." page | Cloudflare challenge triggered by body size. Re-send the same document as compact JSON (`jq -c .`); do not change the document. |
+| Combo chart `color: {by: category, scheme}` returns `Invalid kind: "combo-chart"` | A category color needs a `column`. To color measure series, set `settings.theme.overrides.categoricalScheme` (series take colors in `yAxis` order) and omit `color`. |
+| `a column can only be on one channel at a time` | Scale-coloring a chart by its own measure: add a duplicate column with the same formula for `color.column`. |
+| KPI delta reads "vs vs …" | Sigma prefixes "vs" to the comparison column name. Name it for the period (`PM`, `LY`). |
+| A list control reads back as `controlType: synced` | Expected for report controls. Rebuild PUTs from the authored document, never the readback; confirm with `GET /v2/reports/{id}/controls`. |
 | `Unknown column` or `Circular column reference` in a rendered cell | Qualify the formula with the source element name (`[Order Fact View/Net Revenue]`). Bare `[Column]` against a `data-model` source passes verify, create, and readback, then renders as error text. |
 
 Reports are private beta. Prefer explicit evidence and reversible local edits
