@@ -30,20 +30,22 @@ abort 'build.rb: --folder-id and --connection-id are required' unless options[:f
 CONN = options[:connection_id]
 
 BRAND = {
-  'primary' => '#2F7BBF', # glacier blue — accents, TY series
-  'deep' => '#0F2A44',    # navy — header, headings
-  'ink' => '#1B2430',
-  'muted' => '#5F6B7A',
-  'line' => '#E3E8EF',
-  'surface' => '#F3F6FA',
+  'primary' => '#1F6FEB', # electric azure — accents, TY series
+  'deep' => '#0B1F3A',    # midnight navy — header, headings
+  'pop' => '#FF6B3D',     # tangerine — complementary accent, LY series
+  'ink' => '#16202C',
+  'muted' => '#5A6676',
+  'line' => '#E2E8F0',
+  'surface' => '#F4F7FC',
   'paper' => '#FFFFFF',
-  'success' => '#1E8E5A',
-  'warning' => '#C77A0A',
-  'danger' => '#C0392B',
+  'success' => '#0F9D58',
+  'warning' => '#F2A007',
+  'danger' => '#E5383B',
   # series order: this year, last year, then supporting hues
-  'categorical' => %w[#2F7BBF #B8C4D1 #0F2A44 #7FB7E6 #E3A857 #5C9E8F #9A7FC1 #C2C2C9],
+  'categorical' => %w[#1F6FEB #FF6B3D #0B1F3A #2EC4F1 #FFC23D #12B886 #8E7DFF #C2C2C9],
 }.freeze
-TINT = '#E4EFF9'
+TINT = '#DCE9FF'
+WARM = ['#FFFFFF', '#FFE6DA', '#FFB08E'].freeze # warm heat tint for intensity cells
 
 b = ReportSpec::Builder.new(name: options[:name], folder_id: options[:folder_id],
                             paper: 'letter-portrait', margin: 32, brand: BRAND)
@@ -75,7 +77,8 @@ b.add_panel(id: 'ftr-2', type: 'footer', height: FTR, pages: %w[page-2], title: 
 
 logo_svg = <<~SVG
   <svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96">
-    <rect width="96" height="96" rx="22" fill="#2F7BBF"/>
+    <defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2EC4F1"/><stop offset="1" stop-color="#1F6FEB"/></linearGradient></defs>
+    <rect width="96" height="96" rx="22" fill="url(#lg)"/>
     <g stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" fill="none" transform="translate(48 48)">
       #{(0...6).map { |i| a = i * 60; %(<g transform="rotate(#{a})"><line x1="0" y1="0" x2="0" y2="-30"/><line x1="0" y1="-18" x2="-8" y2="-26"/><line x1="0" y1="-18" x2="8" y2="-26"/></g>) }.join}
     </g>
@@ -84,10 +87,13 @@ SVG
 b.place(b.svg_image(id: 'hdr-logo', svg: logo_svg, fit: 'contain'), region: 'hdr', x: 20, y: 14, width: 36, height: 36)
 b.place(b.text(id: 'hdr-brand', body: "**COLD PROVISIONS**", color: '#FFFFFF', font_size: 17, vertical_align: 'center'),
         region: 'hdr', x: 66, y: 14, width: 300, height: 36)
-b.place(b.text(id: 'hdr-title', body: 'Monthly Store Operating Report', color: '#D6E8F5', font_size: 12, align: 'right'),
+b.place(b.text(id: 'hdr-title', body: 'Monthly Store Operating Report', color: '#FFFFFF', font_size: 12, align: 'right'),
         region: 'hdr', x: CW - 20 - 320, y: 12, width: 320, height: 20)
-b.place(b.text(id: 'hdr-month', body: dyn.('report_month'), color: '#9FC3E6', font_size: 10, align: 'right'),
+b.place(b.text(id: 'hdr-month', body: "**#{dyn.('report_month')}**", color: BRAND['pop'], font_size: 10, align: 'right'),
         region: 'hdr', x: CW - 20 - 320, y: 34, width: 320, height: 18)
+# Brand stripe along the header's bottom edge: azure → cyan → tangerine.
+stripe_svg = %(<svg xmlns="http://www.w3.org/2000/svg" width="752" height="4" viewBox="0 0 752 4" preserveAspectRatio="none"><defs><linearGradient id="sg"><stop offset="0" stop-color="#1F6FEB"/><stop offset="0.55" stop-color="#2EC4F1"/><stop offset="1" stop-color="#{BRAND['pop']}"/></linearGradient></defs><rect width="752" height="4" fill="url(#sg)"/></svg>)
+b.place(b.svg_image(id: 'hdr-stripe', svg: stripe_svg), region: 'hdr', x: 0, y: HDR - 4, width: CW, height: 4)
 
 [['ftr-1', 1], ['ftr-2', 2]].each do |panel, n|
   b.place(b.text(id: "#{panel}-note", body: "Confidential — prepared for #{dyn.('store_name')} (#{dyn.('store_id')}) · #{dyn.('report_month')}",
@@ -197,10 +203,10 @@ b.place(b.text(id: 'p1-mgr', body: "Prepared for #{dyn.('manager_name')}", color
 y += 32
 
 # At-a-glance callout: tinted surface + accent rule baked into SVGs; data-bound text sits beside, never over, them.
-accent_svg = %(<svg xmlns="http://www.w3.org/2000/svg" width="8" height="140" viewBox="0 0 8 140"><rect width="8" height="140" rx="4" fill="#{BRAND['primary']}"/></svg>)
+accent_svg = %(<svg xmlns="http://www.w3.org/2000/svg" width="8" height="140" viewBox="0 0 8 140"><rect width="8" height="140" rx="4" fill="#{BRAND['pop']}"/></svg>)
 b.place(b.svg_image(id: 'p1-accent', svg: accent_svg), region: P1, x: 0, y: y, width: 4, height: 66)
 # A 16px box clipped the label's cap tops in the PDF; 20px clears them and still ends above the headline at y + 18.
-b.place(b.text(id: 'p1-glance-label', body: '**AT A GLANCE**', color: br['primary'], font_size: 10), region: P1, x: 16, y: y - 4, width: 300, height: 20)
+b.place(b.text(id: 'p1-glance-label', body: '**AT A GLANCE**', color: BRAND['pop'], font_size: 10), region: P1, x: 16, y: y - 4, width: 300, height: 20)
 b.place(b.text(id: 'p1-glance', body: dyn.('headline'), color: br['ink'], font_size: 14), region: P1, x: 16, y: y + 18, width: CW - 16, height: 48)
 y += 80
 
@@ -283,7 +289,7 @@ channel = table_el('p2-channel', 'src-channel', [
   col.('ch-share', '[Channel/share]', 'Share', PCT, align: 'right'),
   col.('ch-ticket', '[Channel/avg_ticket]', 'Avg ticket', USD2, align: 'right'),
 ], order: %w[ch-name ch-orders ch-net ch-share ch-ticket], sort: [{ 'columnId' => 'ch-net', 'direction' => 'descending' }],
-   cond: [heat.(['ch-share'], ['#FFFFFF', TINT, '#9FC3E6'])])
+   cond: [heat.(['ch-share'], ['#FFFFFF', TINT, '#8DB8FF'])])
 b.place(channel, region: P2, x: lx, y: y, width: L, height: 150)
 payment = {
   'id' => 'p2-payment', 'kind' => 'bar-chart', 'source' => { 'kind' => 'table', 'elementId' => 'src-payment' },
@@ -313,7 +319,7 @@ hourly = {
   'xAxis' => { 'columnId' => 'hr-label', 'sort' => { 'by' => 'hr-label', 'direction' => 'ascending' } },
   'yAxis' => { 'columnIds' => ['hr-net'] }, 'stacking' => 'none',
   'barStyle' => { 'cornerRadius' => 'round' },
-  'color' => { 'by' => 'scale', 'column' => 'hr-heat', 'scheme' => ['#B9D6EF', BRAND['deep']] },
+  'color' => { 'by' => 'scale', 'column' => 'hr-heat', 'scheme' => ['#FFC23D', BRAND['pop'], '#D6336C'] },
   'name' => { 'visibility' => 'hidden' }, 'legend' => { 'visibility' => 'hidden' }, 'style' => CARD,
 }
 b.place(hourly, region: P2, x: lx, y: y, width: L, height: 292)
@@ -323,7 +329,7 @@ dow = table_el('p2-dow', 'src-dow', [
   col.('dw-avg', '[Day of Week/avg_daily_sales]', 'Avg daily sales', USD0, align: 'right'),
   col.('dw-ticket', '[Day of Week/avg_ticket]', 'Avg ticket', USD2, align: 'right'),
 ], order: %w[dw-num dw-day dw-avg dw-ticket], sort: [{ 'columnId' => 'dw-num', 'direction' => 'ascending' }],
-   cond: [heat.(['dw-avg'], ['#FFFFFF', TINT, '#9FC3E6'])],
+   cond: [heat.(['dw-avg'], WARM)],
    style: { 'cellSpacing' => 'medium' })
 b.place(dow, region: P2, x: rx, y: y, width: R, height: 292)
 y += 310
@@ -340,7 +346,7 @@ refunds = {
   'xAxis' => { 'columnId' => 'ex-reason', 'sort' => { 'by' => 'ex-usd', 'direction' => 'descending' } },
   'yAxis' => { 'columnIds' => ['ex-usd'] }, 'orientation' => 'horizontal', 'stacking' => 'none',
   'barStyle' => { 'cornerRadius' => 'round' },
-  'color' => { 'by' => 'single', 'value' => '#D9786C' },
+  'color' => { 'by' => 'single', 'value' => '#E8466F' },
   'dataLabel' => { 'display' => 'shown' },
   'name' => { 'visibility' => 'hidden' }, 'legend' => { 'visibility' => 'hidden' }, 'style' => CARD,
 }
