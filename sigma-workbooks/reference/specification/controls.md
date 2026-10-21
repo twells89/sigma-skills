@@ -50,7 +50,7 @@ name: Store region
 controlType: list
 mode: include            # include | exclude   (TOP-LEVEL, not nested)
 selectionMode: multiple  # single | multiple   (TOP-LEVEL)
-values: []               # default selection, [] = all   (TOP-LEVEL)
+values: []               # default selection, [] = all   (TOP-LEVEL — multiple only)
                          # authored defaults drop on GET when the bound
                          # column has no matching members yet (empty
                          # input table / unseeded directory). PNG then
@@ -69,6 +69,15 @@ filters:                 # the TARGETS it filters — one entry per element+colu
 ```
 
 > **Verified working shape** (pulled from a live, successfully-POSTed workbook 2026-06-15). A list control carries `source` / `mode` / `selectionMode` / `values` as **flat top-level siblings** — NOT inside a nested "value object." The single most common mistake is omitting `source`/`mode`/`selectionMode`/`values` (or nesting them); Sigma then rejects the element with the opaque catch-all `Invalid kind: "control"`, which means **the inner fields are wrong, NOT that controls are unsupported** (see `reference/workflows/validate.md`). `segmented` is the other flat-scalar list-style widget — same wiring. `hierarchy` is a list-style widget too, but unlike `segmented` it doesn't support `source`-based wiring — see `## Hierarchy` below for its `filters`-only shape.
+
+> **`selectionMode: single` takes a scalar `value`, not `values`** (live-verified
+> 2026-08-28). Passing `values: ["North"]` on a single-select list is silently
+> normalised — readback shows `value: null` and the widget renders with nothing
+> selected, so any formula reading the control (a `conditionalFormats` rule, a
+> dynamic-text `{{[MyControl]}}`) evaluates against an empty value and looks like
+> a data bug rather than a control bug. Use `value: "North"` for single-select and
+> reserve `values: [...]` for `selectionMode: multiple`. Same trap as `segmented`
+> below.
 
 > **A control cannot bind to a map element** (`point-map` / `region-map` / `geography-map`). Pointing a list control's `source` (value list) or a `filters[]` target at a map element fails the POST with `Dependency not found: '<mapElementId>'` (live-verified 2026-06-26). Back the control with a real `table` element (e.g. a small dimension/directory table on the same column) for both the value list and the filter target. To also scope the map, filter it indirectly (e.g. drive the map's source element off the same filtered table, or apply the predicate in the data model) rather than targeting the map element directly.
 

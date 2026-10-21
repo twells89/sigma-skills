@@ -24,6 +24,20 @@ body: |
 
 (YAML's `|` block scalar keeps the body readable.)
 
+> **Two traps, both live-verified 2026-08-28:**
+>
+> 1. **Never leave `body` blank or whitespace-only.** `body: " "` passes `/verify`
+>    and `POST`, then renders Sigma's error boundary — *"We've encountered an
+>    error! Sentry Id: …"* — in place of the element. Seen on a `text` child of a
+>    repeated container; give every card child real text.
+> 2. **Prose containing `{{ }}` is evaluated, not displayed.** A body that merely
+>    *documents* a reference is parsed as dynamic text. It fails two different
+>    ways depending on whether the inner text parses: an element-qualified ref
+>    hard-fails `/verify` with `Dependency not found`, while something like
+>    `{{formula}}` passes verify *and* `POST` and then renders
+>    `Invalid Query: Unknown column "[formula]"` inline. Write such examples
+>    without the braces, or with the braces spelled out in prose.
+
 ### `body`: Markdown + inline styling
 
 `body` is Markdown plus a small set of inline HTML for styling. Standard Markdown: paragraphs, `**bold**`, `*italic*`, headings (`#`, `##`, `###`), bullet / ordered lists, `[links](https://example.com)`, and `{{formula}}` / `{{ast | fmt}}` segments (same syntax as element titles, e.g. `{{Count() | ,.0f}}`).
