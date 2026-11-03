@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # verify-workbook.sh — confirm a created workbook's elements compile to valid SQL.
 #
-# Why this exists: POST /v2/workbooks/spec is generous. It accepts specs whose
+# Why this exists: POST /v2/workbooks (and its dry-run) is generous. It accepts specs whose
 # column formulas don't actually resolve, then surfaces the failures at query
 # time as string literals embedded in the compiled SQL — e.g.
 #   select 'Unknown column "[ORDER_TOTAL]"' V_44 from ...
 #   select 'Circular column reference to [Quarter]' V_11 ...
 # The UI renders these elements as empty. Catching this is impossible from the
-# spec alone; only Sigma's compiler knows. This script asks the server.
+# document alone; only Sigma's compiler knows. This script asks the server.
 #
 # For each element on the workbook, it fetches the compiled SQL via
 #   GET /v2/workbooks/{id}/elements/{eid}/query
@@ -76,8 +76,8 @@ done < <(echo "$ELEMENTS_JSON" | jq -r '.entries[]? | [.elementId, .name] | @tsv
 echo ""
 if [ "$ERRORS" -gt 0 ]; then
   echo "$ERRORS of $TOTAL element(s) have unresolved formula references."
-  echo "Fix the offending columns in the spec (see reference/specification/formulas.md)"
-  echo "and re-PUT the spec, then re-verify."
+  echo "Fix the offending columns in the document (see reference/specification/formulas.md)"
+  echo "and re-PUT it (PUT /v2/workbooks/{id}/contents), then re-verify."
   exit 1
 fi
 echo "All $TOTAL element(s) compile cleanly."

@@ -1,7 +1,7 @@
 #!/usr/bin/env ruby
 # wb-rep.rb — element-level file representation ("rep") of a Sigma workbook spec.
 #
-# The Sigma spec API is whole-workbook only (GET/PUT the entire spec). Large
+# The Sigma workbook contents API is whole-workbook only (GET/PUT the entire document). Large
 # multi-page workbooks blow up an agent's context when edited as one document.
 # This tool makes the ELEMENT the unit of work by exploding the spec into a
 # directory of small files, and reassembling them on push:
@@ -27,13 +27,13 @@
 # the snapshot, refuses to clobber remote edits, validates, and PUTs.
 #
 # Commands:
-#   pull <workbook-id> [dir]     GET spec and explode (refuses to overwrite a dirty rep)
+#   pull <workbook-id> [dir]     GET contents and explode (refuses to overwrite a dirty rep)
 #   status [dir]                 element-level diff: working files vs last-synced snapshot
 #   push [dir]                   reassemble -> drift-check -> validate -> PUT (or POST create)
 #   assemble [dir] [-o file]     print/write the reassembled spec without pushing
 #   lint [dir|spec-file]         offline: layout coverage + filter reference integrity
 #   import <spec.yaml> [dir]     explode an existing local spec file (create mode: push POSTs)
-#   verify <spec-file>           dry-run (Beta endpoint): POST to /v2/workbooks/spec/verify —
+#   verify <spec-file>           dry-run: POST /v2/workbooks with dryRun: true —
 #                                zero-persistence schema/reference check; prints valid: true or
 #                                the errors array
 #   render [dir] [--page X]      export page(s) (or --element <id>) as PNG into <dir>/renders/
@@ -55,9 +55,15 @@ require 'time'
 require 'tmpdir'
 require_relative 'lib/code_rep'
 
-RESPONSE_ONLY = %w[workbookId url documentVersion latestDocumentVersion ownerId
-                   createdBy updatedBy createdAt updatedAt].freeze
+# Envelope keys a readback carries that are never writable live in
+# Sigma::CodeRep::RESPONSE_ONLY_KEYS (both the /spec-era and the current
+# names, so old snapshots strip like fresh readbacks).
 CREATE_METADATA = %w[name folderId description].freeze
+# The /spec endpoints returned folderId; GET /v2/workbooks/{id} returns `path`
+# instead. A snapshot or working file from either era may therefore lack it,
+# so it only counts as a difference when BOTH sides carry it.
+ABSENT_OK_METADATA = %w[folderId].freeze
+DRY_RUN_FOLDER_ID = '00000000-0000-0000-0000-000000000000'.freeze
 COLLECTIONS = {
   'pages' => '_page.yaml',
   'overlays' => '_overlay.yaml',
@@ -98,11 +104,13 @@ def slug(s)
 end
 
 def strip_response_only(spec)
-  spec.reject { |k, _| RESPONSE_ONLY.include?(k) }
+  Sigma::CodeRep.strip_response_only(spec)
 end
 
-# Canonical on-disk form mirrors the API: outer metadata plus one wrapped
-# document. Legacy flat artifacts are accepted on import and normalized here.
+# Canonical on-disk form: outer metadata plus one `document`-wrapped document
+# (the API calls it `contents`; Sigma::CodeRep re-keys it at the API boundary).
+# Legacy flat artifacts, `contents` readbacks and /spec-era `document`
+# snapshots are all accepted and normalized here.
 def canonical_spec(spec)
   Sigma::CodeRep.metadata(spec).merge('document' => Sigma::CodeRep.document(spec))
 end
@@ -229,7 +237,10 @@ def diff_specs(old_spec, new_spec)
   lines = []
   ot = strip_response_only(old_spec).reject { |k, _| k == 'document' }
   nt = strip_response_only(new_spec).reject { |k, _| k == 'document' }
-  changed_keys(ot, nt).each { |k| lines << "~ workbook.#{k}" }
+  changed_keys(ot, nt).each do |k|
+    next if ABSENT_OK_METADATA.include?(k) && !(ot.key?(k) && nt.key?(k))
+    lines << "~ workbook.#{k}"
+  end
 
   old_doc = document(old_spec)
   new_doc = document(new_spec)
@@ -334,7 +345,7 @@ end
 #   - element predicate:   { id, columnId, kind: list|top-n|... }
 #                          -> the column lives on the OWNING element
 #
-# Sigma's /v2/workbooks/spec/verify catches the element-predicate case but NOT
+# Sigma's workbook dry-run (POST /v2/workbooks, dryRun) catches the element-predicate case but NOT
 # control wiring (measured 2026-08-20): a control filtering a nonexistent column
 # returns valid:true, saves with the bogus id intact, and compiles with zero
 # errors — the control silently stops filtering. This closes that gap offline.
@@ -554,14 +565,25 @@ def cmd_lint(args)
   puts 'lint: ok'
 end
 
+# Parsed body of an API response (YAML is a JSON superset, so one parser
+# covers either Content-Type).
+def parse_body(res)
+  YAML.load(res.body.to_s) || {}
+rescue Psych::SyntaxError
+  {}
+end
+
+def read_workbook(wb_id)
+  canonical_spec(YAML.load(api(:get, Sigma::CodeRep.read_path(wb_id))))
+end
+
 def cmd_pull(args, force:)
   wb_id = args.shift or die 'usage: wb-rep.rb pull <workbook-id> [dir]'
   dir = args.shift || '.'
   if File.exist?(File.join(dir, 'workbook.yaml')) && rep_dirty?(dir) && !force
     die "rep at #{dir} has local changes (see `status`) — pull would overwrite them; use --force to discard", 1
   end
-  raw = api(:get, "/v2/workbooks/#{wb_id}/spec")
-  spec = canonical_spec(YAML.load(raw))
+  spec = read_workbook(wb_id)
   explode(spec, dir, raw_yaml: YAML.dump(spec),
                      manifest_extra: { 'workbookId' => wb_id, 'url' => spec['url'] })
   doc = document(spec)
@@ -576,24 +598,33 @@ def cmd_import(args)
   puts "imported #{src} -> #{dir} (create mode: push will POST a new workbook)"
 end
 
-def create_body(spec)
+# POST /v2/workbooks body ({name, folderId, description?, contents}); pass
+# dry_run: true for the zero-persistence validation call.
+def create_body(spec, dry_run: false)
   clean = strip_response_only(canonical_spec(spec))
   metadata = clean.select { |key, _| CREATE_METADATA.include?(key) }
   doc = document(clean)
   doc = doc.merge('kind' => 'workbook') unless doc['kind']
-  Sigma::CodeRep.wrap(doc, extra: metadata)
+  Sigma::CodeRep.create_body({ 'document' => doc }, extra: metadata, dry_run: dry_run)
 end
 
+# PUT /v2/workbooks/{id}/contents body ({contents}).
 def put_body(spec)
   doc = document(spec)
   doc = doc.merge('kind' => 'workbook') unless doc['kind']
-  Sigma::CodeRep.wrap(doc)
+  Sigma::CodeRep.update_body({ 'document' => doc })
 end
 
 def cmd_verify(args)
   path = args.shift or die 'usage: wb-rep.rb verify <spec-file>'
   die "no such file: #{path}" unless File.exist?(path)
-  result = YAML.load(api(:post, '/v2/workbooks/spec/verify', YAML.dump(create_body(load_yaml_file(path)))))
+  spec = load_yaml_file(path)
+  # The dry-run still requires a UUID-shaped folderId, but GET /v2/workbooks/{id}
+  # no longer returns one, so a pulled spec has none. The dry-run never resolves
+  # the folder (live-checked 2026-11-03: the nil UUID validates), so default it.
+  spec = spec.merge('folderId' => DRY_RUN_FOLDER_ID) unless spec['folderId']
+  res = api_raw(:post, Sigma::CodeRep.create_path, YAML.dump(create_body(spec, dry_run: true)))
+  result = Sigma::CodeRep.dry_run_result(res.code, parse_body(res))
   if result['valid']
     puts 'valid: true'
   else
@@ -649,7 +680,7 @@ def cmd_push(args, force:, validate: true)
   puts(lines.empty? ? '  (initial create)' : lines.map { |l| "  #{l}" })
 
   if wb_id && !force
-    remote = canonical_spec(YAML.load(api(:get, "/v2/workbooks/#{wb_id}/spec")))
+    remote = read_workbook(wb_id)
     drift = diff_specs(snap, remote)
     unless drift.empty?
       warn 'wb-rep: remote workbook changed since last pull — pushing would overwrite:'
@@ -678,15 +709,15 @@ def cmd_push(args, force:, validate: true)
   end
 
   if wb_id
-    api(:put, "/v2/workbooks/#{wb_id}/spec", YAML.dump(put_body(clean_body)))
+    api(:put, Sigma::CodeRep.update_path(wb_id), YAML.dump(put_body(clean_body)))
   else
     die 'create mode: workbook.yaml must include folderId' unless clean_body['folderId']
-    res = canonical_spec(YAML.load(api(:post, '/v2/workbooks/spec', YAML.dump(create_body(clean_body)))))
+    res = canonical_spec(YAML.load(api(:post, Sigma::CodeRep.create_path, YAML.dump(create_body(clean_body)))))
     wb_id = res['workbookId'] or die "create response had no workbookId:\n#{res.inspect}"
     mf['workbookId'] = wb_id
   end
 
-  readback = canonical_spec(YAML.load(api(:get, "/v2/workbooks/#{wb_id}/spec")))
+  readback = read_workbook(wb_id)
   FileUtils.mkdir_p(File.join(dir, '.sigma'))
   File.write(File.join(dir, '.sigma', 'snapshot.yaml'), YAML.dump(readback))
   mf['url'] = readback['url']
@@ -715,7 +746,7 @@ def cmd_summarize(args)
   spec = if File.directory?(target)
            snapshot_spec(target) || assemble(target)
          else
-           canonical_spec(YAML.load(api(:get, "/v2/workbooks/#{target}/spec")))
+           read_workbook(target)
          end
   doc = document(spec)
   puts "#{spec['name']}  (schemaVersion #{doc['schemaVersion']})"
@@ -746,7 +777,7 @@ end
 # docs asset (fdr-prod-docs-files-public.s3.../sigma.docs.buildwithfern.com/<hash>/…).
 # That asset later began requiring AWS presigned query params (bare fetch -> 403),
 # and — the part that actually bit — it LAGS the live API: as of 2026-08-05 it was
-# missing /v2/reports/spec*, still documented the pre-`document`-wrapper request
+# missing /v2/reports/spec* (since deprecated in favor of /v2/reports), still documented the pre-`document`-wrapper request
 # body, and lacked the `repeated-container` element kind entirely, which led this
 # skill to wrongly document repeated containers as not spec-authorable. Use the
 # assets.sigmacomputing.com URL; treat a live workbook readback as the tiebreaker.
@@ -834,7 +865,7 @@ def cmd_capabilities(args)
       detail = @http_get_error ? " (#{@http_get_error})" : ''
       die "failed to fetch the compiled OpenAPI from #{OPENAPI_URL}#{detail}. If you are " \
           'offline or the host is unreachable, use a live workbook readback ' \
-          '(GET /v2/workbooks/{id}/spec) or a per-endpoint reference page ' \
+          '(GET /v2/workbooks/{id}?includeContents=true) or a per-endpoint reference page ' \
           '(https://help.sigmacomputing.com/reference/<endpoint-slug>) instead.'
     end
     File.write(OPENAPI_CACHE, res.body)

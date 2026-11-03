@@ -2,7 +2,9 @@
 # frozen_string_literal: true
 
 # Live workbook-as-code release probe. Creates one temporary workbook, validates
-# readback and compiled SQL, and always deletes it.
+# readback and compiled SQL, and always deletes it. Targets the current
+# endpoints (POST /v2/workbooks [dryRun], GET ...?includeContents=true); the
+# /v2/workbooks/spec family is deprecated.
 #
 # Required: SIGMA_BASE_URL, SIGMA_API_TOKEN
 # Optional: SIGMA_PROBE_CONNECTION_ID, SIGMA_PROBE_TABLE_PATH (comma-separated)
@@ -11,6 +13,7 @@ require 'json'
 require 'net/http'
 require 'time'
 require 'uri'
+require_relative 'lib/code_rep'
 
 BASE_URL = ENV.fetch('SIGMA_BASE_URL').sub(%r{/$}, '')
 TOKEN = ENV.fetch('SIGMA_API_TOKEN')
@@ -53,6 +56,13 @@ def json_request(method, path, body = nil)
   [response.code.to_i, parsed]
 rescue JSON::ParserError
   [response.code.to_i, { 'raw' => response.body }]
+end
+
+# Dry-run validation (POST /v2/workbooks with dryRun: true), normalized to the
+# { 'valid' => bool, 'errors' => [...] } shape /spec/verify used to return.
+def verify_spec(spec)
+  code, result = json_request(:post, Sigma::CodeRep.create_path, spec.merge('dryRun' => true))
+  [code, Sigma::CodeRep.dry_run_result(code, result)]
 end
 
 def home_folder_id
@@ -382,7 +392,7 @@ def create_spec(folder_id, probe_elements: elements, probe_layout: :auto)
     'name' => "WAC release probe #{Time.now.utc.iso8601}",
     'folderId' => folder_id,
     'description' => 'Temporary workbook; created and deleted by probe-release-contract.rb',
-    'document' => {
+    'contents' => {
       'schemaVersion' => 1,
       'kind' => 'workbook',
       'pages' => [
@@ -431,7 +441,7 @@ unplaced = create_spec(
   probe_elements: [{ 'id' => 'orphan', 'kind' => 'text', 'body' => 'orphan' }],
   probe_layout: nil
 )
-code, result = json_request(:post, '/v2/workbooks/spec/verify', unplaced)
+code, result = verify_spec(unplaced)
 check_response!(
   'verify rejects a non-empty document without layout placement', code, result
 ) do
@@ -442,9 +452,9 @@ legacy_layout = create_spec(
   folder_id,
   probe_elements: [{ 'id' => 'legacy-leaf', 'kind' => 'text', 'body' => 'legacy' }]
 )
-legacy_layout['document']['layout'] =
-  legacy_layout.dig('document', 'layout').sub('<Element ', '<LayoutElement ')
-code, result = json_request(:post, '/v2/workbooks/spec/verify', legacy_layout)
+legacy_layout['contents']['layout'] =
+  legacy_layout.dig('contents', 'layout').sub('<Element ', '<LayoutElement ')
+code, result = verify_spec(legacy_layout)
 check_response!('verify rejects legacy <LayoutElement>', code, result) do
   rejected = code == 400 || (code.between?(200, 299) && result['valid'] == false)
   rejected && JSON.generate(result).include?('LayoutElement')
@@ -468,7 +478,7 @@ failed_scenarios = []
 scenarios.each do |description, ids|
   scenario_elements = ids.map { |id| by_id.fetch(id) }
   scenario_spec = create_spec(folder_id, probe_elements: scenario_elements)
-  code, result = json_request(:post, '/v2/workbooks/spec/verify', scenario_spec)
+  code, result = verify_spec(scenario_spec)
   valid = code.between?(200, 299) && result['valid'] == true
   if valid
     puts "PASS — #{description} verifies"
@@ -482,7 +492,7 @@ end
 # never create — so they cannot pollute the main release workbook.
 capability_probe_elements.each do |description, scenario_elements|
   scenario_spec = create_spec(folder_id, probe_elements: scenario_elements)
-  code, result = json_request(:post, '/v2/workbooks/spec/verify', scenario_spec)
+  code, result = verify_spec(scenario_spec)
   valid = code.between?(200, 299) && result['valid'] == true
   if valid
     puts "PASS — #{description} verifies"
@@ -501,7 +511,7 @@ strict_ids = %w[repeater-source sales-repeater repeater-text]
 strict_elements = elements(repeater_binding: true)
   .select { |element| strict_ids.include?(element.fetch('id')) }
 strict_spec = create_spec(folder_id, probe_elements: strict_elements)
-code, result = json_request(:post, '/v2/workbooks/spec/verify', strict_spec)
+code, result = verify_spec(strict_spec)
 expected_regression!(
   "verify rejects correct repeater virtual binding #{binding_target.inspect}",
   code,
@@ -512,7 +522,7 @@ end
 
 strict_workbook_id = nil
 begin
-  code, result = json_request(:post, '/v2/workbooks/spec', strict_spec)
+  code, result = json_request(:post, Sigma::CodeRep.create_path, strict_spec)
   strict_workbook_id = result['workbookId'] if code.between?(200, 299)
   expected_regression!(
     "create rejects correct repeater virtual binding #{binding_target.inspect}",
@@ -531,16 +541,16 @@ spec = create_spec(folder_id, probe_elements: all_elements)
 
 workbook_id = nil
 begin
-  code, created = json_request(:post, '/v2/workbooks/spec', spec)
-  raise "POST /v2/workbooks/spec -> #{code}: #{created}" unless code.between?(200, 299)
+  code, created = json_request(:post, Sigma::CodeRep.create_path, spec)
+  raise "POST #{Sigma::CodeRep.create_path} -> #{code}: #{created}" unless code.between?(200, 299)
 
   workbook_id = created['workbookId']
   raise "create response had no workbookId: #{created}" unless workbook_id
 
-  code, readback = json_request(:get, "/v2/workbooks/#{workbook_id}/spec")
-  raise "GET workbook spec -> #{code}: #{readback}" unless code.between?(200, 299)
+  code, readback = json_request(:get, Sigma::CodeRep.read_path(workbook_id))
+  raise "GET workbook contents -> #{code}: #{readback}" unless code.between?(200, 299)
 
-  document = readback.fetch('document')
+  document = readback.fetch('contents')
   readback_elements = document.fetch('elements')
   by_id = readback_elements.to_h { |element| [element['id'], element] }
   expected_ids = all_elements.map { |element| element.fetch('id') }.sort
