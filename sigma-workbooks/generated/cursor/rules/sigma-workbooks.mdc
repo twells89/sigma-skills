@@ -1,5 +1,5 @@
 ---
-description: "Build, edit, and iterate on Sigma workbook specs — the JSON definition you POST to /v2/workbooks/spec, covering pages, layout, controls, charts, KPIs, tables, formulas, and sources. The Sigma OpenAPI is the source of truth for every shape and field; this skill adds navigation, style guidance, and proven recipes for effective dashboards and operational apps. Use when the user wants to construct a dashboard from a spec, generate a Sigma app (planning, approval, allocation, or exception), reproduce a screenshot/mockup/Claude design artifact as a native Sigma app, add or modify pages / elements / controls / formulas, validate a spec before submission, or work through the workbook spec lifecycle programmatically. Requires an SIGMA_API_TOKEN — obtain via the sigma-api skill first."
+description: "Build, edit, and iterate on Sigma workbook specs — the JSON definition you POST to /v2/workbooks (as `contents`), covering pages, layout, controls, charts, KPIs, tables, formulas, and sources. The Sigma OpenAPI is the source of truth for every shape and field; this skill adds navigation, style guidance, and proven recipes for effective dashboards and operational apps. Use when the user wants to construct a dashboard from a spec, generate a Sigma app (planning, approval, allocation, or exception), reproduce a screenshot/mockup/Claude design artifact as a native Sigma app, add or modify pages / elements / controls / formulas, validate a spec before submission, or work through the workbook spec lifecycle programmatically. Requires an SIGMA_API_TOKEN — obtain via the sigma-api skill first."
 alwaysApply: false
 ---
 
@@ -10,7 +10,7 @@ Do not edit by hand — edit SKILL.md and re-run the script.
 
 # sigma-workbooks
 
-> Build, edit, and iterate on Sigma workbook specs — the JSON definition you POST to /v2/workbooks/spec, covering pages, layout, controls, charts, KPIs, tables, formulas, and sources. The Sigma OpenAPI is the source of truth for every shape and field; this skill adds navigation, style guidance, and proven recipes for effective dashboards and operational apps. Use when the user wants to construct a dashboard from a spec, generate a Sigma app (planning, approval, allocation, or exception), reproduce a screenshot/mockup/Claude design artifact as a native Sigma app, add or modify pages / elements / controls / formulas, validate a spec before submission, or work through the workbook spec lifecycle programmatically. Requires an SIGMA_API_TOKEN — obtain via the sigma-api skill first.
+> Build, edit, and iterate on Sigma workbook specs — the JSON definition you POST to /v2/workbooks (as `contents`), covering pages, layout, controls, charts, KPIs, tables, formulas, and sources. The Sigma OpenAPI is the source of truth for every shape and field; this skill adds navigation, style guidance, and proven recipes for effective dashboards and operational apps. Use when the user wants to construct a dashboard from a spec, generate a Sigma app (planning, approval, allocation, or exception), reproduce a screenshot/mockup/Claude design artifact as a native Sigma app, add or modify pages / elements / controls / formulas, validate a spec before submission, or work through the workbook spec lifecycle programmatically. Requires an SIGMA_API_TOKEN — obtain via the sigma-api skill first.
 
 ## Installed runtime
 
@@ -27,7 +27,9 @@ This skill helps you build effective Sigma workbooks by **navigating the Sigma O
 
 ## Scope
 
-The workbook **spec** — the JSON you POST to `/v2/workbooks/spec` defining pages, elements, sources, formulas, and layout. Layout supports grid placement plus responsive stack containers. Lifecycle around the workbook (embeds, grants, materialization schedules, bookmarks, sharing) is a separate API surface and out of scope here.
+The workbook **spec** — the document you POST to `/v2/workbooks` (as `contents`) defining pages, elements, sources, formulas, and layout. Layout supports grid placement plus responsive stack containers. Lifecycle around the workbook (embeds, grants, materialization schedules, bookmarks, sharing) is a separate API surface and out of scope here.
+
+> **Deprecated endpoints.** The old `/spec` workbook and report endpoints — `POST /v2/workbooks/spec`, `POST /v2/workbooks/spec/verify`, `GET`/`PUT /v2/workbooks/{id}/spec` (and `/v2/reports/spec`, `/v2/reports/{id}/spec`, `/v2/reports/spec/verify`) — are **deprecated** (OpenAPI 2.0.0+20261030). Use `POST /v2/workbooks` (add `dryRun: true` to validate without saving), `GET /v2/workbooks/{id}?includeContents=true`, and `PUT /v2/workbooks/{id}/contents`; the document moves from the `document` key to `contents` and is otherwise byte-identical. The **data-model** `/v2/dataModels/spec` endpoints are **not** deprecated. Throughout this skill's references, a path like `document.layout` names the same field as `contents.layout` in an API body. See `reference/workflows/crud.md`.
 
 ## Sources of truth
 
@@ -36,13 +38,13 @@ Sigma's public API docs are an index at `https://help.sigmacomputing.com/openapi
 1. **`https://help.sigmacomputing.com/openapi/openapi/sigma-rest-api.json`** — the REST API: endpoint request/response shapes (workbooks, data models, members, connections, exports, materialization, …). Use for API *calls*.
 2. **`https://help.sigmacomputing.com/openapi/openapi/code-representation.json`** — the "code representation" (as-code) spec. Today it documents the **data-model** spec (`/v2/dataModels/spec`); use it for data-model element shapes.
 
-**Workbook element/control/format shapes** (the `bar-chart` / `kpi-chart` / `control` / format `kind`s that go under `/v2/workbooks/spec`) are **not inlined in either split spec** — get them from one of, roughly in this order.
+**Workbook element/control/format shapes** (the `bar-chart` / `kpi-chart` / `control` / format `kind`s that go under `contents` on `/v2/workbooks`) are **not inlined in either split spec** — get them from one of, roughly in this order.
 
-> **The split specs don't document the workbook spec endpoint at all** (verified 2026-08-05): `sigma-rest-api.json` has **zero** paths matching `spec` — no `/v2/workbooks/spec`, no `/v2/workbooks/spec/verify`, no `/v2/workbooks/{id}/spec` — and `code-representation.json` carries only the two `/v2/dataModels/spec*` paths. So for workbook authoring the split specs are not merely missing the inlined element shapes; the endpoint itself is absent. Use a per-endpoint reference page, the compiled asset, or a live readback (all below).
+> **The split specs don't document the workbook spec endpoint at all** (verified 2026-08-05): `sigma-rest-api.json` has **zero** paths matching `spec` — no `/v2/workbooks/spec`, no `/v2/workbooks/spec/verify`, no `/v2/workbooks/{id}/spec` — and `code-representation.json` carries only the two `/v2/dataModels/spec*` paths. So for workbook authoring the split specs are not merely missing the inlined element shapes; the workbook spec endpoints are absent from them. (The compiled asset below, OpenAPI 2.0.0+20261030, does document the current `POST /v2/workbooks`, `GET /v2/workbooks/{id}` and `PUT /v2/workbooks/{id}/contents`.) Use a per-endpoint reference page, the compiled asset, or a live readback (all below).
 
-- **A live workbook readback** — `GET /v2/workbooks/{id}/spec` on the user's org. Read literal elements from flat `document.elements[]`; pages, overlays, and panels are metadata and layout determines placement.
-- **A single endpoint's stable reference page** — `https://help.sigmacomputing.com/reference/<endpoint-slug>`. Use it to confirm one endpoint's current request/response envelope. Create and verify use `{name, folderId, document: {...}}`; update accepts exactly `{document: {...}}`. <!-- pragma: allowlist secret -->
-- **The full compiled OpenAPI** — one document covering every workbook `kind`, and the **only** source that documents `/v2/workbooks/spec` at all. Use it for bulk discovery ("list every kind the API accepts") that no single per-endpoint page can do. **This is the canonical, stable, unauthenticated URL — use it directly:**
+- **A live workbook readback** — `GET /v2/workbooks/{id}?includeContents=true` on the user's org. Read literal elements from flat `contents.elements[]`; pages, overlays, and panels are metadata and layout determines placement.
+- **A single endpoint's stable reference page** — `https://help.sigmacomputing.com/reference/<endpoint-slug>`. Use it to confirm one endpoint's current request/response envelope. Create (and its `dryRun: true` validation) use `{name, folderId, contents: {...}}`; update accepts `{contents: {...}}` plus an optional `documentVersion`. <!-- pragma: allowlist secret -->
+- **The full compiled OpenAPI** — one document covering every workbook `kind`, and the most reliable source for the workbook endpoints and every element shape. Use it for bulk discovery ("list every kind the API accepts") that no single per-endpoint page can do. **This is the canonical, stable, unauthenticated URL — use it directly:**
 
   ```
   https://assets.sigmacomputing.com/openapi/public-rest-api/sigma-computing-public-rest-api.json
@@ -57,7 +59,7 @@ curl -sfL https://assets.sigmacomputing.com/openapi/public-rest-api/sigma-comput
 
 Plain `GET`, no auth, no signature, no content hash — safe to hardcode. Title "Sigma Computing Public REST API", `version: 2.0.0`, ~6.8 MB (it uses `$ref`s into `components.schemas`, so **deref as you walk** — element kinds are behind `#/components/schemas/WorkbookElement`).
 
-> **Do not use the old Fern docs asset** (`fdr-prod-docs-files-public.s3.amazonaws.com/sigma.docs.buildwithfern.com/<hash>/…`). It is content-addressed, now requires AWS presigned query params (a bare fetch 403s), and — the reason that actually matters — **it lags the live API**. As of 2026-08-05 it was missing `/v2/reports/spec*` entirely, still documented the pre-`document`-wrapper request body, and **did not contain the `repeated-container` element kind**, which caused this skill to previously assert that repeated containers were not spec-authorable. They are. Working from a stale asset produces confidently wrong documentation; prefer the `assets.sigmacomputing.com` URL above, and treat a live workbook readback as the tiebreaker.
+> **Do not use the old Fern docs asset** (`fdr-prod-docs-files-public.s3.amazonaws.com/sigma.docs.buildwithfern.com/<hash>/…`). It is content-addressed, now requires AWS presigned query params (a bare fetch 403s), and — the reason that actually matters — **it lags the live API**. As of 2026-08-05 it was missing `/v2/reports/spec*` entirely, still documented the pre-wrapper request body, and **did not contain the `repeated-container` element kind**, which caused this skill to previously assert that repeated containers were not spec-authorable. They are. Working from a stale asset produces confidently wrong documentation; prefer the `assets.sigmacomputing.com` URL above, and treat a live workbook readback as the tiebreaker.
 
 The old `help.sigmacomputing.com/openapi.json` index is now an HTML landing page and does not link the compiled asset at all.
 
@@ -73,11 +75,11 @@ When this skill and the spec (or a live readback) disagree, the spec wins. When 
 ```bash
 # Assumes /tmp/sigma-api.json from "Fetching the compiled asset" above.
 # If a field looks wrong, check that field's per-endpoint page, or read a live workbook spec
-# (GET /v2/workbooks/{id}/spec) and navigate document.elements[] by kind.
+# (GET /v2/workbooks/{id}?includeContents=true) and navigate contents.elements[] by kind.
 
-# The workbook spec request body. NOTE: the outer object is {name, folderId, description?, document},
-# so elements/pages/overlays/panels/layout/settings/agents are under .document:
-jq '.paths."/v2/workbooks/spec".post.requestBody.content."application/json".schema' /tmp/sigma-api.json
+# The workbook create request body. NOTE: the outer object is {name, folderId, description?, dryRun?, contents},
+# so elements/pages/overlays/panels/layout/settings/agents are under .contents:
+jq '.paths."/v2/workbooks".post.requestBody.content."application/json".schema' /tmp/sigma-api.json
 ```
 
 Element, source, control, and format shapes are identified by their `kind` value (e.g. `bar-chart`, `kpi-chart`, `join`, `warehouse-table`) rather than by a top-level schema name. They live in `components.schemas` and are reached by `$ref` (element kinds hang off `#/components/schemas/WorkbookElement`) — so **deref as you walk** if you're writing your own traversal. The `jq` recipes below scan the whole document, so they work regardless:
@@ -171,15 +173,16 @@ workbook. Read only the one reference needed for the unresolved shape.
 
 ### Step 2 — Cache the reference spec, if Step 1 selected one
 
-YAML is the canonical format for workbook specs in this skill — easier to read, diff, and review than JSON. Sigma's API accepts both (`Content-Type: application/yaml` or `application/json`); `Accept: application/yaml` is the default on `GET /v2/workbooks/<id>/spec`. Use `yq` to inspect spec YAML the same way you'd use `jq` on JSON.
+YAML is the canonical format for workbook specs in this skill — easier to read, diff, and review than JSON. Sigma's API accepts both (`Content-Type: application/yaml` or `application/json`); send `Accept: application/yaml` explicitly on `GET /v2/workbooks/<id>?includeContents=true` (the default response is JSON). Use `yq` to inspect spec YAML the same way you'd use `jq` on JSON.
 
 ```bash
 curl -s -H "Authorization: Bearer $SIGMA_API_TOKEN" \
-  "$SIGMA_BASE_URL/v2/workbooks/<reference-workbook-id>/spec" \
+  -H "Accept: application/yaml" \
+  "$SIGMA_BASE_URL/v2/workbooks/<reference-workbook-id>?includeContents=true" \
   > /tmp/reference-spec.yaml
 ```
 
-Look at source structure, column IDs, formulas, flat `document.elements`, page
+Look at source structure, column IDs, formulas, flat `contents.elements`, page
 metadata, and layout XML. Reuse this cached file for the session instead of
 re-listing or re-fetching workbooks. Do not copy an obsolete
 `pages[].elements` shape.
@@ -246,7 +249,7 @@ the context budget.
 - Every element needs a unique `id` and a descriptive `name`.
 - Every column needs a unique `id`, a `name`, and a `formula`.
 - Follow the formula reference rules in `reference/specification/formulas.md` exactly — most spec errors happen here.
-- **Write explicit `document.layout` XML whenever elements are non-empty.** It
+- **Write explicit `contents.layout` XML whenever elements are non-empty.** It
   is the source of truth for page/container/tab organization.
 - Emit `<Element>` for layout leaves and `<Container>` for nested grid or stack
   containers. Use `type="grid"` when children need `gridColumn` / `gridRow`;
@@ -258,8 +261,12 @@ the context budget.
   versions returned HTTP 400 instead).
 - Start with 1–2 pages. Add more later via update.
 
-For **create**, include outer `name`/`folderId` and `document` with required
+For **create**, include outer `name`/`folderId` and `contents` with required
 `schemaVersion`, `kind: workbook`, flat `elements`, and metadata-only `pages`.
+(Older saved specs, `wb-rep.rb` reps, and this skill's fixtures keep the
+document under `document:` — the validator and `wb-rep.rb` accept both, but a
+raw `curl` body needs the key renamed:
+`yq '.contents = .document | del(.document)' spec.yaml > body.yaml`.)
 Optional document fields include `overlays`, `panels`, `settings`, and `agents`.
 This skill requires `layout` whenever `elements` is non-empty. See
 `reference/specification/schema.md`.
@@ -274,6 +281,8 @@ This skill requires `layout` whenever `elements` is non-empty. See
 
 Then do the manual formula pass and final shape checks per `reference/workflows/validate.md`. Fix everything reported before continuing.
 
+To have Sigma's own schema/reference check run without saving anything, send the create body with `"dryRun": true` (`scripts/wb-rep.rb verify <spec-file>` does this): HTTP 200 means valid; HTTP 400 `{valid: false, errors: [{summary}]}` lists problems with `contents.`-prefixed paths. This replaces `POST /v2/workbooks/spec/verify`.
+
 ### Step 7 — Create the workbook
 
 ```bash
@@ -281,7 +290,7 @@ curl -s -X POST -H "Authorization: Bearer $SIGMA_API_TOKEN" \
   -H "Content-Type: application/yaml" \
   -H "Accept: application/yaml" \
   --data-binary @/tmp/workbook-spec.yaml \
-  "$SIGMA_BASE_URL/v2/workbooks/spec" > /tmp/create-response.yaml
+  "$SIGMA_BASE_URL/v2/workbooks" > /tmp/create-response.yaml
 
 WORKBOOK_ID=$(yq -r '.workbookId' /tmp/create-response.yaml)
 cp /tmp/workbook-spec.yaml "/tmp/workbook-spec-${WORKBOOK_ID}.yaml"
@@ -308,31 +317,34 @@ If any element reports `[FAIL]`, fix the column formulas in the spec (most often
 
 ### Step 8 — Iterate
 
-After initial creation, use `PUT /v2/workbooks/<id>/spec` to add pages or refine the workbook.
+After initial creation, use `PUT /v2/workbooks/<id>/contents` to add pages or refine the workbook.
 
 **Continue with the element rep for anything beyond ~1 page / ~10 elements**
 (`reference/workflows/element-rep.md`): `scripts/wb-rep.rb pull <id> <dir>`
-explodes an existing spec into one file per element, `push` handles drift-check
-+ validation + PUT, and `render` exports page PNGs. The raw GET/PUT flow below
+explodes an existing workbook into one file per element, `push` handles drift-check
++ validation + PUT (`/contents`), and `render` exports page PNGs. The raw GET/PUT flow below
 remains fine for small workbooks and one-off tweaks.
 
-> **IDs are preserved on CREATE.** The `id` values you POST (pages, elements, columns) are kept verbatim, and `layout` `elementId` references stay valid — so you can edit your saved spec and `PUT` it back, re-wrapped as just `{document: {...}}` (see below — PUT does not take the outer `name`/`folderId`). `GET` the current spec first only if you don't have your latest copy. See `reference/workflows/crud.md`.
+> **IDs are preserved on CREATE.** The `id` values you POST (pages, elements, columns) are kept verbatim, and `layout` `elementId` references stay valid — so you can edit your saved spec and `PUT` it back, re-wrapped as just `{contents: {...}}` (see below — PUT does not take the outer `name`/`folderId`). `GET` the current document first only if you don't have your latest copy. See `reference/workflows/crud.md`.
 
 ```bash
 curl -s -H "Authorization: Bearer $SIGMA_API_TOKEN" \
-  "$SIGMA_BASE_URL/v2/workbooks/<workbook-id>/spec" \
+  -H "Accept: application/yaml" \
+  "$SIGMA_BASE_URL/v2/workbooks/<workbook-id>?includeContents=true" \
   > /tmp/current-spec.yaml
 
-# Edit /tmp/current-spec.yaml inside .document; preserve elements, pages,
+# Edit /tmp/current-spec.yaml inside .contents; preserve elements, pages,
 # overlays, panels, layout, settings, and agents.
-# then PUT only the document object — see reference/workflows/crud.md for why
-# sending the outer name/folderId/response-only fields alongside it 400s:
-yq '{"document": .document}' /tmp/current-spec.yaml > /tmp/current-spec-put.yaml
+# then PUT only the contents object (plus documentVersion, so a concurrent edit
+# fails with stale_document_settings instead of being overwritten) — see
+# reference/workflows/crud.md for why sending the outer name/response-only
+# fields alongside it 400s:
+yq '{"contents": .contents, "documentVersion": .documentVersion}' /tmp/current-spec.yaml > /tmp/current-spec-put.yaml
 curl -s -X PUT -H "Authorization: Bearer $SIGMA_API_TOKEN" \
   -H "Content-Type: application/yaml" \
   -H "Accept: application/yaml" \
   --data-binary @/tmp/current-spec-put.yaml \
-  "$SIGMA_BASE_URL/v2/workbooks/<workbook-id>/spec" | yq .
+  "$SIGMA_BASE_URL/v2/workbooks/<workbook-id>/contents" | yq .
 
 cp /tmp/current-spec.yaml "/tmp/workbook-spec-<workbook-id>.yaml"
 ./scripts/verify-workbook.sh "<workbook-id>"
@@ -378,7 +390,7 @@ The reference is feature-sliced — don't read every file up-front. The index ha
 
 | File | When to load |
 |------|--------------|
-| `reference/specification/schema.md` | Always — wrapped shape, required flat `document.elements`, metadata-only pages, overlays, panels, settings, backgrounds, and the PUT-only-document rule. |
+| `reference/specification/schema.md` | Always — wrapped shape, required flat `document.elements`, metadata-only pages, overlays, panels, settings, backgrounds, and the PUT-only-`contents` rule. |
 | `reference/specification/formulas.md` | Always — load before drafting any spec. Formula syntax, qualification, special characters, the #1 mistake. |
 | `reference/specification/formatting.md` | Format, currency, percentage, date format, decimals — column formatting. |
 | `reference/specification/layout.md` | **Always load.** Required layout policy; page/container organization; backgrounds/spacing; panels, headers, sidebars, navigation; repeated and tabbed containers. |
@@ -446,7 +458,7 @@ Sigma OAuth tokens expire after ~1 hour. Long workbook-building sessions (orches
 
 ```ruby
 require_relative 'lib/sigma_rest'
-spec = Sigma.request(:get, "/v2/workbooks/#{id}/spec")   # auto-refreshes on 401
+spec = Sigma.request(:get, "/v2/workbooks/#{id}?includeContents=true")   # auto-refreshes on 401
 ```
 
 **Bash / curl callers**: re-run the `sigma-api` skill's browser-first
@@ -481,7 +493,7 @@ The most common spec issue. A bare `[column_name]` was used where `[TABLE/column
 
 ### "Unknown column" errors
 
-The column name in the formula doesn't match what the warehouse actually has. Re-confirm the column names via `GET /v2/connections/tables/{inodeId}/columns` (raw warehouse names) and the readback (`GET /v2/workbooks/<id>/spec`, which may preserve the raw spelling or show Sigma's canonicalized friendly form). Raw names are accepted authoring input; use the returned readback form for later edits.
+The column name in the formula doesn't match what the warehouse actually has. Re-confirm the column names via `GET /v2/connections/tables/{inodeId}/columns` (raw warehouse names) and the readback (`GET /v2/workbooks/<id>?includeContents=true`, which may preserve the raw spelling or show Sigma's canonicalized friendly form). Raw names are accepted authoring input; use the returned readback form for later edits.
 
 ### `jq` or `yq` not installed
 
@@ -492,4 +504,4 @@ The column name in the formula doesn't match what the warehouse actually has. Re
 
 ### Cryptic validation errors / silent bad data
 
-See `reference/workflows/validate.md` for `document.elements[N]` and layout error triage.
+See `reference/workflows/validate.md` for `contents.elements[N]` (formerly `document.elements[N]`) and layout error triage.

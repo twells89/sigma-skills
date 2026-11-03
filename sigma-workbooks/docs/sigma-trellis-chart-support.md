@@ -32,10 +32,10 @@ viz element:
 ## How this was verified
 
 For each chart kind a minimal two-page workbook was POSTed live to
-`POST /v2/workbooks/spec` (Data page: a source table with a few-member category
+`POST /v2/workbooks` (Data page: a source table with a few-member category
 dimension + an x dimension + a numeric measure; content page: one element of the
 kind with `trellis` referencing the category column). Then
-`GET /v2/workbooks/{id}/spec` was read back and the `trellis` key compared to
+`GET /v2/workbooks/{id}?includeContents=true` was read back and the `trellis` key compared to
 what was sent, and representative cases were rendered to PNG via the export API.
 
 **Primary signal = does the readback preserve the `trellis` key.** A kind that

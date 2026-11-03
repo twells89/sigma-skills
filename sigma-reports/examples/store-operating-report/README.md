@@ -53,7 +53,8 @@ ruby build.rb --folder-id <folder-id> --connection-id <sample-db-connection-id> 
   --output /tmp/store-report.json
 ruby ../../scripts/validate-spec.rb --mode create /tmp/store-report.json
 jq -c . /tmp/store-report.json > /tmp/store-report.min.json   # see "Compact bodies" in SKILL.md
-# then /v2/reports/spec/verify, and POST /v2/reports/spec once the destination is approved
+# then a POST /v2/reports dry-run (dryRun: true), and POST /v2/reports once the destination is approved
+# (re-key {name, folderId, document} to {name, folderId, contents}; see Step 6 in SKILL.md)
 ```
 
 Export a sample store, then draft the burst:

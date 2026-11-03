@@ -1,6 +1,6 @@
 # Element-Level Workbook Rep (`scripts/wb-rep.rb`)
 
-The spec API replaces a whole workbook document. The rep makes one flat
+The workbook contents API (`PUT /v2/workbooks/{id}/contents`) replaces a whole workbook document. The rep makes one flat
 `document.elements[]` entry the editing unit while preserving metadata and
 layout separately.
 
@@ -31,7 +31,9 @@ layout separately.
     layout-preamble.xml
 ```
 
-`workbook.yaml` mirrors the API wrapper:
+`workbook.yaml` keeps the document under a `document:` wrapper (the on-disk
+artifact shape; `wb-rep.rb` re-keys it to the API's `contents` on every
+POST/PUT and reads either on the way in):
 
 ```yaml
 name: Sales
@@ -64,8 +66,14 @@ scripts/wb-rep.rb lint <dir|spec.yaml>
 scripts/wb-rep.rb capabilities --kind bar-chart
 ```
 
-`pull` and `import` accept the wrapped API shape. A legacy flat artifact can be
-read and is normalized immediately to the wrapped representation.
+`pull` and `import` accept the wrapped API shape (`contents`, or a `document`-wrapped
+artifact from the deprecated `/spec` endpoints). A legacy flat artifact can be
+read and is normalized immediately to the wrapped representation. Reps and
+`.sigma/snapshot.yaml` files created before the endpoint migration (with
+`document` and `latestDocumentVersion`) keep working: `status`/`push` strip the
+response-only keys of both eras before diffing. `GET /v2/workbooks/{id}` returns
+no `folderId`, so a freshly pulled `workbook.yaml` has none; set it in
+`workbook.yaml` only for create mode (`import` + `push`).
 
 `push`:
 
@@ -73,7 +81,7 @@ read and is normalized immediately to the wrapped representation.
 2. checks remote drift;
 3. previews metadata, layout, and element changes;
 4. validates flat-element formulas, layout coverage, and filter reference integrity;
-5. POSTs the full create body or PUTs exactly `{document: {...}}`;
+5. POSTs the full create body (`/v2/workbooks`) or PUTs exactly `{contents: {...}}` to `/v2/workbooks/{id}/contents`;
 6. saves the canonical readback, including server normalization.
 
 ### `lint` — offline reference integrity
@@ -97,14 +105,14 @@ scripts/wb-rep.rb lint <dir>
 ```
 
 > **Why this is not redundant with `verify`.** Sigma's
-> `POST /v2/workbooks/spec/verify` validates the element-predicate shape but
+> workbook dry-run (`POST /v2/workbooks` with `dryRun: true`) validates the element-predicate shape but
 > **not** control wiring. Measured 2026-08-20: a control whose filter names a
 > nonexistent column returns `valid: true` with zero errors, saves with the bogus
 > id intact, and compiles with zero errors from
 > `GET /v2/workbooks/{id}/queries` — the control just silently stops filtering.
 > Nothing server-side catches it, so `lint` does.
 >
-> Related: `verify` also rejects some workbooks that are live and working (e.g.
+> Related: `verify` (the `dryRun` call) also rejects some workbooks that are live and working (e.g.
 > unresolvable data-model dependencies, overlay actions referencing a removed
 > page). Treat a `verify` failure on a pre-existing workbook as "compare against
 > a pre-edit baseline", not "this edit is broken".

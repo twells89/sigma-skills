@@ -22,11 +22,10 @@ def assert_contract(failures, description)
 end
 
 schemas = contract.fetch('schemas')
-create = schemas.fetch('CreateReportSpec')
-create_document = schemas.fetch('CreateReportSpec.document')
-verify = schemas.fetch('VerifyReportSpec')
-update = schemas.fetch('UpdateReportSpec')
-read_document = schemas.fetch('ReportSpec.document')
+create = schemas.fetch('CreateReport')
+create_document = schemas.fetch('CreateReport.contents')
+update = schemas.fetch('UpdateReportContents')
+read_document = schemas.fetch('Report.contents')
 page = schemas.fetch('ReportPage')
 panel = schemas.fetch('ReportPanel')
 panel_config = schemas.fetch('ReportPanel.config')
@@ -37,18 +36,22 @@ workbook_only_kinds = contract.dig('publishedVariants', 'workbookOnlyElements').
 control_types = contract.dig('publishedVariants', 'controls').map { |entry| entry.fetch('controlType') }
 shared_shapes = contract.fetch('sharedBreakingShapes')
 
-assert_contract(failures, 'report spec endpoints declare JSON only') do
+assert_contract(failures, 'report endpoints declare JSON only') do
   contract.fetch('mediaTypes').values.all? { |types| types == ['application/json'] }
 end
-assert_contract(failures, 'create requires name, folderId, and document') do
-  create.fetch('required') == %w[document folderId name]
+assert_contract(failures, 'create requires name and folderId and accepts contents') do
+  # `contents` is optional on the new create endpoint (live schema 2026-11-03).
+  create.fetch('required') == %w[folderId name] && create.fetch('properties').include?('contents')
 end
-assert_contract(failures, 'verify uses the create envelope') do
-  verify == create
+assert_contract(failures, 'create doubles as verify via an optional dryRun flag') do
+  create.fetch('properties').include?('dryRun') && !create.fetch('required').include?('dryRun')
 end
-assert_contract(failures, 'update requires document and accepts optimistic documentVersion') do
-  update.fetch('required') == ['document'] &&
-    update.fetch('properties').sort == %w[document documentVersion]
+assert_contract(failures, 'update requires contents and accepts optimistic documentVersion') do
+  update.fetch('required') == ['contents'] &&
+    update.fetch('properties').sort == %w[contents documentVersion]
+end
+assert_contract(failures, 'the old /v2/reports/spec* operations stay flagged deprecated (or are gone)') do
+  contract.dig('operations', 'deprecatedSpecOperations').values.all? { |flag| flag.nil? || flag == true }
 end
 assert_contract(failures, 'report document requires core collections and report kind') do
   %w[elements kind pages schemaVersion].all? { |key| create_document.fetch('required').include?(key) } &&
@@ -78,13 +81,13 @@ end
 assert_contract(failures, 'common report union publishes expected kinds') do
   %w[
     box-chart control funnel-chart gauge-chart input-table
-    sankey-chart table text treemap-chart waterfall-chart progress
+    sankey-chart table text treemap-chart waterfall-chart progress value-list
   ].all? { |kind| common_kinds.include?(kind) }
 end
 assert_contract(failures, 'workbook-only union remains separate') do
   %w[
     chat code container form navigation page-break repeated-container
-    single-row-container tabbed-container value-list
+    single-row-container tabbed-container
   ].all? do |kind|
     workbook_only_kinds.include?(kind) && !common_kinds.include?(kind)
   end
@@ -95,10 +98,10 @@ end
 assert_contract(failures, 'synced control remains schema-published and policy-gated') do
   control_types.include?('synced')
 end
-assert_contract(failures, 'page background images require the source wrapper') do
-  background = shared_shapes.fetch('pageBackgroundImage')
-  background.fetch('required').include?('source') &&
-    %w[source style].all? { |field| background.fetch('properties').include?(field) }
+assert_contract(failures, 'report pages expose exactly id, name, type, visibility (no page-level background or width)') do
+  report_page = shared_shapes.fetch('reportPage')
+  report_page.fetch('properties') == %w[id name type visibility] &&
+    report_page.fetch('absentPresentationKeys') == %w[backgroundColor backgroundImage pageWidth]
 end
 assert_contract(failures, 'shared alignment enums use released directional values') do
   alignment = shared_shapes.fetch('alignment')

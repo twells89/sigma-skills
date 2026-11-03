@@ -22,10 +22,10 @@ def assert_contract(failures, description)
 end
 
 schemas = contract.fetch('schemas')
-create = schemas.fetch('CreateWorkbookSpec')
-create_doc = schemas.fetch('CreateWorkbookSpec.document')
-update = schemas.fetch('UpdateWorkbookSpec')
-read_doc = schemas.fetch('WorkbookSpec.document')
+create = schemas.fetch('CreateWorkbook')
+create_doc = schemas.fetch('CreateWorkbook.contents')
+update = schemas.fetch('UpdateWorkbookContents')
+read_doc = schemas.fetch('Workbook.contents')
 page = schemas.fetch('WorkbookPage')
 actions = contract.fetch('actions')
 effects = actions.fetch('effects')
@@ -129,15 +129,24 @@ control_types = contract.dig('releasedVariants', 'controls').map { |entry| entry
 capabilities = contract.fetch('capabilities')
 capability_kinds = capabilities.fetch('kinds')
 
-assert_contract(failures, 'create envelope requires name, folderId, and document') do
-  create.fetch('required') == %w[document folderId name]
+endpoints = contract.fetch('endpoints')
+assert_contract(failures, 'OpenAPI publishes the current /v2/workbooks contents endpoints') do
+  endpoints.fetch('contentsKey') == 'contents'
 end
-assert_contract(failures, 'update requires document and now also accepts documentVersion') do
-  # `documentVersion` appeared alongside `document` (optimistic concurrency on
-  # PUT). It is OPTIONAL -- required is still exactly ['document'] -- so the old
-  # `properties == ['document']` assertion was pinning its absence.
-  update.fetch('required') == ['document'] &&
-    update.fetch('properties').sort == %w[document documentVersion]
+assert_contract(failures, 'create envelope requires name and folderId and accepts contents + dryRun') do
+  # `contents` is optional on create (live schema 2026-11-03); `dryRun: true`
+  # replaced POST /v2/workbooks/spec/verify.
+  create.fetch('required') == %w[folderId name] &&
+    %w[contents dryRun].all? { |key| create.fetch('properties').include?(key) }
+end
+assert_contract(failures, 'update requires contents and also accepts documentVersion') do
+  # `documentVersion` is OPTIONAL (optimistic concurrency on PUT): a stale value
+  # fails with code stale_document_settings.
+  update.fetch('required') == ['contents'] &&
+    update.fetch('properties').sort == %w[contents documentVersion]
+end
+assert_contract(failures, 'the old /v2/workbooks/spec* operations stay flagged deprecated (or are gone)') do
+  endpoints.fetch('deprecatedSpecOperations').values.all? { |flag| flag.nil? || flag == true }
 end
 assert_contract(failures, 'document owns every released top-level collection') do
   %w[elements overlays pages panels settings agents layout].all? do |key|
@@ -170,7 +179,7 @@ end
 assert_contract(failures, 'box-chart is PUBLISHED (this assertion was inverted 2026-08-26)') do
   # This asserted box-chart stayed gated. It shipped: verified live against a real
   # org -- a box-chart with source/columns/yAxis returns {"valid": true} from
-  # /v2/workbooks/spec/verify. `box-plot` was never a Sigma kind and stays out.
+  # the workbook dry-run (POST /v2/workbooks, dryRun: true). `box-plot` was never a Sigma kind and stays out.
   element_kinds.include?('box-chart') && !element_kinds.include?('box-plot')
 end
 assert_contract(failures, 'the charts that shipped with box-chart are pinned too') do

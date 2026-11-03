@@ -4,6 +4,14 @@
 # Extract the workbook-as-code contract needed by the live regression checks.
 # Usage:
 #   ruby scripts/extract-openapi-contract.rb /path/to/sigma-openapi.json
+#
+# Pins the CURRENT workbook endpoints (OpenAPI 2.0.0+20261030), whose schemas
+# are inline on the operations rather than named components:
+#   POST /v2/workbooks                       create; `dryRun: true` is the validate call
+#   GET  /v2/workbooks/{workbookId}          readback; `?includeContents=true` adds `contents`
+#   PUT  /v2/workbooks/{workbookId}/contents replace; body {contents, documentVersion?}
+# The /v2/workbooks/spec* family is deprecated; its named components
+# (CreateWorkbookSpec, ...) are only used as a fallback on an older document.
 
 require 'json'
 
@@ -484,23 +492,39 @@ end
 path = ARGV.fetch(0) { abort 'usage: extract-openapi-contract.rb OPENAPI_JSON' }
 openapi = JSON.parse(File.read(path))
 schemas = openapi.fetch('components').fetch('schemas')
-create = schemas.fetch('CreateWorkbookSpec')
-update = schemas.fetch('UpdateWorkbookSpec')
-read = schemas.fetch('WorkbookSpec')
-create_document = property(create, 'document')
-update_document = property(update, 'document')
-read_document = property(read, 'document')
+def operation_schema(openapi, path, method, side, status = '200')
+  node = openapi.dig('paths', path, method)
+  return unless node
+
+  content = side == :request ? node.dig('requestBody', 'content') : node.dig('responses', status, 'content')
+  content && content.dig('application/json', 'schema')
+end
+
+create = operation_schema(openapi, '/v2/workbooks', 'post', :request)
+update = operation_schema(openapi, '/v2/workbooks/{workbookId}/contents', 'put', :request)
+read = operation_schema(openapi, '/v2/workbooks/{workbookId}', 'get', :response)
+document_key = 'contents'
+if create.nil? || update.nil? || read.nil?
+  # Older OpenAPI documents only publish the /spec family.
+  create = schemas.fetch('CreateWorkbookSpec')
+  update = schemas.fetch('UpdateWorkbookSpec')
+  read = schemas.fetch('WorkbookSpec')
+  document_key = 'document'
+end
+create_document = property(create, document_key)
+update_document = property(update, document_key)
+read_document = property(read, document_key)
 pages = property(create_document, 'pages')
 actions_schema = schemas.fetch('Actions')
 
 contract = {
   'schemas' => {
-    'CreateWorkbookSpec' => shape(create),
-    'CreateWorkbookSpec.document' => shape(create_document),
-    'UpdateWorkbookSpec' => shape(update),
-    'UpdateWorkbookSpec.document' => shape(update_document),
-    'WorkbookSpec' => shape(read),
-    'WorkbookSpec.document' => shape(read_document),
+    'CreateWorkbook' => shape(create),
+    'CreateWorkbook.contents' => shape(create_document),
+    'UpdateWorkbookContents' => shape(update),
+    'UpdateWorkbookContents.contents' => shape(update_document),
+    'Workbook' => shape(read),
+    'Workbook.contents' => shape(read_document),
     'WorkbookPage' => shape(pages.fetch('items'))
   },
   'releasedVariants' => {
@@ -531,7 +555,18 @@ contract = {
     # only, so this is contract-tracking, not an emit target.
     'automatedActionEffects' => collect_effects(automated_actions_effects(create_document))
   },
-  'capabilities' => collect_capabilities(schemas, create_document)
+  'capabilities' => collect_capabilities(schemas, create_document),
+  'endpoints' => {
+    # `contentsKey` records which generation of the API the document described.
+    'contentsKey' => document_key,
+    # nil = the deprecated /spec operation is gone (also fine); false = it is no
+    # longer flagged deprecated, which the test treats as a regression.
+    'deprecatedSpecOperations' => {
+      '/v2/workbooks/spec' => 'post',
+      '/v2/workbooks/spec/verify' => 'post',
+      '/v2/workbooks/{workbookId}/spec' => 'get'
+    }.to_h { |spec_path, method| [spec_path, openapi.dig('paths', spec_path, method, 'deprecated')] }
+  }
 }
 
 puts JSON.pretty_generate(contract)

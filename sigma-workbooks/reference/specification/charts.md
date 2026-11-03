@@ -481,7 +481,7 @@ For element-level reference of `kind: "text"` (free-form Markdown blocks), see `
 **treemap, sankey, funnel, gauge and box charts are NATIVE.** Several converters
 still route them to a plugin, to a `bar-chart`, or drop them outright, on the
 belief that Sigma has no equivalent. That belief is out of date. Each shape below
-was confirmed against a real org via `POST /v2/workbooks/spec/verify`, and
+was confirmed against a real org via `POST /v2/workbooks` with `dryRun: true`, and
 `treemap-chart` additionally via a real create + spec readback.
 
 | kind | required beyond `id`/`kind`/`source`/`columns` | shape |

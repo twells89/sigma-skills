@@ -17,7 +17,7 @@
 # Usage:
 #   require_relative 'lib/sigma_rest'
 #   wb = Sigma.request(:get, "/v2/workbooks/#{id}")
-#   Sigma.request(:post, '/v2/workbooks/spec', body: spec.to_json)
+#   Sigma.request(:post, '/v2/workbooks', body: body.to_json)  # body = {name, folderId, contents}
 #
 # All methods return parsed Hash/Array (or raw bytes for binary endpoints).
 

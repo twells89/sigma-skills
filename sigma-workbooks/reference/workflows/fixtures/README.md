@@ -12,7 +12,7 @@ the starting specs.
   before POST. Do not commit real org, user, folder, or workbook IDs.
 - Every `input-table` has `inputMode: view`. Published data entry is UI-only
   (element kebab → Set data entry permission → Only in published version) and
-  is absent from `GET /spec`.
+  is absent from the `GET` readback.
 - Entry `text` / `text-area` controls include `mode`, `case`, `includeNulls`,
   and `showOperators` (see `controls.md`). Omitting them POSTs as
   `Invalid kind: "control"`.

@@ -74,7 +74,7 @@ That means both statements below are important:
 Workflow:
 
 1. Build from the exact raw names returned by the table-columns endpoint.
-2. POST, then immediately GET `/v2/workbooks/{id}/spec`.
+2. POST, then immediately GET `/v2/workbooks/{id}?includeContents=true`.
 3. Compare formulas and use the returned readback form in future PUTs.
 4. Run compile verification; normalization does not prove semantic parity.
 

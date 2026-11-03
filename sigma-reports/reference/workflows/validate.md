@@ -23,7 +23,7 @@ The validator checks:
 - custom-SQL column contracts and required SQL source fields;
 - grouped-table dimensions, aggregate calculations, and visible detail-column
   warnings;
-- page `backgroundImage.source` wrappers and removal of legacy theme keys;
+- rejection of `backgroundImage`, `backgroundColor`, and `pageWidth` on report pages, and removal of legacy theme keys;
 - real XML parsing of Page, Panel, and Element layout nodes;
 - absolute numeric coordinates and dimensions;
 - page and panel outer bounds;
@@ -37,10 +37,11 @@ a targeted OpenAPI review and live verify before writing.
 
 ## 2. Server verify
 
-POST the create envelope to `/v2/reports/spec/verify`. This is non-persistent
+POST the create envelope with `"dryRun": true` to `/v2/reports` (replaces the
+deprecated `/v2/reports/spec/verify`). This is non-persistent
 and should precede every create or update. For an update, wrap the edited
-document with the current report name and folder solely for verification, then
-send `{document: ..., documentVersion: ...}` to PUT.
+document with the current report name and folder solely for the dry-run, then
+send `{contents: ..., documentVersion: ...}` to `PUT /v2/reports/{id}/contents`.
 
 Verify can catch schema and dependency errors that an offline validator cannot.
 
@@ -132,7 +133,7 @@ unknown columns, circular references, or missing dependencies.
 | grouped table exposes detail rows | Hide support columns not listed in `groupBy` or `calculations`; calculations must be aggregate formulas. |
 | `seriesLineAreaStyle` or `colorOverrides` is an object map | Emit a list of `{columnId, style}` or `{name, color}` objects. |
 | alignment uses `start`, `middle`, or `end` | Use released directional values (`left`/`center`/`right`, `top`/`center`/`bottom`). |
-| page background has a flat `url` | Nest it under `backgroundImage.source` with `kind: url`. |
+| page carries `backgroundImage`, `backgroundColor`, or `pageWidth` | Remove it: the API returns HTTP 400 for these on report pages (live-verified 2026-11-03). Set size with `contents.config.pageWidth`/`pageHeight`/`margin`. |
 | document uses `themeName` or `themeOverrides` | Move them under `settings.theme.name` / `settings.theme.overrides`. |
 | panel type mismatch | Make layout and metadata both `header` or both `footer`. |
 | field disappears on GET | Re-send a non-default value first: a default-valued field is normalized away, not dropped. If it vanishes for every value, treat readback as lossy and do not blindly PUT the result. |

@@ -179,4 +179,63 @@ Dir.mktmpdir('wb-rep-roundtrip') do |tmp|
   end
 end
 
+# Snapshot compatibility across the /spec -> /contents endpoint migration.
+# Old reps (snapshot.yaml with `document`, latestDocumentVersion, folderId) must
+# diff cleanly against new readbacks (`contents`, latestVersion, path, no
+# folderId) and vice versa.
+Dir.mktmpdir('wb-rep-snapshot-compat') do |tmp|
+  source = File.join(tmp, 'source.yaml')
+  rep = File.join(tmp, 'rep')
+  File.write(source, YAML.dump(spec))
+  _out, import_status = Open3.capture2e('ruby', WB_REP, 'import', source, rep)
+  snapshot_path = File.join(rep, '.sigma', 'snapshot.yaml')
+  document = spec.fetch('document')
+
+  old_era = spec.merge(
+    'workbookId' => 'wb-1', 'url' => 'https://example/wb-1', 'ownerId' => 'o1',
+    'documentVersion' => 3, 'latestDocumentVersion' => 3
+  )
+  File.write(snapshot_path, YAML.dump(old_era))
+  out, status = Open3.capture2e('ruby', WB_REP, 'status', rep)
+  check(failures, 'status is clean against an old-era snapshot (document + latestDocumentVersion)') do
+    import_status.success? && status.success? && out.include?('clean')
+  end
+
+  new_era = {
+    'workbookId' => 'wb-1', 'workbookUrlId' => 'u1', 'name' => spec['name'],
+    'url' => 'https://example/wb-1', 'path' => 'My Documents/Test', 'latestVersion' => 4,
+    'documentVersion' => 4, 'ownerId' => 'o1', 'isArchived' => false, 'tags' => [],
+    'contents' => document
+  }
+  File.write(snapshot_path, YAML.dump(new_era))
+  out, status = Open3.capture2e('ruby', WB_REP, 'status', rep)
+  check(failures, 'status is clean against a new-era readback (contents, latestVersion, path, no folderId)') do
+    status.success? && out.include?('clean')
+  end
+
+  page_path = Dir[File.join(rep, 'pages', '*', '_page.yaml')].first
+  page = YAML.load_file(page_path)
+  File.write(page_path, YAML.dump(page.merge('name' => 'Renamed')))
+  out, status = Open3.capture2e('ruby', WB_REP, 'status', rep)
+  check(failures, 'status still reports a real page edit against a new-era snapshot') do
+    status.exitstatus == 1 && out.include?('~ page "Renamed"')
+  end
+
+  # Request bodies use `contents`, never the deprecated `document`.
+  File.write(page_path, YAML.dump(page))
+  assembled_out, = Open3.capture2e('ruby', WB_REP, 'assemble', rep)
+  body_script = File.join(tmp, 'body.rb')
+  File.write(body_script, <<~RUBY)
+    require 'yaml'
+    require #{File.join(__dir__, 'lib', 'code_rep').inspect}
+    spec = YAML.load(STDIN.read)
+    b = Sigma::CodeRep.create_body(spec, dry_run: true)
+    puts YAML.dump(b.keys.sort)
+  RUBY
+  keys_out, = Open3.capture2e('ruby', body_script, stdin_data: assembled_out)
+  check(failures, 'create body is {contents, dryRun, folderId, name} with no `document` key') do
+    YAML.load(keys_out) == %w[contents dryRun folderId name]
+  end
+end
+
 exit(failures.empty? ? 0 : 1)

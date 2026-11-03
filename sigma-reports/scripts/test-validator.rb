@@ -62,6 +62,24 @@ class ReportSpecValidatorTest < Minitest::Test
     assert_includes result.errors, 'update documentVersion must be a finite number'
   end
 
+  def test_accepts_current_api_contents_key_for_create_dry_run_and_update
+    payload = valid_payload
+    payload['contents'] = payload.delete('document')
+    payload['dryRun'] = true
+    # dryRun is a create-body flag, not part of the document.
+    assert_empty validate(payload).errors
+
+    update = {'contents' => payload['contents'], 'documentVersion' => 3}
+    assert_empty validate(update, mode: :update).errors
+    result = validate({'contents' => payload['contents'], 'name' => 'x'}, mode: :update)
+    assert result.errors.any? { |error| error.include?('unsupported properties: name') }
+  end
+
+  def test_missing_document_is_reported_for_either_key
+    result = validate({'name' => 'x', 'folderId' => 'f'})
+    assert result.errors.any? { |error| error.include?('missing required create field: contents') }
+  end
+
   def test_rejects_unsupported_and_workbook_only_elements
     payload = valid_payload
     payload['document']['elements'][0]['kind'] = 'progress'
@@ -272,20 +290,31 @@ class ReportSpecValidatorTest < Minitest::Test
     assert_empty validate(payload).errors
   end
 
-  def test_requires_page_background_image_source_wrapper
-    payload = valid_payload
-    payload['document']['pages'][0]['backgroundImage'] = {
-      'source' => {'kind' => 'url', 'url' => 'https://example.com/background.png'},
-      'style' => {'fit' => 'cover'}
-    }
-    assert_empty validate(payload).errors
+  def test_rejects_workbook_only_page_presentation_keys
+    {
+      'backgroundImage' => {'source' => {'kind' => 'url', 'url' => 'https://example.com/background.png'}},
+      'backgroundColor' => '#FFFFFF',
+      'pageWidth' => 'standard'
+    }.each do |key, value|
+      payload = valid_payload
+      payload['document']['pages'][0][key] = value
+      result = validate(payload)
 
-    payload['document']['pages'][0]['backgroundImage'] = {
-      'url' => 'https://example.com/background.png'
-    }
+      assert result.errors.any? { |error| error.include?("#{key} is rejected by the API on report pages") },
+             "expected #{key} to be rejected"
+      assert result.errors.any? { |error| error.include?('document.config.pageWidth') }
+    end
+
+    assert_empty validate(valid_payload).errors
+  end
+
+  def test_value_list_is_a_common_schema_only_kind
+    payload = valid_payload
+    payload['document']['elements'][0]['kind'] = 'value-list'
     result = validate(payload)
-    assert result.errors.any? { |error| error.include?('uses removed flat url') }
-    assert result.errors.any? { |error| error.include?('must contain a source object') }
+
+    assert result.warnings.any? { |warning| warning.include?('value-list is schema-only') }
+    refute result.errors.any? { |error| error.include?('value-list') }
   end
 
   def test_rejects_removed_document_theme_keys

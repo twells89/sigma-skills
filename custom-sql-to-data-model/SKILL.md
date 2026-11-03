@@ -354,21 +354,24 @@ recover.
 and update any child formulas that used the `Custom SQL` prefix to use the
 new name. Then the swap auto-rewrites cleanly.
 
-> **The workbook-spec body is wrapped, not flat (verified live 2026-08).**
-> `GET`/`POST`/`PUT` all nest `schemaVersion`/`elements`/`pages`/`layout` under a
-> top-level `document` key; `name`/`folderId`/response-only fields stay
-> outside it, and `PUT` takes **only** `{document: {...}}` — see
-> `sigma-workbooks`'s `reference/specification/schema.md`. The snippet below
-> unwraps `spec['document']` before touching the flat `elements` array, and re-wraps just the
-> document for the PUT body.
+> **The workbook body is wrapped, not flat (verified live 2026-08; re-keyed 2026-11).**
+> `GET /v2/workbooks/{id}?includeContents=true`, `POST /v2/workbooks`, and
+> `PUT /v2/workbooks/{id}/contents` all nest `schemaVersion`/`elements`/`pages`/`layout`
+> under a top-level `contents` key (the deprecated `/spec` endpoints called it
+> `document`); `name`/response-only fields stay outside it, and `PUT` takes
+> **only** `{contents: {...}}` — see `sigma-workbooks`'s
+> `reference/specification/schema.md`. The snippet below unwraps
+> `spec['contents']` before touching the flat `elements` array, and re-wraps just the
+> document for the PUT body. The old `GET`/`PUT .../spec` endpoints are
+> deprecated; data-model `/v2/dataModels/spec` is not.
 
 ```ruby
 require 'json'
 require 'tmpdir'
 WB = '<workbookId>'
-raw = `curl -s -H "Authorization: Bearer $SIGMA_API_TOKEN" -H "Accept: application/json" "$SIGMA_BASE_URL/v2/workbooks/#{WB}/spec"`
+raw = `curl -s -H "Authorization: Bearer $SIGMA_API_TOKEN" -H "Accept: application/json" "$SIGMA_BASE_URL/v2/workbooks/#{WB}?includeContents=true"`
 spec = JSON.parse(raw)
-doc  = spec['document']   # schemaVersion/elements/pages/layout live here
+doc  = spec['contents']   # schemaVersion/elements/pages/layout live here
 
 manifest = JSON.parse(File.read(File.join(Dir.tmpdir, 'custom-sql-manifest.json')))
 new_names = manifest
@@ -393,8 +396,8 @@ doc['elements'].each do |el|
   end
 end
 
-# PUT takes ONLY the document object — no name/folderId/response-only fields.
-File.write(File.join(Dir.tmpdir, 'wb-pre-swap.json'), JSON.pretty_generate({ 'document' => doc }))
+# PUT takes ONLY {contents: ...} — no name/folderId/response-only fields.
+File.write(File.join(Dir.tmpdir, 'wb-pre-swap.json'), JSON.pretty_generate({ 'contents' => doc }))
 ```
 
 ```bash
@@ -403,7 +406,7 @@ curl -s -X PUT \
   -H "Content-Type: application/json" \
   -H "Accept: application/json" \
   -d @/tmp/wb-pre-swap.json \
-  "$SIGMA_BASE_URL/v2/workbooks/<workbookId>/spec"
+  "$SIGMA_BASE_URL/v2/workbooks/<workbookId>/contents"
 ```
 
 > Skip this step only if every root SQL element already has a non-empty
@@ -527,17 +530,18 @@ cost: you keep prefix/display-name rewrite logic in sync with the DM, you
 must strip response-only fields, and layout edits may get rebuilt server-
 side. Prefer `:swapSources` whenever it works.
 
-> **`/tmp/wb-spec.yaml` here is a saved `GET /v2/workbooks/{id}/spec` response** —
-> which, like every workbook-spec body, nests `schemaVersion`/`elements`/`pages`/`layout`
-> under `document` (verified live 2026-08; see the wrapper note in Phase 5, and
-> `sigma-workbooks`'s `reference/specification/schema.md`). The snippet unwraps
-> `spec['document']` before touching `elements`, and the PUT body is just the
-> re-wrapped `document` — not the full GET response.
+> **`/tmp/wb-spec.yaml` here is a saved `GET /v2/workbooks/{id}?includeContents=true` response**
+> (send `Accept: application/yaml`; the default is JSON) — which, like every
+> workbook body, nests `schemaVersion`/`elements`/`pages`/`layout`
+> under `contents` (earlier saved `/spec` responses use `document`; see the
+> wrapper note in Phase 5, and `sigma-workbooks`'s `reference/specification/schema.md`).
+> The snippet unwraps `spec['contents'] || spec['document']` before touching `elements`,
+> and the PUT body is just the re-wrapped `contents` — not the full GET response.
 
 ```ruby
 require 'yaml'; require 'json'; require 'date'
 spec = YAML.safe_load(File.read('/tmp/wb-spec.yaml'), permitted_classes: [Date, Time])
-doc  = spec['document']   # schemaVersion/elements/pages/layout live here
+doc  = spec['contents'] || spec['document']   # schemaVersion/elements/pages/layout live here
 
 conversions = {
   '<root_element_id>' => {
@@ -568,8 +572,8 @@ doc['elements'].each do |el|
   end
 end
 
-# PUT takes ONLY the document object — no name/folderId/response-only fields.
-File.write('/tmp/wb-updated.json', JSON.pretty_generate({ 'document' => doc }))
+# PUT takes ONLY {contents: ...} — no name/folderId/response-only fields.
+File.write('/tmp/wb-updated.json', JSON.pretty_generate({ 'contents' => doc }))
 ```
 
 ```bash
@@ -577,7 +581,7 @@ curl -s -X PUT \
   -H "Authorization: Bearer $SIGMA_API_TOKEN" \
   -H "Content-Type: application/json" \
   -d @/tmp/wb-updated.json \
-  "$SIGMA_BASE_URL/v2/workbooks/<workbookId>/spec"
+  "$SIGMA_BASE_URL/v2/workbooks/<workbookId>/contents"
 ```
 
 ---

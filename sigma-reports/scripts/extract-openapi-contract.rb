@@ -3,6 +3,12 @@
 
 # Extract the report-as-code contract needed by the live regression checks.
 # Usage: ruby scripts/extract-openapi-contract.rb OPENAPI_JSON
+#
+# Pins the CURRENT report endpoints (OpenAPI 2.0.0+20261030):
+#   POST /v2/reports                      create; `dryRun: true` is the validate call
+#   GET  /v2/reports/{reportId}           readback; `?includeContents=true` adds `contents`
+#   PUT  /v2/reports/{reportId}/contents  replace; body {contents, documentVersion?}
+# The /v2/reports/spec* family is deprecated and only checked for its flag.
 
 require 'json'
 
@@ -151,10 +157,15 @@ def shared_breaking_shapes(schemas, create_document, page, openapi)
   settings = property(create_document, 'settings', openapi)
   theme = property(settings, 'theme', openapi)
   overrides = property(theme, 'overrides', openapi)
-  page_background_image = property(page, 'backgroundImage', openapi)
+  page_properties = merged_properties(page, openapi).sort
 
   {
-    'pageBackgroundImage' => shape(page_background_image, openapi),
+    # Report pages expose only identity/visibility metadata; presentation
+    # (size, margin) lives on contents.config, not on the page.
+    'reportPage' => {
+      'properties' => page_properties,
+      'absentPresentationKeys' => %w[backgroundColor backgroundImage pageWidth] - page_properties
+    },
     'alignment' => {
       'textVerticalAlign' => enum_values(property(text, 'verticalAlign', openapi), openapi),
       'kpiAnchor' => enum_values(property(kpi_layout, 'anchor', openapi), openapi),
@@ -187,21 +198,26 @@ end
 path = ARGV.fetch(0) { abort 'usage: extract-openapi-contract.rb OPENAPI_JSON' }
 openapi = JSON.parse(File.read(path))
 schemas = openapi.fetch('components').fetch('schemas')
-create_path = '/v2/reports/spec'
-verify_path = '/v2/reports/spec/verify'
-spec_path = '/v2/reports/{reportId}/spec'
-resource_path = '/v2/reports/{reportId}'
+create_path = '/v2/reports'
+read_path = '/v2/reports/{reportId}'
+update_path = '/v2/reports/{reportId}/contents'
+resource_path = read_path
+deprecated_spec_operations = {
+  '/v2/reports/spec' => 'post',
+  '/v2/reports/spec/verify' => 'post',
+  '/v2/reports/{reportId}/spec' => 'get',
+  '/v2/reports/{reportId}/spec#put' => 'put'
+}
 convert_path = '/v2/workbooks/{workbookId}/convertToReport'
 
 create = request_schema(openapi, create_path, 'post')
-verify = request_schema(openapi, verify_path, 'post')
-update = request_schema(openapi, spec_path, 'put')
-read = response_schema(openapi, spec_path, 'get', '200')
+update = request_schema(openapi, update_path, 'put')
+read = response_schema(openapi, read_path, 'get', '200')
 convert_request = request_schema(openapi, convert_path, 'post')
 convert_response = response_schema(openapi, convert_path, 'post', '201')
-create_document = property(create, 'document', openapi)
-update_document = property(update, 'document', openapi)
-read_document = property(read, 'document', openapi)
+create_document = property(create, 'contents', openapi)
+update_document = property(update, 'contents', openapi)
+read_document = property(read, 'contents', openapi)
 page = resolve(property(create_document, 'pages', openapi).fetch('items'), openapi)
 panel = resolve(property(create_document, 'panels', openapi).fetch('items'), openapi)
 config = property(create_document, 'config', openapi)
@@ -218,18 +234,16 @@ controls = (
 contract = {
   'mediaTypes' => {
     'create' => openapi.dig('paths', create_path, 'post', 'requestBody', 'content').keys.sort,
-    'verify' => openapi.dig('paths', verify_path, 'post', 'requestBody', 'content').keys.sort,
-    'read' => openapi.dig('paths', spec_path, 'get', 'responses', '200', 'content').keys.sort,
-    'update' => openapi.dig('paths', spec_path, 'put', 'requestBody', 'content').keys.sort
+    'read' => openapi.dig('paths', read_path, 'get', 'responses', '200', 'content').keys.sort,
+    'update' => openapi.dig('paths', update_path, 'put', 'requestBody', 'content').keys.sort
   },
   'schemas' => {
-    'CreateReportSpec' => shape(create, openapi),
-    'CreateReportSpec.document' => shape(create_document, openapi),
-    'VerifyReportSpec' => shape(verify, openapi),
-    'UpdateReportSpec' => shape(update, openapi),
-    'UpdateReportSpec.document' => shape(update_document, openapi),
-    'ReportSpec' => shape(read, openapi),
-    'ReportSpec.document' => shape(read_document, openapi),
+    'CreateReport' => shape(create, openapi),
+    'CreateReport.contents' => shape(create_document, openapi),
+    'UpdateReportContents' => shape(update, openapi),
+    'UpdateReportContents.contents' => shape(update_document, openapi),
+    'Report' => shape(read, openapi),
+    'Report.contents' => shape(read_document, openapi),
     'ReportPage' => shape(page, openapi),
     'ReportPanel' => shape(panel, openapi),
     'ReportPanel.config' => shape(panel_config, openapi),
@@ -250,10 +264,14 @@ contract = {
   'operations' => {
     'reportResourceMethods' => openapi.fetch('paths').fetch(resource_path).keys.grep(/\A(?:get|post|put|patch|delete)\z/).sort,
     'createStatuses' => openapi.dig('paths', create_path, 'post', 'responses').keys.sort,
-    'verifyStatuses' => openapi.dig('paths', verify_path, 'post', 'responses').keys.sort,
-    'readStatuses' => openapi.dig('paths', spec_path, 'get', 'responses').keys.sort,
-    'updateStatuses' => openapi.dig('paths', spec_path, 'put', 'responses').keys.sort,
-    'convertStatuses' => openapi.dig('paths', convert_path, 'post', 'responses').keys.sort
+    'readStatuses' => openapi.dig('paths', read_path, 'get', 'responses').keys.sort,
+    'updateStatuses' => openapi.dig('paths', update_path, 'put', 'responses').keys.sort,
+    'convertStatuses' => openapi.dig('paths', convert_path, 'post', 'responses').keys.sort,
+    # nil = the deprecated /spec operation is gone (also fine); false = it is no
+    # longer flagged deprecated, which the test treats as a regression.
+    'deprecatedSpecOperations' => deprecated_spec_operations.to_h do |key, method|
+      [key, openapi.dig('paths', key.sub(/#.*/, ''), method, 'deprecated')]
+    end
   }
 }
 

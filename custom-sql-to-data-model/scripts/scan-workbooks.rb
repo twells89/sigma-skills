@@ -17,6 +17,7 @@ require 'tmpdir'
 BASE_URL = ENV.fetch('SIGMA_BASE_URL') { abort 'SIGMA_BASE_URL not set — run: eval "$(bash scripts/get-token.sh)"' }
 $LOAD_PATH.unshift File.expand_path('lib', __dir__)
 require 'sigma_rest'
+require 'code_rep'
 require 'workbook_sql'
 
 # Full-site workbook scans paginate over hundreds of items and can take >1
@@ -40,18 +41,24 @@ loop do
 end
 puts "Found #{workbooks.size} workbooks total.\n\n"
 
-# Scan each workbook spec for SQL elements
+# Scan each workbook document for SQL elements
 findings = []
 workbooks.each do |wb|
   wid  = wb['workbookId']
   name = wb['name']
 
   begin
-    raw  = get("/v2/workbooks/#{wid}/spec")
+    raw  = get(Sigma::CodeRep.read_path(wid))
     y = YAML.safe_load(raw, permitted_classes: [Date, Time])
     workbook_findings = Sigma::WorkbookSql.findings(
       y, workbook_id: wid, workbook_name: name
     )
+    # GET /v2/workbooks/{id} returns `path`, not `folderId` (unlike the
+    # deprecated /spec read); the parent folder comes from the file record.
+    if workbook_findings.any? { |f| f[:folder_id].nil? }
+      parent_id = JSON.parse(get("/v2/files/#{wid}"))['parentId']
+      workbook_findings.each { |f| f[:folder_id] ||= parent_id }
+    end
     findings.concat(workbook_findings)
     workbook_findings.each do |finding|
       puts "  [FOUND] #{name} / #{finding[:element_name]}"

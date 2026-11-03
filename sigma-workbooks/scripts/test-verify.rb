@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 # test-verify.rb — integration test for `wb-rep.rb verify` (the
-# POST /v2/workbooks/spec/verify dry-run subcommand).
+# POST /v2/workbooks dryRun: true subcommand; replaces /v2/workbooks/spec/verify).
 #
 # Run directly (from sigma-workbooks/):
 #   eval "$(<sigma-api skill dir>/scripts/get-token.sh)"
@@ -25,9 +25,9 @@
 # tableau-to-sigma's probe-control-formula.rb) — never hardcode one org's
 # real folder id here.
 #
-# Envelope (2026-08): /v2/workbooks/spec/verify requires the canonical
-# { name, folderId, document: { schemaVersion, kind, elements, pages, layout } }
-# shape. Elements are flat; pages contain metadata only and layout assigns
+# Envelope: the on-disk spec file keeps the `document` wrapper; wb-rep re-keys
+# it to `contents` for POST /v2/workbooks (dryRun). The canonical document is
+# { schemaVersion, kind, elements, pages, layout }. Elements are flat; pages contain metadata only and layout assigns
 # elements to pages.
 
 require 'json'
@@ -78,7 +78,7 @@ def table_element(total_sales_formula)
     ] }
 end
 
-# Wrapped shape — what actually goes over the wire to /v2/workbooks/spec/verify today.
+# Document-wrapped on-disk shape; wb-rep sends it as {name, folderId, contents, dryRun}.
 def spec_with(total_sales_formula)
   {
     'name' => 'wb-rep verify test fixture',

@@ -157,7 +157,7 @@ Before any write:
 ruby scripts/validate-spec.rb --mode create /tmp/report-spec.json
 ```
 
-Then call `/v2/reports/spec/verify`. Fix locally and allow one evidence-backed
+Then run a `POST /v2/reports` dry-run (`dryRun: true`; see `crud.md`). Fix locally and allow one evidence-backed
 retry per error class—do not rotate through guessed property names.
 
 After the approved persistent create/update:

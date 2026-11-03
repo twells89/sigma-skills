@@ -33,7 +33,7 @@ recommended purpose). Those answers become a short build plan for this
 workbook and the person who will use it.
 
 Do **not** invent a fifth operational type. Apps are still workbooks
-(`POST /v2/workbooks/spec`). Architecture details live in the matching recipe,
+(`POST /v2/workbooks`, document under `contents`). Architecture details live in the matching recipe,
 not here.
 
 ## Workflow
@@ -447,7 +447,7 @@ connection IDs, folder IDs, or workbook IDs into this skill.
 
 Published data entry cannot be set from the spec. Before handoff, for every
 input table: element kebab → Set data entry permission → Only in published
-version. The setting is absent from `GET /spec`.
+version. The setting is absent from the `GET` readback.
 
 ## Fixtures
 

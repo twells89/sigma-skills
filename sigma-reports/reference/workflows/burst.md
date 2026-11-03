@@ -63,7 +63,7 @@ unverified addresses.
 - Add one `filters[]` entry per data source, pointing at that source's key
   column ID. Do not make the control filter its own value source.
 - Place the control on the hidden data page so it stays out of the PDF.
-- `GET /v2/reports/{id}/spec` returns this control as
+- `GET /v2/reports/{id}?includeContents=true` returns this control as
   `{"controlType": "synced"}` with no source or filters, and the local
   validator rejects `synced`. Keep the authored document as the source of
   truth and rebuild PUT bodies from it, never from the readback. Confirm the

@@ -3,7 +3,7 @@
 
 # Offline reference-integrity regression for wb-rep's `lint` command.
 #
-# Why this exists: Sigma's POST /v2/workbooks/spec/verify does NOT validate a
+# Why this exists: Sigma's workbook dry-run (POST /v2/workbooks with dryRun: true) does NOT validate a
 # control's wiring `filters[].columnId`. Measured 2026-08-20 — a control whose
 # filter points at a nonexistent column returns valid:true with zero errors,
 # saves with the bogus id intact, and compiles with zero errors. The control

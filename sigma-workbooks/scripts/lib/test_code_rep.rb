@@ -252,6 +252,79 @@ check('theme() reads the theme from either shape') do
     Sigma::CodeRep.theme(NESTED_RESPONSE)['name'] == 'Dark'
 end
 
+# --- endpoint helpers ------------------------------------------------------
+# The /spec workbook and report endpoints are DEPRECATED (OpenAPI
+# 2.0.0+20261030, live-verified 2026-11-03). Replacements carry the same
+# document under `contents`. On-disk artifacts keep the `document` wrapper.
+
+check('endpoint paths: workbook and report create/read/update (data models are not covered)') do
+  Sigma::CodeRep.create_path == '/v2/workbooks' &&
+    Sigma::CodeRep.read_path('w1') == '/v2/workbooks/w1?includeContents=true' &&
+    Sigma::CodeRep.read_path('w1', document_version: 3) == '/v2/workbooks/w1?includeContents=true&documentVersion=3' &&
+    Sigma::CodeRep.update_path('w1') == '/v2/workbooks/w1/contents' &&
+    Sigma::CodeRep.create_path(:report) == '/v2/reports' &&
+    Sigma::CodeRep.read_path('r1', :report) == '/v2/reports/r1?includeContents=true' &&
+    Sigma::CodeRep.update_path('r1', :report) == '/v2/reports/r1/contents'
+end
+
+check('endpoint helpers reject an unknown type (e.g. :dataModel)') do
+  begin
+    Sigma::CodeRep.create_path(:dataModel)
+    false
+  rescue ArgumentError
+    true
+  end
+end
+
+check('document()/metadata() read the live `contents` shape') do
+  live = NESTED_RESPONSE.reject { |k, _| k == 'document' }
+                        .merge('contents' => NESTED_RESPONSE['document'], 'documentVersion' => 2)
+  Sigma::CodeRep.document(live) == Sigma::CodeRep.document(NESTED_RESPONSE) &&
+    Sigma::CodeRep.metadata(live).keys.sort == %w[documentVersion folderId name url workbookId]
+end
+
+check('create_body re-keys the document wrapper to `contents` (no `document`, no dryRun)') do
+  body = Sigma::CodeRep.create_body(NESTED_RESPONSE)
+  body.keys.sort == %w[contents folderId name] && body['contents']['elements'].map { |e| e['id'] } == ['e1']
+end
+
+check('create_body: extra overrides metadata and dry_run adds dryRun: true') do
+  body = Sigma::CodeRep.create_body(NESTED_RESPONSE['document'], extra: { name: 'X', folderId: 'f2' }, dry_run: true)
+  body['name'] == 'X' && body['folderId'] == 'f2' && body['dryRun'] == true
+end
+
+check('create_body flattens legacy page-nested elements') do
+  legacy = { 'schemaVersion' => 1, 'pages' => [{ 'id' => 'p1', 'elements' => [{ 'id' => 'old', 'kind' => 'text' }] }] }
+  body = Sigma::CodeRep.create_body(legacy, extra: { 'name' => 'N', 'folderId' => 'f' })
+  body['contents']['elements'].map { |e| e['id'] } == ['old'] && body['contents']['pages'].none? { |pg| pg.key?('elements') }
+end
+
+check('update_body is {contents} plus an optional documentVersion') do
+  Sigma::CodeRep.update_body(NESTED_RESPONSE).keys == ['contents'] &&
+    Sigma::CodeRep.update_body(NESTED_RESPONSE, document_version: 4)['documentVersion'] == 4
+end
+
+check('report bodies pass contents through untouched (different representation)') do
+  rpt = { 'contents' => { 'schemaVersion' => 1, 'pages' => [{ 'id' => 'p', 'elements' => [{ 'id' => 'x' }] }] } }
+  Sigma::CodeRep.update_body(rpt, type: :report)['contents'] == rpt['contents']
+end
+
+check('dry_run_result normalizes live 2026-11-03 shapes (200 ok, 400 invalid, other 4xx)') do
+  ok = Sigma::CodeRep.dry_run_result(200, { 'dryRun' => true, 'warnings' => [] })
+  bad = Sigma::CodeRep.dry_run_result(400, { 'dryRun' => true, 'valid' => false,
+                                              'errors' => [{ 'summary' => 'contents.pages: Invalid array' }] })
+  other = Sigma::CodeRep.dry_run_result(403, { 'message' => 'forbidden' })
+  ok['valid'] == true && bad['valid'] == false &&
+    bad['errors'].map { |e| e['summary'] } == ['contents.pages: Invalid array'] &&
+    other['errors'] == [{ 'summary' => 'forbidden' }]
+end
+
+check('strip_response_only drops both eras of envelope keys and keeps writable metadata') do
+  rb = { 'workbookId' => 'w', 'workbookUrlId' => 'u', 'path' => 'p', 'latestVersion' => 1,
+         'latestDocumentVersion' => 1, 'documentVersion' => 1, 'folderId' => 'f', 'name' => 'N', 'contents' => {} }
+  Sigma::CodeRep.strip_response_only(rb).keys.sort == %w[contents folderId name]
+end
+
 # --- data-model guard ------------------------------------------------------
 # The DM code-rep surface is confirmed NOT changing. This adapter is
 # workbook-only; wrapping a DM body breaks it.

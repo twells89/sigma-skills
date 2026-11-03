@@ -85,6 +85,11 @@ PY
 
 SPEC_JSON="$(to_json)"
 
+# The current API (POST /v2/workbooks, PUT /v2/workbooks/{id}/contents) names the
+# wrapper `contents`; saved specs and fixtures still use `document` (the
+# deprecated /spec endpoints' name). Accept both — rules below read `.document`.
+SPEC_JSON="$(printf '%s' "$SPEC_JSON" | jq 'if (type == "object") and has("contents") and (has("document") | not) then .document = .contents | del(.contents) else . end')"
+
 # The live workbook OpenAPI requires a wrapped document with one flat
 # document.elements array. Pages, overlays, and panels are metadata only;
 # document.layout is the source of truth for placement and containment.

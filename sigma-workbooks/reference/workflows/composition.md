@@ -15,7 +15,7 @@ A rough sizing ladder (starting points, not rules):
 - **A focused view** — "revenue over time with a region filter" → a few elements plus a control; light layout.
 - **A dashboard** — "a sales dashboard", "an exec overview" → the fuller pattern is appropriate: a KPI row up top, one or two charts, a supporting table, controls, explicit layout XML, and the base/source table on a hidden page (see `visibility: hidden` in `reference/specification/schema.md`, and the master-detail pattern below for a worked example). This is the tier where polish is the point.
 
-For concrete shapes at any tier, don't assemble from memory. Fetch a real workbook's spec (`GET /v2/workbooks/{id}/spec`, Steps 1–2) and read the relevant feature docs — a live spec shows current, valid, org-idiomatic structure, including the layout XML the OpenAPI doesn't model. Size up only when the request asks for it.
+For concrete shapes at any tier, don't assemble from memory. Fetch a real workbook's spec (`GET /v2/workbooks/{id}?includeContents=true`, Steps 1–2) and read the relevant feature docs — a live spec shows current, valid, org-idiomatic structure, including the layout XML the OpenAPI doesn't model. Size up only when the request asks for it.
 
 ## When to stop and ask the user
 

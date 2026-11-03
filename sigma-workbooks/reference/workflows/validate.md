@@ -9,7 +9,7 @@ The workbook body is wrapped:
 ```yaml
 name: Example
 folderId: <folder-id>
-document:
+contents:
   schemaVersion: 1
   kind: workbook
   elements: [...]
@@ -18,8 +18,11 @@ document:
     ...
 ```
 
-The live OpenAPI requires flat `document.elements` and metadata-only pages.
-PUT accepts only `{document: {...}}`. Data-model specs are a separate surface
+The live OpenAPI requires flat `contents.elements` and metadata-only pages.
+PUT `/v2/workbooks/{id}/contents` accepts only `{contents: {...}}` (plus an
+optional `documentVersion`). The deprecated `/spec` endpoints called the same
+wrapper `document`; this skill's validator and `wb-rep.rb` accept either.
+Data-model specs (`/v2/dataModels/spec`, not deprecated) are a separate surface
 and may retain nested `pages[].elements`.
 
 ## 2. Dry-run
@@ -28,8 +31,12 @@ and may retain nested `pages[].elements`.
 ./scripts/wb-rep.rb verify /tmp/workbook-spec.yaml
 ```
 
-The verify endpoint catches representation and dependency errors without
-persistence.
+The dry-run (`POST /v2/workbooks` with `dryRun: true`) catches representation
+and dependency errors without persistence: HTTP 200 means valid; HTTP 400 returns
+`valid: false` and `errors[].summary` with `contents.`-prefixed paths. `wb-rep.rb
+verify` prints `valid: true` / `valid: false` for you. A spec with no `folderId`
+(e.g. one pulled with `wb-rep.rb pull`) is dry-run against a placeholder folder
+id; the dry-run never resolves it.
 
 ## 3. Offline validation
 
@@ -59,7 +66,7 @@ For every formula:
 
 ## 5. Shape and layout pass
 
-- `document` has `schemaVersion`, `kind: workbook`, `elements`, and `pages`.
+- `contents` has `schemaVersion`, `kind: workbook`, `elements`, and `pages`.
 - `pages`, `overlays`, and `panels` contain metadata only.
 - Every literal element appears once in `document.elements`.
 - Every element is placed in `document.layout`.
@@ -89,7 +96,7 @@ For every formula:
 ## 6. Readback and compile verification
 
 POST success does not prove semantic or visual correctness. Immediately GET the
-spec and compare it with the submitted document:
+document (`?includeContents=true`) and compare it with the submitted document:
 
 - use the warehouse formula form returned by readback for future edits (Sigma
   may canonicalize a raw name or preserve it);
@@ -111,9 +118,9 @@ scale, or a layout is visually usable.
 
 | Error | Meaning |
 |---|---|
-| `document.pages[].elements is no longer supported` | Move literal elements to `document.elements`; use layout for placement. |
+| `contents.pages[].elements is no longer supported` (formerly `document.…`) | Move literal elements to `contents.elements`; use layout for placement. |
 | `element '<id>' is not placed in layout` | Add a layout placement for that flat element. |
-| `Invalid kind: document.elements[N]` | The selected element/control subtype has the wrong inner shape. |
+| `Invalid kind: contents.elements[N]` (formerly `document.elements[N]`) | The selected element/control subtype has the wrong inner shape. |
 | `Dependency not found` | A source, column, control, or dynamic reference did not resolve. |
 | `Column reference not found` on a join | The join key does not match the required exact source column form. |
 | field disappears on GET | The server ignored/stripped it; use the canonical readback or inspect the live schema. |

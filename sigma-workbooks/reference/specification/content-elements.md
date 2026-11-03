@@ -112,7 +112,7 @@ fields:
     label: Subscribe
 ```
 
-Preflight a minimal `form` with `/v2/workbooks/spec/verify` before building the
+Preflight a minimal `form` with a `POST /v2/workbooks` dry-run (`dryRun: true`) before building the
 rest of a form-driven workbook. Workspace behavior varies: unavailable
 workspaces have returned both `` `form` elements are not enabled for this
 workspace`` and the generic `Invalid kind: "form"` (live-observed
@@ -140,9 +140,9 @@ value: "72"
 shape: ring
 ```
 
-**Live-verified 2026-08-03** (real `POST /v2/workbooks/spec` create + `GET` readback + PNG export screenshot — not just `/verify`): `min`/`max`/`value`/`mode`/`shape` all round-tripped verbatim as strings. Visually, `bar` draws a horizontal fill bar and `ring` a circular gauge with a text label centered inside — both match what the field names imply.
+**Live-verified 2026-08-03** (real `POST /v2/workbooks` create + `GET` readback + PNG export screenshot — not just the dry-run): `min`/`max`/`value`/`mode`/`shape` all round-tripped verbatim as strings. Visually, `bar` draws a horizontal fill bar and `ring` a circular gauge with a text label centered inside — both match what the field names imply.
 
-**`mode` gotcha, confirmed by screenshot pixel-measurement — `/v2/workbooks/spec/verify` cannot catch this, it's a rendering behavior, not a schema error:** the fill and the on-element label are computed from `value`/`min`/`max` *differently* depending on `mode`:
+**`mode` gotcha, confirmed by screenshot pixel-measurement — `POST /v2/workbooks` with `dryRun: true` cannot catch this, it's a rendering behavior, not a schema error:** the fill and the on-element label are computed from `value`/`min`/`max` *differently* depending on `mode`:
 - `mode: value` — the label shows the raw `value` string; the fill fraction is `(value − min) / (max − min)`. Confirmed exactly: `min:"0", max:"10", value:"5"` measured (via pixel sampling of the rendered ring) as precisely a 50%-filled ring labeled "5"; `value:"10"` measured as a fully-filled ring labeled "10". This is the intuitive "N out of a range" gauge — use it for anything like "72 out of 100" (the example above).
 - `mode: percent` (the **default**) — the fill fraction is *still* `(value − min) / (max − min)` (min/max default to `0`/`1` if omitted), **but the label is always `value × 100` formatted with a `%` suffix, unconditionally, ignoring `min`/`max` entirely.** Measured proof: `min:"0", max:"72", value:"72"` (fill should be 100% either way) rendered a fully-filled bar labeled **"7200%"**, not "100%" or "72%". A bare `value:"0.72"` with no `min`/`max` rendered a 72%-filled bar labeled correctly as **"72%"**. So for `mode: percent`, `value` must already be the 0–1 fraction you want displayed — passing a 0–100-scaled number (the intuitive reading of "percent") silently produces a nonsense label while the fill still looks fine, which is easy to ship unnoticed:
 
