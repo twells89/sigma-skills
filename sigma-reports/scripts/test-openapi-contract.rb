@@ -81,13 +81,13 @@ end
 assert_contract(failures, 'common report union publishes expected kinds') do
   %w[
     box-chart control funnel-chart gauge-chart input-table
-    sankey-chart table text treemap-chart waterfall-chart progress
+    sankey-chart table text treemap-chart waterfall-chart progress value-list
   ].all? { |kind| common_kinds.include?(kind) }
 end
 assert_contract(failures, 'workbook-only union remains separate') do
   %w[
     chat code container form navigation page-break repeated-container
-    single-row-container tabbed-container value-list
+    single-row-container tabbed-container
   ].all? do |kind|
     workbook_only_kinds.include?(kind) && !common_kinds.include?(kind)
   end
@@ -98,10 +98,10 @@ end
 assert_contract(failures, 'synced control remains schema-published and policy-gated') do
   control_types.include?('synced')
 end
-assert_contract(failures, 'page background images require the source wrapper') do
-  background = shared_shapes.fetch('pageBackgroundImage')
-  background.fetch('required').include?('source') &&
-    %w[source style].all? { |field| background.fetch('properties').include?(field) }
+assert_contract(failures, 'report pages expose exactly id, name, type, visibility (no page-level background or width)') do
+  report_page = shared_shapes.fetch('reportPage')
+  report_page.fetch('properties') == %w[id name type visibility] &&
+    report_page.fetch('absentPresentationKeys') == %w[backgroundColor backgroundImage pageWidth]
 end
 assert_contract(failures, 'shared alignment enums use released directional values') do
   alignment = shared_shapes.fetch('alignment')

@@ -157,10 +157,15 @@ def shared_breaking_shapes(schemas, create_document, page, openapi)
   settings = property(create_document, 'settings', openapi)
   theme = property(settings, 'theme', openapi)
   overrides = property(theme, 'overrides', openapi)
-  page_background_image = property(page, 'backgroundImage', openapi)
+  page_properties = merged_properties(page, openapi).sort
 
   {
-    'pageBackgroundImage' => shape(page_background_image, openapi),
+    # Report pages expose only identity/visibility metadata; presentation
+    # (size, margin) lives on contents.config, not on the page.
+    'reportPage' => {
+      'properties' => page_properties,
+      'absentPresentationKeys' => %w[backgroundColor backgroundImage pageWidth] - page_properties
+    },
     'alignment' => {
       'textVerticalAlign' => enum_values(property(text, 'verticalAlign', openapi), openapi),
       'kpiAnchor' => enum_values(property(kpi_layout, 'anchor', openapi), openapi),

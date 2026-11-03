@@ -94,7 +94,8 @@ Do not use:
 - workbook header/sidebar panel types
 - workbook-only `kind` values: `chat`, `code`, `container`, `form`,
   `navigation`, `page-break`, `repeated-container`, `single-row-container`,
-  `tabbed-container`, and `value-list`
+  and `tabbed-container` (`value-list` moved to the common report kinds in
+  OpenAPI 2.0.0+20261030)
 
 Those constructs belong to workbook layout. A report page already has fixed
 physical dimensions; pagination comes from report pages, not workbook

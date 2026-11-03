@@ -290,20 +290,31 @@ class ReportSpecValidatorTest < Minitest::Test
     assert_empty validate(payload).errors
   end
 
-  def test_requires_page_background_image_source_wrapper
-    payload = valid_payload
-    payload['document']['pages'][0]['backgroundImage'] = {
-      'source' => {'kind' => 'url', 'url' => 'https://example.com/background.png'},
-      'style' => {'fit' => 'cover'}
-    }
-    assert_empty validate(payload).errors
+  def test_rejects_workbook_only_page_presentation_keys
+    {
+      'backgroundImage' => {'source' => {'kind' => 'url', 'url' => 'https://example.com/background.png'}},
+      'backgroundColor' => '#FFFFFF',
+      'pageWidth' => 'standard'
+    }.each do |key, value|
+      payload = valid_payload
+      payload['document']['pages'][0][key] = value
+      result = validate(payload)
 
-    payload['document']['pages'][0]['backgroundImage'] = {
-      'url' => 'https://example.com/background.png'
-    }
+      assert result.errors.any? { |error| error.include?("#{key} is rejected by the API on report pages") },
+             "expected #{key} to be rejected"
+      assert result.errors.any? { |error| error.include?('document.config.pageWidth') }
+    end
+
+    assert_empty validate(valid_payload).errors
+  end
+
+  def test_value_list_is_a_common_schema_only_kind
+    payload = valid_payload
+    payload['document']['elements'][0]['kind'] = 'value-list'
     result = validate(payload)
-    assert result.errors.any? { |error| error.include?('uses removed flat url') }
-    assert result.errors.any? { |error| error.include?('must contain a source object') }
+
+    assert result.warnings.any? { |warning| warning.include?('value-list is schema-only') }
+    refute result.errors.any? { |error| error.include?('value-list') }
   end
 
   def test_rejects_removed_document_theme_keys

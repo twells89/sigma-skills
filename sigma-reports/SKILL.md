@@ -181,8 +181,10 @@ For shared shapes changed by the released code contract:
 - use `verticalAlign: top|center|bottom`;
 - use KPI `layout.anchor: left|center|right` and
   `layout.verticalAnchor: top|center|bottom`;
-- wrap page background URLs as
-  `backgroundImage: {source: {kind: url, url: ...}, style: ...}`;
+- do not put `backgroundImage`, `backgroundColor`, or `pageWidth` on a report
+  page: the released page schema is `id`/`name`/`type`/`visibility` only and the
+  API returns HTTP 400 for those keys (live-verified 2026-11-03); set size with
+  `contents.config.pageWidth`/`pageHeight`/`margin`;
 - use `settings.theme.{name,overrides}`, not the removed document-level
   `themeName`/`themeOverrides`.
 

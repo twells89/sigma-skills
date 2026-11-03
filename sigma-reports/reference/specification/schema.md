@@ -82,33 +82,18 @@ Pages are metadata, not element containers:
   "id": "page-1",
   "name": "Statement",
   "type": "page",
-  "visibility": "hidden",
-  "pageWidth": "standard",
-  "backgroundColor": "#FFFFFF",
-  "backgroundImage": {
-    "source": {
-      "kind": "url",
-      "url": "https://cdn.example.com/background.png"
-    },
-    "style": {
-      "fit": "cover",
-      "horizontalAlign": "center",
-      "verticalAlign": "center",
-      "tiling": "none"
-    }
-  }
+  "visibility": "hidden"
 }
 ```
 
-The current shared page schema exposes `id`, `name`, `type`, `visibility`,
-`pageWidth`, `backgroundColor`, and `backgroundImage`. Report physical size is
-controlled by `document.config.pageWidth` and `pageHeight`; do not confuse that
-pixel configuration with the shared page metadata field.
-
-`backgroundImage` requires a `source` wrapper. For a URL, use
-`{source: {kind: "url", url: "..."}, style: {...}}`; the removed flat
-`{url: "..."}` form returns HTTP 400. Preserve uploaded-image source objects
-exactly as returned by GET.
+The released report page schema (OpenAPI 2.0.0+20261030, `POST /v2/reports`
+`contents.pages.items`) exposes exactly `id`, `name`, `type`, and `visibility`.
+Unlike workbook pages, report pages have no `pageWidth`, `backgroundColor`, or
+`backgroundImage`. Live-verified 2026-11-03 with a `POST /v2/reports` dry run:
+adding any of those three keys to `pages[0]` returns HTTP 400
+(`contents.pages[0]: Invalid ForbiddenKeys<...>`). The local validator reports
+them as errors. Report physical size is controlled only by
+`contents.config.pageWidth`, `pageHeight`, and `margin`.
 
 Keep report pages at or below the documented 1,000-page limit. The local
 validator rejects larger documents.

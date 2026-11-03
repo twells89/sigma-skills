@@ -116,6 +116,8 @@ layout and workbook-only behavior in those guides.
 - `plugin`
 - `sankey-chart`
 - `treemap-chart`
+- `value-list` (moved from workbook-only to the common union in OpenAPI
+  2.0.0+20261030)
 
 These may verify in some configurations, but interactive or write-back
 behavior and PDF output require explicit evidence. The local validator emits a
@@ -151,7 +153,6 @@ documentation. The local validator rejects them.
 - `repeated-container`
 - `single-row-container`
 - `tabbed-container`
-- `value-list`
 
 Do not emulate these by copying workbook layout XML. Convert the design to
 fixed report pages or keep it as a workbook.
