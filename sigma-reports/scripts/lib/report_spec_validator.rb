@@ -73,14 +73,20 @@ module ReportSpec
         return
       end
 
+      # The authoring artifact keeps its document under `document`; the current
+      # API bodies (POST /v2/reports, PUT /v2/reports/{id}/contents) call it
+      # `contents`. Accept either so both shapes validate locally.
+      doc_key = @payload.key?('contents') ? 'contents' : 'document'
+
       case @mode
       when :create
-        %w[name folderId document].each do |key|
+        %w[name folderId].each do |key|
           errors << "missing required create field: #{key}" unless @payload.key?(key)
         end
+        errors << 'missing required create field: contents (or document)' unless @payload.key?(doc_key)
       when :update
-        errors << 'missing required update field: document' unless @payload.key?('document')
-        unexpected = @payload.keys - %w[document documentVersion]
+        errors << 'missing required update field: contents (or document)' unless @payload.key?(doc_key)
+        unexpected = @payload.keys - [doc_key, 'documentVersion']
         errors << "update body contains unsupported properties: #{unexpected.join(', ')}" unless unexpected.empty?
         if @payload.key?('documentVersion') &&
            (!@payload['documentVersion'].is_a?(Numeric) || !@payload['documentVersion'].finite?)
@@ -90,8 +96,8 @@ module ReportSpec
         errors << "unknown validation mode: #{@mode}"
       end
 
-      @document = @payload['document']
-      errors << 'document must be an object' unless @document.is_a?(Hash)
+      @document = @payload[doc_key]
+      errors << "#{doc_key} must be an object" unless @document.is_a?(Hash)
     end
 
     def validate_document

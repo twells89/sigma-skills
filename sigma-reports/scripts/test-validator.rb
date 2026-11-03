@@ -62,6 +62,24 @@ class ReportSpecValidatorTest < Minitest::Test
     assert_includes result.errors, 'update documentVersion must be a finite number'
   end
 
+  def test_accepts_current_api_contents_key_for_create_dry_run_and_update
+    payload = valid_payload
+    payload['contents'] = payload.delete('document')
+    payload['dryRun'] = true
+    # dryRun is a create-body flag, not part of the document.
+    assert_empty validate(payload).errors
+
+    update = {'contents' => payload['contents'], 'documentVersion' => 3}
+    assert_empty validate(update, mode: :update).errors
+    result = validate({'contents' => payload['contents'], 'name' => 'x'}, mode: :update)
+    assert result.errors.any? { |error| error.include?('unsupported properties: name') }
+  end
+
+  def test_missing_document_is_reported_for_either_key
+    result = validate({'name' => 'x', 'folderId' => 'f'})
+    assert result.errors.any? { |error| error.include?('missing required create field: contents') }
+  end
+
   def test_rejects_unsupported_and_workbook_only_elements
     payload = valid_payload
     payload['document']['elements'][0]['kind'] = 'progress'

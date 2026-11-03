@@ -22,11 +22,10 @@ def assert_contract(failures, description)
 end
 
 schemas = contract.fetch('schemas')
-create = schemas.fetch('CreateReportSpec')
-create_document = schemas.fetch('CreateReportSpec.document')
-verify = schemas.fetch('VerifyReportSpec')
-update = schemas.fetch('UpdateReportSpec')
-read_document = schemas.fetch('ReportSpec.document')
+create = schemas.fetch('CreateReport')
+create_document = schemas.fetch('CreateReport.contents')
+update = schemas.fetch('UpdateReportContents')
+read_document = schemas.fetch('Report.contents')
 page = schemas.fetch('ReportPage')
 panel = schemas.fetch('ReportPanel')
 panel_config = schemas.fetch('ReportPanel.config')
@@ -37,18 +36,22 @@ workbook_only_kinds = contract.dig('publishedVariants', 'workbookOnlyElements').
 control_types = contract.dig('publishedVariants', 'controls').map { |entry| entry.fetch('controlType') }
 shared_shapes = contract.fetch('sharedBreakingShapes')
 
-assert_contract(failures, 'report spec endpoints declare JSON only') do
+assert_contract(failures, 'report endpoints declare JSON only') do
   contract.fetch('mediaTypes').values.all? { |types| types == ['application/json'] }
 end
-assert_contract(failures, 'create requires name, folderId, and document') do
-  create.fetch('required') == %w[document folderId name]
+assert_contract(failures, 'create requires name and folderId and accepts contents') do
+  # `contents` is optional on the new create endpoint (live schema 2026-11-03).
+  create.fetch('required') == %w[folderId name] && create.fetch('properties').include?('contents')
 end
-assert_contract(failures, 'verify uses the create envelope') do
-  verify == create
+assert_contract(failures, 'create doubles as verify via an optional dryRun flag') do
+  create.fetch('properties').include?('dryRun') && !create.fetch('required').include?('dryRun')
 end
-assert_contract(failures, 'update requires document and accepts optimistic documentVersion') do
-  update.fetch('required') == ['document'] &&
-    update.fetch('properties').sort == %w[document documentVersion]
+assert_contract(failures, 'update requires contents and accepts optimistic documentVersion') do
+  update.fetch('required') == ['contents'] &&
+    update.fetch('properties').sort == %w[contents documentVersion]
+end
+assert_contract(failures, 'the old /v2/reports/spec* operations stay flagged deprecated (or are gone)') do
+  contract.dig('operations', 'deprecatedSpecOperations').values.all? { |flag| flag.nil? || flag == true }
 end
 assert_contract(failures, 'report document requires core collections and report kind') do
   %w[elements kind pages schemaVersion].all? { |key| create_document.fetch('required').include?(key) } &&
