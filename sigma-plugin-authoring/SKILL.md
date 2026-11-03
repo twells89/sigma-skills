@@ -129,7 +129,7 @@ failure mode is a silent, misleadingly generic error).
 Put the plugin's `source` data element on its own **hidden page** if it
 shouldn't be user-visible — `visibleAsSource:false` alone does not hide it
 (§4). Then hand the finished element off to the `sigma-workbooks` skill's
-normal create/update flow (`POST`/`PUT /v2/workbooks/spec`).
+normal create/update flow (`POST /v2/workbooks` / `PUT /v2/workbooks/{id}/contents`; the old `/v2/workbooks/spec` endpoints are deprecated).
 
 ### 5. Verify
 
