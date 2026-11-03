@@ -35,18 +35,19 @@ def http_req(method, path, body = nil)
 end
 
 def audit_one(wb_id)
-  raw = http_req(:get, "/v2/workbooks/#{wb_id}/spec")
+  raw = http_req(:get, Sigma::CodeRep.read_path(wb_id))
   j = JSON.parse(raw)
   doc = Sigma::CodeRep.document(j)
-  abort "GET returned no flat document.elements array for #{wb_id}" unless doc['elements'].is_a?(Array)
+  abort "GET returned no flat contents.elements array for #{wb_id}" unless doc['elements'].is_a?(Array)
 
   fixed_count = Sigma::FormulaAudit.repair!(doc)
 
   return [wb_id, 0] if fixed_count.zero?
 
-  # PUT accepts exactly one top-level field: the complete replacement document.
-  resp = http_req(:put, "/v2/workbooks/#{wb_id}/spec",
-                  JSON.pretty_generate(Sigma::CodeRep.wrap(doc)))
+  # PUT /contents accepts the complete replacement document as `contents`
+  # (plus an optional documentVersion; omitted here, so no stale-version guard).
+  resp = http_req(:put, Sigma::CodeRep.update_path(wb_id),
+                  JSON.pretty_generate(Sigma::CodeRep.update_body(doc)))
   parsed = JSON.parse(resp)
   ok = parsed['success'] || Sigma::CodeRep.metadata(parsed)['workbookId']
   abort "PUT failed for #{wb_id}: #{resp}" unless ok
