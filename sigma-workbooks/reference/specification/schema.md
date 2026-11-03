@@ -3,8 +3,14 @@
 The live compiled OpenAPI is authoritative:
 
 ```bash
-jq '.components.schemas.CreateWorkbookSpec' /tmp/sigma-api.json
+jq '.paths."/v2/workbooks".post.requestBody.content."application/json".schema' /tmp/sigma-api.json
 ```
+
+> The `/v2/workbooks/spec*` endpoints and their `CreateWorkbookSpec` /
+> `UpdateWorkbookSpec` schemas are **deprecated**. The current endpoints
+> (`POST /v2/workbooks`, `GET /v2/workbooks/{id}?includeContents=true`,
+> `PUT /v2/workbooks/{id}/contents`) carry the same document under `contents`
+> instead of `document`. Data-model `/v2/dataModels/spec` is unchanged.
 
 ## Canonical wrapped shape
 
@@ -12,7 +18,7 @@ jq '.components.schemas.CreateWorkbookSpec' /tmp/sigma-api.json
 name: My Workbook
 folderId: <folder-uuid>
 description: Optional description
-document:
+contents:
   schemaVersion: 1
   kind: workbook
   elements: [...]  # required flat array
@@ -28,19 +34,23 @@ document:
   agents: [...]
 ```
 
-POST requires outer `name`, `folderId`, and `document`. The live document
-schema requires `schemaVersion`, `kind`, `elements`, and `pages`. PUT accepts
-exactly `{document: {...}}`; never send `name`, `folderId`, or response metadata
-beside it.
+POST requires outer `name` and `folderId` (plus `contents` to create anything
+useful; add `dryRun: true` to validate without saving). The live contents schema
+requires `schemaVersion`, `kind`, `elements`, and `pages`. PUT
+`/v2/workbooks/{id}/contents` accepts `{contents: {...}}` plus an optional
+`documentVersion`; never send `name`, `folderId`, or response metadata beside
+it. (Saved specs and this skill's fixtures that still use `document:` are the
+same payload under the deprecated wrapper name — `validate-spec.sh` and
+`wb-rep.rb` accept both; rename the key for a raw API call.)
 
-> Elements are not nested in pages, overlays, or panels. `document.elements` is
-> the single literal element array. Placement in `document.layout` is the source
+> Elements are not nested in pages, overlays, or panels. `contents.elements` is
+> the single literal element array. Placement in `contents.layout` is the source
 > of truth for page, overlay, panel, container, repeated-container, and tab
 > membership. The API rejects `pages[].elements` and rejects an unplaced element.
 
 ### Settings
 
-`document.settings.theme` replaces the removed `themeName` /
+`contents.settings.theme` replaces the removed `themeName` /
 `themeOverrides` pair:
 
 ```yaml
@@ -154,18 +164,21 @@ gate. Preserve unknown panel metadata on round trip.
 
 GET can return these outer server-managed fields:
 
-- `workbookId`, `url`
-- `documentVersion`, `latestDocumentVersion`
-- `ownerId`, `createdBy`, `updatedBy`, `createdAt`, `updatedAt`
+- `workbookId`, `workbookUrlId`, `url`, `path`
+- `documentVersion`, `latestVersion` (the deprecated `/spec` read returned
+  `latestDocumentVersion` and `folderId` instead)
+- `ownerId`, `createdBy`, `updatedBy`, `createdAt`, `updatedAt`, `isArchived`, `tags`
 
-They are not part of a PUT body.
+They are not part of a PUT body (only `documentVersion` may be sent back, as the
+optimistic-concurrency guard). `GET /v2/workbooks/{id}` does not return
+`folderId`; use `GET /v2/files/{id}` → `parentId` if you need the folder.
 
 ## ID and layout rules
 
 - Page, overlay, panel, element, action, and column IDs must be unique in their
   documented scopes.
 - IDs submitted on POST are preserved.
-- Every layout `elementId` must match a flat `document.elements[].id`.
+- Every layout `elementId` must match a flat `contents.elements[].id`.
 - Every element must be placed exactly where intended in layout. Do not infer
   ownership from array adjacency.
 - Page, overlay, and panel roots use grid layout. A grid container's children
@@ -174,14 +187,14 @@ They are not part of a PUT body.
 
 ## Related: `kind: "report"` documents are a separate resource, not a workbook variant
 
-The compiled OpenAPI also defines a `report` document (`document.kind:
-"report"`), but it is **not** something you set on a `/v2/workbooks/spec`
+The compiled OpenAPI also defines a `report` document (`contents.kind:
+"report"`), but it is **not** something you set on a `/v2/workbooks`
 payload — it's a sibling top-level resource with its own endpoint family:
-`POST /v2/reports/spec`, `POST /v2/reports/spec/verify`, `GET`/`PUT
-/v2/reports/{reportId}/spec`, plus a full set of `/v2/reports/{reportId}/...`
+`POST /v2/reports` (`dryRun: true` to validate), `GET /v2/reports/{reportId}?includeContents=true`,
+`PUT /v2/reports/{reportId}/contents`, plus a full set of `/v2/reports/{reportId}/...`
 routes (`elements`, `pages`, `schedules`, `send`, `export`, …). A workbook
 becomes a report via `POST /v2/workbooks/{workbookId}/convertToReport`, not
-by changing `document.kind` in place.
+by changing `contents.kind` in place.
 
 Reports use **pixel** layout, not grid layout. The OpenAPI's `layout`
 description for a report document reads:
@@ -199,11 +212,11 @@ Key differences from the workbook shapes documented in this skill:
   `pages[]` assignment list — not `header`/`sidebar` like workbook panels
   (see `layout.md`). Same vocabulary (`panels`, `type`, `config`), different
   enum values, different resource — don't conflate the two.
-- `document.config` on a report carries `margin`, `pageHeight`, and
+- `contents.config` on a report carries `margin`, `pageHeight`, and
   `pageWidth`, all in pixels — a report-level print/page-size block with no
   workbook equivalent.
 
-This skill targets `/v2/workbooks/spec`; report authoring is out of scope
+This skill targets `/v2/workbooks`; report authoring is out of scope
 here. Load the sibling `sigma-reports` skill for the report lifecycle, pixel
 layout, support matrix, offline validator, and safe full-replacement workflow.
 Do not reuse workbook layout recipes for reports.
@@ -213,7 +226,7 @@ Do not reuse workbook layout recipes for reports.
 ```yaml
 name: Sales Dashboard
 folderId: <folder-uuid>
-document:
+contents:
   schemaVersion: 1
   kind: workbook
   elements:

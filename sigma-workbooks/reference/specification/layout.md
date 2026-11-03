@@ -216,10 +216,11 @@ So a source element named `Star Events` yields
 `{{[Star Events repeated container/Repo Name]}}`. Columns are referenced by
 their `name`, not their `id`.
 
-> **Known API regression (live 2026-08-08):** that exact, correctly derived
+> **Known API regression (live 2026-08-08, re-confirmed 2026-11-03 on the
+> current endpoints):** that exact, correctly derived
 > target is present in existing GET readbacks, proving it is a real
-> representation. However, both `/v2/workbooks/spec/verify` and
-> `POST /v2/workbooks/spec` currently reject a replay with
+> representation. However, both the `POST /v2/workbooks` dry-run
+> (`dryRun: true`) and the real `POST /v2/workbooks` currently reject a replay with
 > `Dependency not found: 'Star Events repeated container/Repo Name'`. Do not
 > mark bound repeated-container authoring green until both paths accept it.
 > `scripts/probe-release-contract.rb` keeps a plain child in its main
@@ -406,7 +407,7 @@ errors.
 
 > **LIVE-CONFIRMED 2026-08-10** on a workspace with navigation enabled: a
 > workbook with a header panel and a sidebar panel round-trips through
-> `GET /v2/workbooks/{id}/spec` with both `document.panels[]` entries, the
+> `GET /v2/workbooks/{id}?includeContents=true` with both `document.panels[]` entries, the
 > `document.settings.navigation` block, and `<Panel>` layout nodes intact, and
 > the panels render. The shapes below match `components.schemas.WorkbookSpec`
 > → `document.panels` / `document.settings.navigation`.
@@ -466,7 +467,7 @@ Panel *content* is placed by a dedicated layout **`<Panel>`** block whose
 guess; live readback uses its own `<Panel>` tag). The block carries the same
 `type="grid"` / `gridTemplateColumns` / `gridTemplateRows` attributes as a
 `<Page>` and holds `<Element>` children the same way. Live-confirmed shape
-(`GET /v2/workbooks/{id}/spec`, 2026-08-10):
+(`GET /v2/workbooks/{id}?includeContents=true`, 2026-08-10):
 
 ```xml
 <Page type="grid" gridTemplateColumns="repeat(24, 1fr)" gridTemplateRows="auto" id="kchtzPvp2c"/>
@@ -511,6 +512,6 @@ use a `navigation` element when the menu needs to live inside the page grid
 alongside other content.
 
 To study real grid- and stack-container idioms, fetch an existing multi-page
-workbook's spec (`GET /v2/workbooks/{id}/spec`, see SKILL.md Steps 1–2). The
+workbook's spec (`GET /v2/workbooks/{id}?includeContents=true`, see SKILL.md Steps 1–2). The
 OpenAPI doesn't model the `layout` XML string, so a live spec is the way to see
 production layout.

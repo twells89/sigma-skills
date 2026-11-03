@@ -298,7 +298,7 @@ Code Rep cannot enable published data entry. For every input table:
 element kebab → Set data entry permission → Only in published version
 ```
 
-Publish and type in a real cell. The setting is absent from `GET /spec`.
+Publish and type in a real cell. The setting is absent from the `GET` readback.
 
 ## Required verification
 

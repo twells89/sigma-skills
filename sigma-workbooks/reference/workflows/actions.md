@@ -6,7 +6,7 @@ They live in flat `document.elements[]`; layout places them.
 
 > **Action identifier fields — which ones carry an `Id` suffix.** The
 > 2026-08-26 rename gave identifier properties the referenced resource type
-> plus an `Id` suffix. Verified by A/B creates plus `GET .../spec` readback
+> plus an `Id` suffix. Verified by A/B creates plus `GET /v2/workbooks/{id}?includeContents=true` readback
 > diffs against a live org. The renamed ones are documented per-effect below;
 > what follows is the part that is easy to get wrong.
 >
@@ -246,8 +246,8 @@ pointing it at an ordinary page or element is invalid.
 ## Navigation, refresh, and row-editing effects
 
 **Spec-verified 2026-08-05 — read the exact bar below before relying on these.**
-Each shape passed `POST /v2/workbooks/spec/verify`, was created for real via
-`POST /v2/workbooks/spec`, and came back byte-intact from `GET .../spec` on a
+Each shape passed `POST /v2/workbooks` with `dryRun: true`, was created for real via
+`POST /v2/workbooks`, and came back byte-intact from `GET /v2/workbooks/{id}?includeContents=true` on a
 single test workbook whose page render was visually confirmed by PNG export.
 
 > **What that does NOT cover: the actual effect firing.** No button was clicked.

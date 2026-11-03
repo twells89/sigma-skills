@@ -232,11 +232,11 @@ conditionalFormats:
 
 Place it at the element level (sibling of `columns` / `groupings`), targeting the grouping's calculation column(s) by id. Other variants (`single` threshold rules, `backgroundScale`, `fontScale`) are below. Pull the full per-type field set with the `conditionalFormats` property via the `kind`-form recipe at the top.
 
-> **Round-trip caveat:** data bars **authored via spec** persist on `GET`. Data bars **added in the Sigma editor** may *not* appear in `GET /spec` (observed on a converted workbook) — so don't infer "the source had no data bars" from a readback. When migrating, author them explicitly.
+> **Round-trip caveat:** data bars **authored via spec** persist on `GET`. Data bars **added in the Sigma editor** may *not* appear in the `GET` readback (observed on a converted workbook) — so don't infer "the source had no data bars" from a readback. When migrating, author them explicitly.
 
 ### `tableStyle` — presentation preset, spacing, grid lines, banding
 
-`tableStyle` is an element-level object on `table` / `pivot-table`. The default is the dense **spreadsheet** grid; `preset: presentation` switches to the roomier, lighter "presentation" look (taller rows, softer borders) that source BI tools often use for dashboard tables. **Spec-authorable, round-trips, and renders** (verified live 2026-06-24) — but, like data bars, an editor-set value may be absent from `GET /spec`, so author it explicitly when migrating.
+`tableStyle` is an element-level object on `table` / `pivot-table`. The default is the dense **spreadsheet** grid; `preset: presentation` switches to the roomier, lighter "presentation" look (taller rows, softer borders) that source BI tools often use for dashboard tables. **Spec-authorable, round-trips, and renders** (verified live 2026-06-24) — but, like data bars, an editor-set value may be absent from the `GET` readback, so author it explicitly when migrating.
 
 ```yaml
 kind: table
@@ -341,7 +341,7 @@ element kebab → Set data entry permission
 
 Live verification found that all three `inputMode` values remained inert in
 published view while the permission stayed at its default. Flipping one table
-made only that table editable, while `GET /spec` stayed byte-identical. Code
+made only that table editable, while the `GET` readback stayed byte-identical. Code
 Rep therefore cannot set or inspect this permission. Every spec-built
 writeback app needs this manual step per input table before handoff.
 

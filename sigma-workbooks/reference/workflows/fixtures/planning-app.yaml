@@ -4,7 +4,7 @@
 # names from live discovery before POST. If the org has a governed data model,
 # rebind source-actual and source-base to kind: data-model (see sources.md).
 # Published data entry is UI-only: element kebab → Set data entry permission
-# → Only in published version. That setting is absent from GET /spec.
+# → Only in published version. That setting is absent from the GET readback.
 # Architecture: ../planning-apps.md. Intake: ../generate-apps.md.
 # Look/theme/agent are composed after clone — this file stays unthemed and
 # agent-free. Layout reserves the Review agent rail for generate-apps Step D.5.

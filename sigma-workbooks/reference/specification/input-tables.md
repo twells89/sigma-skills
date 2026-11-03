@@ -27,7 +27,7 @@ table, and a data model can read it through a warehouse view.
    the shape. `inputMode` does not enable published-view data entry.
 3. **Published data entry is a UI-only element setting.** Use *kebab → Set
    data entry permission → Only in published version*. The default is “Only in
-   draft.” The setting is absent from `GET /spec`, so Code Rep cannot set or
+   draft.” The setting is absent from the `GET` readback, so Code Rep cannot set or
    inspect it. Until flipped, a published cell can take selection but silently
    swallow keystrokes.
 4. **Data lands in `SIGDS_`-prefixed tables** in the connection's write schema.

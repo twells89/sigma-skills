@@ -184,7 +184,7 @@ asset URL. If none is available:
 2. label the approximation as a tradeoff in the manifest;
 3. do not claim a monogram is the source logo.
 
-Inline SVG data URIs may pass `/v2/workbooks/spec/verify` but still trigger a
+Inline SVG data URIs may pass the `POST /v2/workbooks` dry-run (`dryRun: true`) but still trigger a
 Cloudflare WAF challenge on the actual `POST`/`PUT`. Only a successful write,
 readback, and render proves the asset path works.
 
