@@ -1,9 +1,17 @@
 # shared/lib/code_rep.rb
 # Shape adapter for the Sigma WORKBOOK code representation
-# (POST /v2/workbooks/spec, GET|PUT /v2/workbooks/{id}/spec, POST /v2/workbooks/spec/verify).
+# (POST /v2/workbooks, GET /v2/workbooks/{id}?includeContents=true,
+# PUT /v2/workbooks/{id}/contents; dry-run = POST /v2/workbooks with dryRun: true).
+#
+# ENDPOINTS (OpenAPI 2.0.0+20261030, live-verified 2026-11-03): the /spec
+# workbook and report endpoints are DEPRECATED. Their replacements carry the
+# same document under `contents` instead of `document` (byte-identical on a
+# live readback). Build paths and bodies with the endpoint helpers below rather
+# than hand-writing them. On-disk artifacts keep the `document` wrapper that
+# wrap() emits; create_body/update_body re-key it at the API boundary.
 #
 # Verified live 2026-08-03/04: this surface nests non-metadata fields under a top-level
-# `document` key and REJECTS the old flat body with HTTP 400 — including on /verify.
+# wrapper key and REJECTS the old flat body with HTTP 400 — including on dry-run.
 # Sigma engineering confirmed 2026-08-03 that the DATA-MODEL code-rep surface is NOT
 # changing, so this adapter is deliberately workbook-only and always writes the nested
 # shape. Do NOT use it on /v2/dataModels/.../spec payloads — that API ignores `document`
@@ -22,6 +30,19 @@ module Sigma
       schemaVersion kind elements pages overlays panels layout settings agents
     ].freeze
 
+    # Envelope keys of the workbook/report responses that are never writable.
+    # The /spec-era names (latestDocumentVersion, folderId) stay listed so old
+    # snapshots strip the same way as live readbacks.
+    RESPONSE_ONLY_KEYS = %w[
+      workbookId workbookUrlId reportId reportUrlId url path documentVersion
+      latestVersion latestDocumentVersion ownerId createdBy updatedBy createdAt
+      updatedAt isArchived tags taggedSourceUrlId warnings dryRun valid errors
+    ].freeze
+    CREATE_METADATA_KEYS = %w[name folderId description ownerId].freeze
+
+    WORKBOOKS_PATH = '/v2/workbooks'
+    REPORTS_PATH = '/v2/reports'
+
     # REMOVED from the API. The workbook theme is now `settings.theme.name` and
     # `settings.theme.overrides` (published OpenAPI: createWorkbookSpec — there
     # are zero occurrences of themeName/themeOverrides in it). The individual
@@ -37,10 +58,11 @@ module Sigma
     ).join('|').freeze
 
     class << self
-      # Read path: accepts the live nested shape OR a legacy flat artifact.
+      # Read path: accepts the live `contents` shape, the /spec-era `document`
+      # shape, OR a legacy flat artifact.
       def document(response)
         return {} unless response.is_a?(Hash)
-        inner = response['document']
+        inner = response['contents'].is_a?(Hash) ? response['contents'] : response['document']
         doc = inner.is_a?(Hash) ? inner : response.select { |k, _| DOC_KEYS.include?(k) }
         fold_legacy_theme(doc, response)
       end
@@ -48,8 +70,67 @@ module Sigma
       def metadata(response)
         return {} unless response.is_a?(Hash)
         response.reject do |k, _|
-          k == 'document' || DOC_KEYS.include?(k) || LEGACY_THEME_KEYS.include?(k)
+          %w[document contents].include?(k) || DOC_KEYS.include?(k) || LEGACY_THEME_KEYS.include?(k)
         end
+      end
+
+      # ---- Endpoint helpers -------------------------------------------------
+      # `type` is :workbook or :report. Paths are relative to SIGMA_BASE_URL.
+
+      # POST target for create and for dry-run validation.
+      def create_path(type = :workbook)
+        collection_path(type)
+      end
+
+      # GET that returns the envelope plus `contents` and `documentVersion`.
+      def read_path(id, type = :workbook, document_version: nil)
+        path = "#{collection_path(type)}/#{id}?includeContents=true"
+        document_version ? "#{path}&documentVersion=#{Integer(document_version)}" : path
+      end
+
+      # PUT target that replaces an existing document.
+      def update_path(id, type = :workbook)
+        "#{collection_path(type)}/#{id}/contents"
+      end
+
+      # Create (or dry-run) body. `spec` may be a bare document, a `document`-
+      # or `contents`-wrapped artifact, or a flat legacy artifact; its name /
+      # folderId / description / ownerId are used unless overridden in `extra`.
+      # Workbook contents are flattened like wrap(); report contents are a
+      # different representation and pass through untouched.
+      def create_body(spec, extra: {}, dry_run: false, type: :workbook)
+        meta = metadata(spec).select { |k, _| CREATE_METADATA_KEYS.include?(k) }
+        body = meta.merge(extra.transform_keys(&:to_s)).merge('contents' => api_contents(spec, type))
+        body['dryRun'] = true if dry_run
+        body
+      end
+
+      # Update body. Pass the documentVersion you read to make the PUT fail
+      # with code stale_document_settings instead of overwriting newer edits.
+      def update_body(spec, document_version: nil, type: :workbook)
+        body = { 'contents' => api_contents(spec, type) }
+        body['documentVersion'] = document_version if document_version
+        body
+      end
+
+      # Normalize a dry-run response to the /spec/verify-era shape callers
+      # check: { 'valid' => bool, 'errors' => [{ 'summary' => ... }] }.
+      # Success is HTTP 200 with no `valid` key; a schema failure is HTTP 400
+      # with valid:false and errors; other 4xx carry only `message`.
+      def dry_run_result(status, body)
+        status = status.to_i
+        body = body.is_a?(Hash) ? body : {}
+        return { 'valid' => true, 'errors' => [], 'warnings' => Array(body['warnings']) } if status.between?(200, 299)
+
+        errors = Array(body['errors'])
+        errors = [{ 'summary' => body['message'] || "HTTP #{status}" }] if errors.empty?
+        { 'valid' => false, 'errors' => errors, 'warnings' => Array(body['warnings']) }
+      end
+
+      # Strip non-writable envelope keys (live and /spec-era) from a readback.
+      def strip_response_only(spec)
+        return spec unless spec.is_a?(Hash)
+        spec.reject { |k, _| RESPONSE_ONLY_KEYS.include?(k) }
       end
 
       # Emitter helper — set the workbook theme on a document hash in the CURRENT
@@ -126,6 +207,19 @@ module Sigma
       end
 
       private
+
+      def api_contents(spec, type)
+        collection_path(type) # validates type
+        type.to_sym == :workbook ? flatten_elements(document(spec)) : document(spec)
+      end
+
+      def collection_path(type)
+        case type.to_sym
+        when :workbook then WORKBOOKS_PATH
+        when :report then REPORTS_PATH
+        else raise ArgumentError, "unknown code-rep type #{type.inspect} (want :workbook or :report)"
+        end
+      end
 
       def flatten_elements(doc)
         return doc unless doc.is_a?(Hash)
