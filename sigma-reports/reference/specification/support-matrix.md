@@ -160,15 +160,15 @@ fixed report pages or keep it as a workbook.
 
 The API can add common kinds before this skill is updated. The validator warns
 on an unknown kind instead of claiming it is invalid. Inspect the current
-OpenAPI and report documentation, run `/v2/reports/spec/verify`, and update the
+OpenAPI and report documentation, run a `POST /v2/reports` dry-run (`dryRun: true`), and update the
 matrix only after evidence establishes the correct state.
 
 ## Lossy readback warning
 
-`GET /v2/reports/{reportId}/spec` can omit features unsupported by report code
+`GET /v2/reports/{reportId}?includeContents=true` can omit features unsupported by report code
 representation. Before PUT, compare the code representation with the report's
 element, page, and control inventory APIs. If inventory objects are missing
-from `document`, stop. Replacing the document can permanently remove omitted
+from `contents`, stop. Replacing the document can permanently remove omitted
 features from the next report version.
 
 A report-level `list` control is a known case: it reads back as

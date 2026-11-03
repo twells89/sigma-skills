@@ -2,8 +2,9 @@
 # frozen_string_literal: true
 
 # Worked example: a two-page, pixel-perfect store operating report that is
-# bursted one copy per store. Writes a create envelope for POST
-# /v2/reports/spec; it never calls the API. See README.md in this directory.
+# bursted one copy per store. Writes a create envelope
+# ({name, folderId, document}; re-key `document` to `contents` for POST /v2/reports);
+# it never calls the API. See README.md in this directory.
 #
 #   ruby build.rb --folder-id <folder> --connection-id <sample-db-connection> \
 #     --output /tmp/store-report.json

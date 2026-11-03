@@ -37,10 +37,11 @@ a targeted OpenAPI review and live verify before writing.
 
 ## 2. Server verify
 
-POST the create envelope to `/v2/reports/spec/verify`. This is non-persistent
+POST the create envelope with `"dryRun": true` to `/v2/reports` (replaces the
+deprecated `/v2/reports/spec/verify`). This is non-persistent
 and should precede every create or update. For an update, wrap the edited
-document with the current report name and folder solely for verification, then
-send `{document: ..., documentVersion: ...}` to PUT.
+document with the current report name and folder solely for the dry-run, then
+send `{contents: ..., documentVersion: ...}` to `PUT /v2/reports/{id}/contents`.
 
 Verify can catch schema and dependency errors that an offline validator cannot.
 

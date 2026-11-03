@@ -2,7 +2,7 @@
 name: sigma-reports
 description: >-
   Build, validate, retrieve, and safely update Sigma report code
-  representations through /v2/reports/spec. Use for fixed-layout or
+  representations through /v2/reports (contents). Use for fixed-layout or
   pixel-perfect reports, executive board packets, wide operational tables,
   invoices, statements, regulatory documents, PDF delivery, and bursting one
   copy per store/account/recipient. Covers reusable report scaffolds, report pages, absolute pixel layout,
@@ -14,9 +14,19 @@ description: >-
 # Sigma Reports (Code Representation via REST API)
 
 Use this skill for Sigma **reports**, the fixed-page authoring surface exposed
-by `/v2/reports/spec`. Reports are a private-beta resource. They share common
+by `/v2/reports`. Reports are a private-beta resource. They share common
 element shapes with workbooks but have a different resource lifecycle and a
 different layout language.
+
+> **Deprecated endpoints.** `POST /v2/reports/spec`, `POST /v2/reports/spec/verify`
+> and `GET`/`PUT /v2/reports/{reportId}/spec` (and the `/v2/workbooks/.../spec`
+> equivalents) are deprecated as of OpenAPI 2.0.0+20261030. Use `POST /v2/reports`
+> (`dryRun: true` validates without saving), `GET /v2/reports/{reportId}?includeContents=true`
+> and `PUT /v2/reports/{reportId}/contents`. The document moves from the
+> `document` key to `contents` (otherwise byte-identical). The **data-model**
+> `/v2/dataModels/spec` endpoints are **not** deprecated. The local authoring file
+> in this skill (`{name, folderId, document}`) keeps its `document` key; the
+> validator accepts either, and the jq commands below re-key it for the wire.
 
 ## Choose the correct resource
 
@@ -28,8 +38,8 @@ workflows, containers, tabs, modals, drawers, or workbook navigation.
 Never create a report by sending `kind: report` to a workbook endpoint. The
 resource families are separate:
 
-- Reports: `/v2/reports/spec`, `/v2/reports/{reportId}/spec`
-- Workbooks: `/v2/workbooks/spec`, `/v2/workbooks/{workbookId}/spec`
+- Reports: `/v2/reports`, `/v2/reports/{reportId}`, `/v2/reports/{reportId}/contents`
+- Workbooks: `/v2/workbooks`, `/v2/workbooks/{workbookId}`, `/v2/workbooks/{workbookId}/contents`
 - Conversion: `/v2/workbooks/{workbookId}/convertToReport`
 
 ## Source of truth
@@ -227,17 +237,25 @@ that need a deliberate decision.
 ### Step 6: Verify without persistence
 
 ```bash
-curl -sf -X POST \
+jq -c '{name, folderId, description, contents: .document, dryRun: true}
+       | with_entries(select(.value != null))' \
+  /tmp/report-spec.json > /tmp/report-dryrun-body.json
+
+curl -s -X POST \
   -H "Authorization: Bearer $SIGMA_API_TOKEN" \
   -H "Content-Type: application/json" \
   -H "Accept: application/json" \
-  --data-binary @/tmp/report-spec.json \
-  "$SIGMA_BASE_URL/v2/reports/spec/verify" \
+  --data-binary @/tmp/report-dryrun-body.json \
+  "$SIGMA_BASE_URL/v2/reports" \
   > /tmp/report-verify.json
 ```
 
-Verification checks server-side representation and dependencies without
-creating a report. It does not prove the PDF layout is correct or that GET will
+A `dryRun: true` POST checks server-side representation and dependencies without
+creating a report (replaces `/v2/reports/spec/verify`). HTTP 200 means valid
+(`{dryRun: true, reportId: null, warnings: [...]}`, no `valid` key); HTTP 400
+returns `{dryRun: true, valid: false, errors: [{summary}]}` with
+`contents.`-prefixed paths — so do not use `curl -f`, which would hide the error
+body. It does not prove the PDF layout is correct or that GET will
 round-trip every UI feature.
 
 ### Step 7: Create only with explicit approval
@@ -245,22 +263,29 @@ round-trip every UI feature.
 After the user approves the persistent write and destination folder:
 
 ```bash
+jq -c '{name, folderId, description, contents: .document}
+       | with_entries(select(.value != null))' \
+  /tmp/report-spec.json > /tmp/report-create-body.json
+
 curl -sf -X POST \
   -H "Authorization: Bearer $SIGMA_API_TOKEN" \
   -H "Content-Type: application/json" \
   -H "Accept: application/json" \
-  --data-binary @/tmp/report-spec.json \
-  "$SIGMA_BASE_URL/v2/reports/spec" \
+  --data-binary @/tmp/report-create-body.json \
+  "$SIGMA_BASE_URL/v2/reports" \
   > /tmp/report-create.json
 ```
+
+The response is the report envelope (`reportId`, `reportUrlId`, `url`, `path`,
+`latestVersion`, ...); there is no `success` key.
 
 Save the submitted representation under a report-ID-specific path. Report the
 report URL, ID, and saved path.
 
 Send create and update bodies as compact JSON (`jq -c .`). A pretty-printed
 ~96 KB PUT body was answered with a Cloudflare challenge page (HTML, not JSON)
-while the same document compacted to ~66 KB was accepted; `/verify` accepted
-both. Treat an HTML "Just a moment..." response as a transport block, not a
+while the same document compacted to ~66 KB was accepted; the dry-run (then
+`/verify`) accepted both. Treat an HTML "Just a moment..." response as a transport block, not a
 Sigma validation error.
 
 ### Step 8: Read back and inspect output
@@ -288,12 +313,14 @@ Follow `reference/workflows/crud.md`. The short version is:
 1. GET and back up the current report representation.
 2. Inventory report pages, controls, and elements through their resource APIs.
 3. Stop if the inventory contains content absent from the GET representation.
-4. Edit the complete `document`.
-5. Validate in `--mode update` and call `/v2/reports/spec/verify` with a create
-   envelope assembled from the current name/folder and edited document.
-6. PUT `{"document": {...}, "documentVersion": <version-from-GET>}`. The
+4. Edit the complete `contents` (the `document` key in a local authoring file).
+5. Validate in `--mode update` and run a `POST /v2/reports` dry-run
+   (`dryRun: true`) with a create envelope assembled from the current
+   name/folder and edited document.
+6. PUT `/v2/reports/{reportId}/contents` with
+   `{"contents": {...}, "documentVersion": <version-from-GET>}`. The
    version is optional in OpenAPI but strongly recommended so a concurrent edit
-   fails instead of being overwritten.
+   fails (HTTP 400 `stale_document_settings`) instead of being overwritten.
 7. GET again, compare, export, and inspect.
 
 ## Reference index
